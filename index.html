@@ -83,6 +83,11 @@
   .c-maze:hover   { border-color: var(--green); box-shadow: 0 0 28px rgba(69,255,138,.5); }
   .c-story  { color: var(--pink); }
   .c-story:hover  { border-color: var(--pink);  box-shadow: 0 0 28px rgba(255,61,240,.5); }
+  .c-poop   { color: var(--gold); }
+  .c-poop:hover   { border-color: var(--gold);  box-shadow: 0 0 28px rgba(255,210,63,.55); }
+  .badge { display:inline-block; background:var(--gold); color:#3a2410; font-size:.7rem;
+           font-weight:bold; padding:1px 7px; border-radius:8px; margin-left:6px; vertical-align:middle; }
+  @keyframes pop { 0%{transform:scale(.6);opacity:0} 70%{transform:scale(1.08)} 100%{transform:scale(1);opacity:1} }
 
   footer { margin-top: 38px; font-size: .85rem; opacity: .5; }
 </style>
@@ -111,6 +116,12 @@
         <span class="txt"><b>Nils hemsida</b><span>Läs Nils egen berättelse</span></span>
         <span class="go">▶</span>
       </a>
+
+      <a class="card c-poop" id="bajskorvCard" href="bajskorv.html" style="display:none;">
+        <span class="emoji">💩</span>
+        <span class="txt"><b>Bajskorv-flykten<span class="badge">NYTT!</span></b><span>Flyg genom avloppet som en missil 🚀</span></span>
+        <span class="go">▶</span>
+      </a>
     </div>
 
     <footer>Byggt av Nils &amp; pappa 💙</footer>
@@ -129,6 +140,21 @@
     d.style.animationDelay = (Math.random() * 3) + 's';
     s.appendChild(d);
   }
+
+  // Avslöja Bajskorv-flykten exakt 2026-06-06 kl 15:00 svensk tid (CEST = UTC+2)
+  const REVEAL = new Date('2026-06-06T15:00:00+02:00').getTime();
+  const card = document.getElementById('bajskorvCard');
+  function showCard() {
+    if (card.style.display === 'flex') return;
+    card.style.display = 'flex';
+    card.style.animation = 'pop .5s ease-out';
+  }
+  function checkReveal() {
+    const left = REVEAL - Date.now();
+    if (left <= 0) { showCard(); return; }
+    setTimeout(checkReveal, Math.min(30000, left)); // kollar igen, senast vid avslöjandet
+  }
+  checkReveal();
 </script>
 </body>
 </html>

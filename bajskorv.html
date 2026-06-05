@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Bajskorv-flykten 💩</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { height:100%; background:#1a0f06; overflow:hidden; }
+  body { display:flex; align-items:center; justify-content:center;
+         font-family:'Trebuchet MS','Segoe UI',sans-serif; }
+  #wrap { position:relative; width:100%; height:100%; max-width:520px; max-height:820px; }
+  canvas { display:block; width:100%; height:100%; image-rendering:pixelated;
+           background:#2b1b0c; touch-action:none; }
+  #hint { position:absolute; left:0; right:0; bottom:14px; text-align:center;
+          color:#ffd23f; font-size:14px; text-shadow:0 1px 2px #000; pointer-events:none;
+          opacity:.85; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="c"></canvas>
+  <div id="hint">Mellanslag / klick / tryck = blubbla uppåt &nbsp;•&nbsp; R = börja om</div>
+</div>
+<script>
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+
+// Logisk upplösning (skalas till skärmen)
+const W = 360, H = 600;
+cv.width = W; cv.height = H;
+
+// ---------- Ljud (Web Audio, inga ljudfiler) ----------
+let AC = null;
+function ac(){ if(!AC){ try{ AC = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } return AC; }
+function blip(freq, dur, type, vol){
+  const a = ac(); if(!a) return;
+  const o = a.createOscillator(), g = a.createGain();
+  o.type = type||'square'; o.frequency.value = freq;
+  g.gain.value = vol||0.12;
+  o.connect(g); g.connect(a.destination);
+  const t = a.currentTime;
+  o.start(t);
+  g.gain.setValueAtTime(g.gain.value, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.stop(t + dur);
+}
+function sBlubbla(){ // mjuk uppåt-bubbla
+  const a=ac(); if(!a) return;
+  const o=a.createOscillator(), g=a.createGain();
+  o.type='sine'; o.frequency.setValueAtTime(220,a.currentTime);
+  o.frequency.exponentialRampToValueAtTime(520, a.currentTime+0.12);
+  g.gain.value=0.18; o.connect(g); g.connect(a.destination);
+  o.start(); g.gain.exponentialRampToValueAtTime(0.0001,a.currentTime+0.16); o.stop(a.currentTime+0.16);
+}
+function sPlopp(){ blip(880,0.08,'triangle',0.2); setTimeout(()=>blip(1320,0.07,'triangle',0.16),40); }
+function sKrock(){ // pruttig krock
+  const a=ac(); if(!a) return;
+  const o=a.createOscillator(), g=a.createGain();
+  o.type='sawtooth'; o.frequency.setValueAtTime(180,a.currentTime);
+  o.frequency.exponentialRampToValueAtTime(45, a.currentTime+0.4);
+  g.gain.value=0.25; o.connect(g); g.connect(a.destination);
+  o.start(); g.gain.exponentialRampToValueAtTime(0.0001,a.currentTime+0.45); o.stop(a.currentTime+0.45);
+}
+function sVinst(){ [523,659,784,1047].forEach((f,i)=>setTimeout(()=>blip(f,0.18,'square',0.18),i*140)); }
+
+// ---------- Spelvärld ----------
+const GOAL = 15;            // antal rör att passera för att "vakna i grannens toa"
+let state = 'start';        // start | spelar | dod | vinst
+let py, vy, rot;            // bajskorvens position/fart/rotation
+const PX = 96;              // bajskorvens fasta x-led
+const R = 16;               // radie
+const GRAV = 0.45, FLAP = -7.2;
+let pipes, corns, scrollSpeed, passed, score, frame, shakeT;
+let bubbles = [];           // dekor-bubblor i bakgrunden
+
+function reset(){
+  py = H/2; vy = 0; rot = 0;
+  pipes = []; corns = [];
+  scrollSpeed = 2.1; passed = 0; score = 0; frame = 0; shakeT = 0;
+  spawnPipe(W + 40);
+  spawnPipe(W + 40 + 220);
+}
+function gap(){ return Math.max(150, 200 - passed*3); } // krymper långsamt
+
+function spawnPipe(x){
+  const g = gap();
+  const margin = 70;
+  const gy = margin + Math.random()*(H - margin*2 - g); // gapets topp
+  // växla tema: udda = toaborste uppifrån + toarulle nedifrån
+  const theme = (pipes.length % 2);
+  pipes.push({ x, gy, g, theme, scored:false });
+  // ibland ett majskorn mitt i gapet
+  if(Math.random() < 0.7){
+    corns.push({ x: x + 26, y: gy + g/2 + (Math.random()*40-20), taken:false });
+  }
+}
+
+// ---------- Indata ----------
+function flap(){
+  if(state==='start'){ state='spelar'; reset(); state='spelar'; vy=FLAP; sBlubbla(); return; }
+  if(state==='spelar'){ vy = FLAP; rot = -0.5; sBlubbla(); return; }
+  if(state==='dod' || state==='vinst'){ state='spelar'; reset(); vy=FLAP; return; }
+}
+function restart(){ state='spelar'; reset(); }
+
+window.addEventListener('keydown', e=>{
+  if(e.code==='Space' || e.code==='ArrowUp'){ e.preventDefault(); flap(); }
+  else if(e.key==='r' || e.key==='R'){ restart(); }
+});
+cv.addEventListener('mousedown', e=>{ e.preventDefault(); flap(); });
+cv.addEventListener('touchstart', e=>{ e.preventDefault(); flap(); }, {passive:false});
+
+// ---------- Uppdatering ----------
+function update(){
+  frame++;
+  // bakgrundsbubblor
+  if(frame % 18 === 0) bubbles.push({x:Math.random()*W, y:H+8, r:2+Math.random()*4, s:0.4+Math.random()*0.8});
+  bubbles.forEach(b=> b.y -= b.s);
+  bubbles = bubbles.filter(b=> b.y > -10);
+
+  if(state!=='spelar') return;
+  if(shakeT>0) shakeT--;
+
+  vy += GRAV;
+  py += vy;
+  rot += 0.05; if(rot>1.2) rot=1.2;
+
+  // tak/golv
+  if(py - R < 0){ py = R; vy = 0; }
+  if(py + R > H){ die(); return; }
+
+  // rör
+  for(const p of pipes){
+    p.x -= scrollSpeed;
+    if(!p.scored && p.x + 30 < PX){
+      p.scored = true; passed++; score += 1;
+      if(passed >= GOAL){ win(); return; }
+    }
+    // kollision: utanför gapet i x-overlap
+    if(PX + R > p.x && PX - R < p.x + 52){
+      if(py - R < p.gy || py + R > p.gy + p.g){ die(); return; }
+    }
+  }
+  // ta bort + fyll på
+  if(pipes.length && pipes[0].x < -60) pipes.shift();
+  const lastX = pipes[pipes.length-1].x;
+  if(lastX < W - 200) spawnPipe(lastX + 210);
+
+  // majskorn
+  for(const k of corns){
+    k.x -= scrollSpeed;
+    if(!k.taken){
+      const dx=k.x-PX, dy=k.y-py;
+      if(dx*dx+dy*dy < (R+9)*(R+9)){ k.taken=true; score += 3; sPlopp(); }
+    }
+  }
+  corns = corns.filter(k=> k.x > -20 && !k.taken);
+
+  // svår-ökning
+  scrollSpeed = 2.1 + passed*0.08;
+}
+
+function die(){ if(state!=='spelar') return; state='dod'; shakeT=14; sKrock(); }
+function win(){ state='vinst'; sVinst(); }
+
+// ---------- Ritning ----------
+function drawBackground(){
+  // avloppsväggar – mörk brun gradient
+  const g = ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#3a2410'); g.addColorStop(0.5,'#241606'); g.addColorStop(1,'#160d04');
+  ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
+  // grynig "smuts"
+  ctx.fillStyle='rgba(90,60,25,0.25)';
+  for(let i=0;i<40;i++){ const x=(i*53+ (frame*0.3))%W, y=(i*97)%H; ctx.fillRect(x,y,3,3); }
+  // bakgrundsbubblor
+  ctx.fillStyle='rgba(150,110,60,0.4)';
+  bubbles.forEach(b=>{ ctx.beginPath(); ctx.arc(b.x,b.y,b.r,0,7); ctx.fill(); });
+  // fartstreck när man rusar ("som en missil")
+  if(state==='spelar'){
+    ctx.strokeStyle='rgba(255,255,255,0.06)'; ctx.lineWidth=2;
+    for(let i=0;i<6;i++){ const y=((i*120 + frame*6)%H); ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(40,y); ctx.stroke(); }
+  }
+}
+
+function drawPipe(p){
+  const w=52;
+  if(p.theme===0){
+    // toaborste uppifrån + toarulle nedifrån
+    drawToaborste(p.x, 0, p.gy, w);
+    drawToarulle(p.x, p.gy+p.g, H-(p.gy+p.g), w);
+  } else {
+    drawToarulle(p.x, 0, p.gy, w);
+    drawToaborste(p.x, p.gy+p.g, H-(p.gy+p.g), w);
+  }
+}
+function drawToarulle(x, top, h, w){
+  if(h<=0) return;
+  ctx.fillStyle='#f2efe6'; ctx.fillRect(x, top, w, h);          // vit rulle
+  ctx.fillStyle='#d9d4c4';
+  for(let yy=top+6; yy<top+h; yy+=14){ ctx.fillRect(x, yy, w, 2); } // perforering
+  ctx.fillStyle='#9c8f74'; ctx.fillRect(x+w/2-7, top, 14, h);   // kärna
+  ctx.fillStyle='rgba(0,0,0,0.12)'; ctx.fillRect(x+w-6,top,6,h);
+}
+function drawToaborste(x, top, h, w){
+  if(h<=0) return;
+  // skaft
+  ctx.fillStyle='#4aa3ff'; ctx.fillRect(x+w/2-4, top, 8, h);
+  // borst-huvud i änden (mot gapet)
+  const headAtBottom = top===0;
+  const hy = headAtBottom ? top+h-26 : top;
+  ctx.fillStyle='#7d5a2e';
+  ctx.fillRect(x+4, hy, w-8, 26);
+  ctx.fillStyle='#5e4220';
+  for(let bx=x+6; bx<x+w-4; bx+=5){ ctx.fillRect(bx, hy, 2, 26); }
+}
+
+function drawCorn(k){
+  if(k.taken) return;
+  ctx.fillStyle='#ffd23f';
+  ctx.beginPath(); ctx.ellipse(k.x, k.y, 7, 9, 0, 0, 7); ctx.fill();
+  ctx.fillStyle='#ffe98a'; ctx.fillRect(k.x-2,k.y-4,2,3);
+  ctx.strokeStyle='#caa022'; ctx.lineWidth=1; ctx.stroke();
+}
+
+function drawBajskorv(){
+  ctx.save();
+  ctx.translate(PX, py);
+  ctx.rotate(Math.max(-0.5, Math.min(1.0, rot)));
+  // tre staplade "swirl"-klumpar
+  ctx.fillStyle='#7a4a22';
+  ctx.beginPath(); ctx.ellipse(0,8,16,8,0,0,7); ctx.fill();
+  ctx.fillStyle='#8a5628';
+  ctx.beginPath(); ctx.ellipse(0,0,12,8,0,0,7); ctx.fill();
+  ctx.fillStyle='#9a632f';
+  ctx.beginPath(); ctx.ellipse(0,-7,8,7,0,0,7); ctx.fill();
+  // glansdask
+  ctx.fillStyle='rgba(255,255,255,0.25)';
+  ctx.beginPath(); ctx.ellipse(-4,-8,3,2,0,0,7); ctx.fill();
+  // ögon
+  ctx.fillStyle='#fff';
+  ctx.beginPath(); ctx.arc(-4,-1,3.4,0,7); ctx.fill();
+  ctx.beginPath(); ctx.arc(5,-1,3.4,0,7); ctx.fill();
+  ctx.fillStyle='#000';
+  ctx.beginPath(); ctx.arc(-3.4,-0.6,1.6,0,7); ctx.fill();
+  ctx.beginPath(); ctx.arc(5.6,-0.6,1.6,0,7); ctx.fill();
+  // litet leende
+  ctx.strokeStyle='#3a2410'; ctx.lineWidth=1.4;
+  ctx.beginPath(); ctx.arc(1,4,4,0.15*Math.PI,0.85*Math.PI); ctx.stroke();
+  ctx.restore();
+}
+
+function drawHUD(){
+  ctx.fillStyle='#fff'; ctx.font='bold 22px Trebuchet MS'; ctx.textAlign='left';
+  ctx.fillText('Poäng: '+score, 12, 30);
+  ctx.textAlign='right'; ctx.fillStyle='#ffd23f';
+  ctx.fillText('Rör: '+passed+'/'+GOAL, W-12, 30);
+  ctx.textAlign='left';
+}
+
+function panel(lines, color){
+  ctx.fillStyle='rgba(0,0,0,0.55)'; ctx.fillRect(0,0,W,H);
+  ctx.textAlign='center';
+  let y = 150;
+  lines.forEach(l=>{
+    ctx.fillStyle = l.c || color || '#fff';
+    ctx.font = (l.big?'bold 30px':'18px')+' Trebuchet MS';
+    ctx.fillText(l.t, W/2, y);
+    y += l.gap || (l.big?44:28);
+  });
+  ctx.textAlign='left';
+}
+
+function draw(){
+  let ox=0, oy=0;
+  if(shakeT>0){ ox=(Math.random()*2-1)*6; oy=(Math.random()*2-1)*6; }
+  ctx.save(); ctx.translate(ox,oy);
+
+  drawBackground();
+  pipes.forEach(drawPipe);
+  corns.forEach(drawCorn);
+  drawBajskorv();
+  drawHUD();
+
+  if(state==='start'){
+    panel([
+      {t:'💩 BAJSKORV-FLYKTEN', big:true, c:'#ffd23f', gap:50},
+      {t:'Bajskorven sögs in i toan...', c:'#fff'},
+      {t:'flyg genom avloppet som en MISSIL!', c:'#9ad0ff'},
+      {t:'', gap:14},
+      {t:'Samla majskorn 🌽 = 3 poäng', c:'#ffe98a'},
+      {t:'Klara '+GOAL+' rör → grannens toa!', c:'#9ad0ff'},
+      {t:'', gap:18},
+      {t:'▶ Mellanslag / tryck för att börja', big:false, c:'#fff'},
+    ]);
+  } else if(state==='dod'){
+    panel([
+      {t:'PLASK! 💦', big:true, c:'#ff7b7b', gap:48},
+      {t:'Bajskorven fastnade i avloppet.', c:'#fff'},
+      {t:'Poäng: '+score, c:'#ffd23f'},
+      {t:'', gap:18},
+      {t:'Tryck R eller klicka för nytt försök', c:'#9ad0ff'},
+    ]);
+  } else if(state==='vinst'){
+    panel([
+      {t:'🎉 DU KLARADE DET!', big:true, c:'#9affb0', gap:48},
+      {t:'Bajskorven vaknade i', c:'#fff'},
+      {t:'GRANNENS toa! 🚽', c:'#ffd23f', gap:34},
+      {t:'...bajsade klart och gick hem.', c:'#fff'},
+      {t:'', gap:14},
+      {t:'Slutpoäng: '+score, big:false, c:'#ffd23f'},
+      {t:'snipp snapp snut 🌟', c:'#9ad0ff'},
+      {t:'', gap:14},
+      {t:'Tryck R för att spela igen', c:'#fff'},
+    ]);
+  }
+  ctx.restore();
+}
+
+// ---------- Loop ----------
+reset(); state='start';
+function loop(){ update(); draw(); requestAnimationFrame(loop); }
+loop();
+</script>
+</body>
+</html>
