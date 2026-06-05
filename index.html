@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nils Spelhåla 🎮</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg1: #0b0b2a;
+    --bg2: #1a0b3a;
+    --neon: #00e5ff;
+    --pink: #ff3df0;
+    --gold: #ffd23f;
+    --green: #45ff8a;
+  }
+  html, body { height: 100%; }
+  body {
+    font-family: 'Trebuchet MS', 'Segoe UI', sans-serif;
+    color: #fff;
+    background: radial-gradient(circle at 50% -10%, var(--bg2), var(--bg1) 60%, #050514 100%);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow-x: hidden;
+    padding: 24px;
+    position: relative;
+  }
+  /* Stjärnfält */
+  .stars { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+  .star {
+    position: absolute; background: #fff; border-radius: 50%;
+    animation: twinkle 3s infinite ease-in-out;
+  }
+  @keyframes twinkle { 0%,100%{opacity:.2;transform:scale(.7)} 50%{opacity:1;transform:scale(1.2)} }
+
+  .wrap { position: relative; z-index: 1; width: 100%; max-width: 720px; text-align: center; }
+
+  h1 {
+    font-size: clamp(2.2rem, 8vw, 4.2rem);
+    letter-spacing: 2px;
+    line-height: 1.05;
+    margin-bottom: 8px;
+    text-shadow: 0 0 12px var(--neon), 0 0 30px rgba(0,229,255,.5);
+    animation: float 4s ease-in-out infinite;
+  }
+  @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+  .sub {
+    font-size: clamp(1rem, 3.5vw, 1.4rem);
+    color: var(--gold);
+    margin-bottom: 40px;
+    text-shadow: 0 0 8px rgba(255,210,63,.6);
+  }
+
+  .cards { display: grid; gap: 22px; }
+
+  a.card {
+    display: flex; align-items: center; gap: 20px;
+    text-decoration: none; color: #fff;
+    padding: 22px 26px;
+    border-radius: 22px;
+    background: rgba(255,255,255,.06);
+    border: 2px solid rgba(255,255,255,.15);
+    backdrop-filter: blur(6px);
+    transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+  }
+  a.card:hover, a.card:focus-visible {
+    transform: translateY(-6px) scale(1.02);
+    outline: none;
+  }
+  .emoji { font-size: clamp(2.4rem, 9vw, 3.4rem); line-height: 1; filter: drop-shadow(0 0 10px currentColor); }
+  .txt { text-align: left; flex: 1; }
+  .txt b { display: block; font-size: clamp(1.3rem, 5vw, 1.8rem); letter-spacing: 1px; }
+  .txt span { font-size: clamp(.85rem, 3vw, 1rem); opacity: .8; }
+  .go { font-size: 1.8rem; opacity: .6; transition: transform .15s ease; }
+  a.card:hover .go { transform: translateX(6px); opacity: 1; }
+
+  .c-space  { color: var(--neon); }
+  .c-space:hover  { border-color: var(--neon);  box-shadow: 0 0 28px rgba(0,229,255,.5); }
+  .c-maze   { color: var(--green); }
+  .c-maze:hover   { border-color: var(--green); box-shadow: 0 0 28px rgba(69,255,138,.5); }
+  .c-story  { color: var(--pink); }
+  .c-story:hover  { border-color: var(--pink);  box-shadow: 0 0 28px rgba(255,61,240,.5); }
+
+  footer { margin-top: 38px; font-size: .85rem; opacity: .5; }
+</style>
+</head>
+<body>
+  <div class="stars" id="stars"></div>
+  <div class="wrap">
+    <h1>🎮 Nils Spelhåla</h1>
+    <p class="sub">Välj ett äventyr!</p>
+
+    <div class="cards">
+      <a class="card c-space" href="asteroids.html">
+        <span class="emoji">🚀</span>
+        <span class="txt"><b>Rymdäventyret</b><span>Flyg, skjut asteroider och samla stjärnor</span></span>
+        <span class="go">▶</span>
+      </a>
+
+      <a class="card c-maze" href="labyrint.html">
+        <span class="emoji">👾</span>
+        <span class="txt"><b>Labyrinten – Slajm-jakten</b><span>Spring i labyrinten och pricka alla monster</span></span>
+        <span class="go">▶</span>
+      </a>
+
+      <a class="card c-story" href="nils-hemsida.html">
+        <span class="emoji">📖</span>
+        <span class="txt"><b>Nils hemsida</b><span>Läs Nils egen berättelse</span></span>
+        <span class="go">▶</span>
+      </a>
+    </div>
+
+    <footer>Byggt av Nils &amp; pappa 💙</footer>
+  </div>
+
+<script>
+  // Generera stjärnfält
+  const s = document.getElementById('stars');
+  for (let i = 0; i < 90; i++) {
+    const d = document.createElement('div');
+    d.className = 'star';
+    const sz = Math.random() * 2.5 + 0.5;
+    d.style.width = d.style.height = sz + 'px';
+    d.style.left = Math.random() * 100 + '%';
+    d.style.top = Math.random() * 100 + '%';
+    d.style.animationDelay = (Math.random() * 3) + 's';
+    s.appendChild(d);
+  }
+</script>
+</body>
+</html>

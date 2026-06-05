@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nils Labyrint-spel</title>
+<style>
+  body {
+    margin: 0;
+    background: #0b0b1a;
+    color: #9bf06a;
+    font-family: "Courier New", monospace;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    text-align: center;
+    user-select: none;
+    image-rendering: pixelated;
+  }
+  h1 { margin: 12px 0 4px; color: #9bf06a; text-shadow: 3px 3px #1a4d0a; font-size: 26px; }
+  #info { margin: 4px 0 10px; font-size: 16px; color: #ffd84d; text-shadow: 2px 2px #000; }
+  canvas {
+    background: #08060f;
+    border: 4px solid #9bf06a;
+    box-shadow: 0 0 0 4px #1a4d0a, 0 0 30px #9bf06a;
+    image-rendering: pixelated; image-rendering: crisp-edges;
+  }
+  #hjalp { margin: 14px auto; max-width: 600px; font-size: 13px; line-height: 1.7; color: #6ad0c0; text-shadow: 1px 1px #000; }
+  .tangent { background: #9bf06a; color: #0b0b1a; padding: 1px 7px; text-shadow: none; }
+</style>
+</head>
+<body>
+  <h1>* NILS LABYRINT *</h1>
+  <div id="info">POÄNG: <span id="poang">0</span> &nbsp; BANA: <span id="bana">1</span>/3 &nbsp; MONSTER KVAR: <span id="kvar">0</span></div>
+  <canvas id="spel" width="640" height="480"></canvas>
+  <div id="hjalp">
+    GÅ: <span class="tangent">PILAR</span> ELLER <span class="tangent">W A S D</span> &nbsp;
+    SKJUT: <span class="tangent">MELLANSLAG</span> &nbsp;
+    BÖRJA OM: <span class="tangent">R</span>
+  </div>
+
+<script>
+// ===== NILS LABYRINT-SPEL =====
+const canvas = document.getElementById("spel");
+const ctx = canvas.getContext("2d");
+ctx.imageSmoothingEnabled = false;
+
+const RUTA = 40, FART = 3, PX = 4;
+let lage = "start";          // "start" | "spelar" | "nivaKlar" | "vunnit"
+let nivaNr = 0;              // vilken bana vi är på (0,1,2)
+let banaText = "";          // text som visas mellan banorna
+
+// ===== BANA 1 (handgjord labyrint) =====
+const bana1 = [
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  [1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1],
+  [1,0,1,1,0,0,1,0,1,1,1,1,0,1,0,1],
+  [1,0,1,0,0,1,1,0,0,0,0,1,0,1,0,1],
+  [1,0,1,0,1,1,0,0,1,1,0,1,0,0,0,1],
+  [1,0,0,0,0,0,0,1,1,0,0,0,0,1,0,1],
+  [1,0,1,1,1,0,0,0,0,0,1,1,0,1,0,1],
+  [1,0,0,0,1,0,1,1,1,0,1,0,0,0,0,1],
+  [1,1,1,0,1,0,0,0,1,0,1,0,1,1,0,1],
+  [1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,1],
+  [1,0,1,1,1,1,1,0,1,1,1,0,0,0,1,1],
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+];
+
+// ===== BANA 2 (pelar-rum) =====
+function byggPelarbana() {
+  const k = [];
+  for (let r = 0; r < 12; r++) {
+    const rad = [];
+    for (let c = 0; c < 16; c++) {
+      if (r===0 || r===11 || c===0 || c===15) rad.push(1);
+      else if (r % 2 === 0 && c % 2 === 0) rad.push(1);   // pelare
+      else rad.push(0);
+    }
+    k.push(rad);
+  }
+  return k;
+}
+
+// ===== BANA 3 (lodräta murar med luckor) =====
+function byggBana3() {
+  const k = [];
+  for (let r = 0; r < 12; r++) {
+    const rad = [];
+    for (let c = 0; c < 16; c++) {
+      if (r===0 || r===11 || c===0 || c===15) rad.push(1);
+      else if (c % 3 === 0 && r !== (c % 2 === 0 ? 2 : 9)) rad.push(1); // mur med en lucka
+      else rad.push(0);
+    }
+    k.push(rad);
+  }
+  return k;
+}
+
+const nivaer = [
+  { karta: bana1, antal: 8 },
+  { karta: byggPelarbana(), antal: 10 },
+  { karta: byggBana3(), antal: 12 },
+];
+
+let karta = nivaer[0].karta;  // den bana vi spelar just nu
+
+// ===== PIXEL-FIGURER =====
+const gubbeSprite = [
+  "  rrrr  "," rrrrrr "," ssssss "," sbssbs "," ssssss ","  ssss  ",
+  " gggggg ","gggggggg","gggggggg"," dddddd "," dd  dd "," bb  bb ",
+];
+const gubbeFarger = { r:"#9c3b1b", s:"#ffce8a", b:"#1a1a1a", g:"#3bc24a", d:"#2a52be" };
+const monsterSprite = [
+  "  pppp  "," pppppp ","pwppppwp","pkppppkp","pppppppp","pppppppp","pp pp pp","p p  p p",
+];
+const monsterFarger = { p:"#b84dff", w:"#ffffff", k:"#1a1a1a" };
+const bollSprite = [ " GG ","GGGG","GGGG"," GG " ];
+const bollFarger = { G:"#9bf06a" };
+
+function ritaSprite(grid, mittX, mittY, palett, px) {
+  px = px || PX;
+  const startX = Math.round(mittX - (grid[0].length*px)/2);
+  const startY = Math.round(mittY - (grid.length*px)/2);
+  for (let r = 0; r < grid.length; r++)
+    for (let c = 0; c < grid[r].length; c++) {
+      const t = grid[r][c];
+      if (t === " ") continue;
+      ctx.fillStyle = palett[t];
+      ctx.fillRect(startX + c*px, startY + r*px, px, px);
+    }
+}
+
+function ritaPistol() {
+  ctx.save();
+  ctx.translate(gubbe.x, gubbe.y + 4);
+  ctx.rotate(Math.atan2(gubbe.riktningY, gubbe.riktningX));
+  ctx.fillStyle = "#3a3a3a"; ctx.fillRect(2, -3, 16, 6);
+  ctx.fillStyle = "#222222"; ctx.fillRect(2, 3, 6, 8);
+  ctx.fillStyle = "#9aa";    ctx.fillRect(16, -2, 4, 4);
+  ctx.restore();
+}
+
+function ritaVagg(x, y) {
+  ctx.fillStyle = "#1c1442"; ctx.fillRect(x, y, RUTA, RUTA);
+  ctx.fillStyle = "#3a2e7a";
+  const bredd = 18, hojd = 8;
+  for (let rad = 0; rad < RUTA; rad += hojd + 2) {
+    const skift = ((rad / (hojd+2)) % 2) * (bredd/2 + 1);
+    for (let kol = -bredd; kol < RUTA; kol += bredd + 2)
+      ctx.fillRect(x + kol + skift, y + rad, bredd, hojd);
+  }
+}
+
+// ===== LJUD (retro-pip, görs i webbläsaren — inga filer behövs) =====
+let ljudCtx = null;
+function startaLjud() {
+  if (!ljudCtx) ljudCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (ljudCtx.state === "suspended") ljudCtx.resume();
+}
+function pip(freq, langd, typ, volym, glidTill) {
+  if (!ljudCtx) return;
+  const o = ljudCtx.createOscillator(), g = ljudCtx.createGain();
+  o.type = typ || "square";
+  o.frequency.setValueAtTime(freq, ljudCtx.currentTime);
+  if (glidTill) o.frequency.exponentialRampToValueAtTime(glidTill, ljudCtx.currentTime + langd);
+  g.gain.setValueAtTime(volym || 0.12, ljudCtx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, ljudCtx.currentTime + langd);
+  o.connect(g); g.connect(ljudCtx.destination);
+  o.start(); o.stop(ljudCtx.currentTime + langd);
+}
+function ljudSkott()    { pip(680, 0.12, "square", 0.10, 240); }      // pew!
+function ljudTraff()    { pip(160, 0.18, "sawtooth", 0.14, 50); }     // splat!
+function ljudBanaKlar() { pip(523,0.1,"square",0.12); setTimeout(()=>pip(659,0.1,"square",0.12),110); setTimeout(()=>pip(784,0.18,"square",0.12),220); }
+
+// ===== SANDSTORM (8-bitars version av melodin — spelas när du vinner!) =====
+// Detta är en egen pixel-version av melodin, inte den riktiga inspelningen.
+function byggSandstorm() {
+  const B=987.77, A=880, G=783.99, D=1174.66, Fs=739.99;  // toner i b-moll
+  const takter = [B, A, B, D, B, A, G, Fs];  // en ton per takt — den drivande riffen
+  const seq = [];
+  for (const ton of takter)
+    for (let i = 0; i < 8; i++) seq.push(ton);  // 8 snabba toner per takt
+  return seq;
+}
+let latInterval = null;
+function spelaSandstorm() {
+  startaLjud();
+  if (!ljudCtx) return;
+  const seq = byggSandstorm();
+  let i = 0;
+  stoppaLat();
+  latInterval = setInterval(() => {
+    if (lage !== "vunnit") { stoppaLat(); return; }
+    if (i % 4 === 0) pip(110, 0.14, "sine", 0.30, 45);   // trumma (boom på varje taktslag)
+    pip(seq[i % seq.length], 0.085, "square", 0.10);     // melodin
+    i++;
+  }, 110);  // ~136 slag/minut, precis som Sandstorm
+}
+function stoppaLat() { if (latInterval) { clearInterval(latInterval); latInterval = null; } }
+
+// ===== GUBBEN =====
+const gubbe = { x: 1*RUTA+RUTA/2, y: 1*RUTA+RUTA/2, radie: 12, riktningX: 1, riktningY: 0 };
+let bollar = [], monster = [], poang = 0;
+
+function arVagg(x, y) {
+  const kol = Math.floor(x / RUTA), rad = Math.floor(y / RUTA);
+  if (rad < 0 || rad >= karta.length || kol < 0 || kol >= karta[0].length) return true;
+  return karta[rad][kol] === 1;
+}
+function kanGaTill(x, y, r) {
+  return !arVagg(x-r,y-r) && !arVagg(x+r,y-r) && !arVagg(x-r,y+r) && !arVagg(x+r,y+r);
+}
+
+// Hittar spridda öppna rutor för monstren på den aktuella banan
+function platserForBana(k, antal) {
+  const oppna = [];
+  for (let r = 1; r < k.length-1; r++)
+    for (let c = 1; c < k[0].length-1; c++)
+      if (k[r][c] === 0 && !(r===1 && c===1)) oppna.push([c, r]);
+  const valda = [], steg = Math.max(1, Math.floor(oppna.length / antal));
+  for (let i = 0; i < antal && i*steg < oppna.length; i++) valda.push(oppna[i*steg]);
+  return valda;
+}
+
+function skapaMonster() {
+  monster = [];
+  for (const [kol, rad] of platserForBana(karta, nivaer[nivaNr].antal)) {
+    monster.push({
+      x: kol*RUTA+RUTA/2, y: rad*RUTA+RUTA/2, radie: 11,
+      riktX: (kol % 2 === 0) ? 1 : -1, riktY: (rad % 2 === 0) ? 1 : -1,
+      levande: true,
+    });
+  }
+}
+
+const tangenter = {};
+document.addEventListener("keydown", (e) => {
+  const k = e.key.toLowerCase();
+  tangenter[k] = true;
+  startaLjud();
+  if (e.key === " ") {
+    if (lage === "start" || lage === "vunnit") borjaOm();
+    else if (lage === "spelar") skjut();
+    e.preventDefault();
+  }
+  if (k === "r") borjaOm();
+  if ([" ","arrowup","arrowdown","arrowleft","arrowright"].includes(k)) e.preventDefault();
+});
+document.addEventListener("keyup", (e) => { tangenter[e.key.toLowerCase()] = false; });
+
+let kanSkjuta = true;
+function skjut() {
+  if (!kanSkjuta) return;
+  bollar.push({
+    x: gubbe.x + gubbe.riktningX*16,
+    y: gubbe.y + gubbe.riktningY*16 + 4,
+    dx: gubbe.riktningX*6, dy: gubbe.riktningY*6, radie: 7,
+  });
+  ljudSkott();
+  kanSkjuta = false;
+  setTimeout(() => { kanSkjuta = true; }, 250);
+}
+
+function flyttaGubbe() {
+  let dx=0, dy=0;
+  if (tangenter["arrowleft"] || tangenter["a"]) dx = -FART;
+  if (tangenter["arrowright"]|| tangenter["d"]) dx = FART;
+  if (tangenter["arrowup"]   || tangenter["w"]) dy = -FART;
+  if (tangenter["arrowdown"] || tangenter["s"]) dy = FART;
+  if (dx !== 0 || dy !== 0) {
+    gubbe.riktningX = dx === 0 ? 0 : (dx > 0 ? 1 : -1);
+    gubbe.riktningY = dy === 0 ? 0 : (dy > 0 ? 1 : -1);
+  }
+  if (kanGaTill(gubbe.x+dx, gubbe.y, gubbe.radie)) gubbe.x += dx;
+  if (kanGaTill(gubbe.x, gubbe.y+dy, gubbe.radie)) gubbe.y += dy;
+}
+
+function flyttaBollar() {
+  for (const b of bollar) { b.x += b.dx; b.y += b.dy; }
+  bollar = bollar.filter(b => !arVagg(b.x, b.y));
+}
+
+function flyttaMonster() {
+  for (const m of monster) {
+    if (!m.levande) continue;
+    if (kanGaTill(m.x+m.riktX*1.2, m.y, m.radie)) m.x += m.riktX*1.2; else m.riktX *= -1;
+    if (kanGaTill(m.x, m.y+m.riktY*1.2, m.radie)) m.y += m.riktY*1.2; else m.riktY *= -1;
+  }
+}
+
+function kollaTraffar() {
+  for (const b of bollar) {
+    for (const m of monster) {
+      if (!m.levande) continue;
+      if (Math.hypot(b.x-m.x, b.y-m.y) < b.radie + m.radie) {
+        m.levande = false; b.traffad = true; poang += 10; ljudTraff();
+      }
+    }
+  }
+  bollar = bollar.filter(b => !b.traffad);
+  const kvar = monster.filter(m => m.levande).length;
+  document.getElementById("poang").textContent = poang;
+  document.getElementById("kvar").textContent = kvar;
+  if (kvar === 0) nastaBana();
+}
+
+// Går vidare till nästa bana, eller vinner om alla banor är klara
+function nastaBana() {
+  if (nivaNr + 1 < nivaer.length) {
+    banaText = "BANA " + (nivaNr + 2) + "!";
+    lage = "nivaKlar";
+    ljudBanaKlar();
+    setTimeout(() => { laddaBana(nivaNr + 1); lage = "spelar"; }, 1500);
+  } else {
+    lage = "vunnit";
+    spelaSandstorm();   // 8-bitars Sandstorm spelas när alla banor är klarade!
+  }
+}
+
+// Laddar en bana (men nollställer INTE poängen)
+function laddaBana(n) {
+  nivaNr = n;
+  karta = nivaer[n].karta;
+  gubbe.x = 1*RUTA+RUTA/2; gubbe.y = 1*RUTA+RUTA/2;
+  gubbe.riktningX = 1; gubbe.riktningY = 0;
+  bollar = [];
+  skapaMonster();
+  document.getElementById("bana").textContent = n + 1;
+  document.getElementById("kvar").textContent = monster.length;
+}
+
+// ===== RITA SPELPLANEN =====
+function ritaPlan() {
+  for (let rad = 0; rad < karta.length; rad++)
+    for (let kol = 0; kol < karta[rad].length; kol++) {
+      if (karta[rad][kol] === 1) ritaVagg(kol*RUTA, rad*RUTA);
+      else { ctx.fillStyle = "#100c22"; ctx.fillRect(kol*RUTA+18, rad*RUTA+18, 4, 4); }
+    }
+  for (const m of monster) if (m.levande) ritaSprite(monsterSprite, m.x, m.y, monsterFarger);
+  for (const b of bollar) ritaSprite(bollSprite, b.x, b.y, bollFarger, 3);
+  ritaSprite(gubbeSprite, gubbe.x, gubbe.y, gubbeFarger, 3);
+  ritaPistol();
+}
+
+function ritaStartskarm() {
+  ctx.fillStyle = "rgba(5,5,20,0.82)"; ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#9bf06a"; ctx.font = "bold 44px 'Courier New', monospace";
+  ctx.fillText("LABYRINTEN", canvas.width/2, 150);
+  ctx.fillStyle = "#ffd84d"; ctx.font = "bold 22px 'Courier New', monospace";
+  ctx.fillText("SLAJM-JAKTEN", canvas.width/2, 195);
+  ctx.fillStyle = "#ffffff"; ctx.font = "bold 20px 'Courier New', monospace";
+  ctx.fillText("TRYCK MELLANSLAG", canvas.width/2, 290);
+  ctx.fillText("FÖR ATT BÖRJA", canvas.width/2, 320);
+  ctx.fillStyle = "#6ad0c0"; ctx.font = "bold 14px 'Courier New', monospace";
+  ctx.fillText("3 BANOR FULLA AV SLAJM-MONSTER!", canvas.width/2, 390);
+}
+
+function ritaBanaKlar() {
+  ctx.fillStyle = "rgba(5,5,20,0.7)"; ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#9bf06a"; ctx.font = "bold 30px 'Courier New', monospace";
+  ctx.fillText("BANA KLAR!", canvas.width/2, 210);
+  ctx.fillStyle = "#ffd84d"; ctx.font = "bold 40px 'Courier New', monospace";
+  ctx.fillText(banaText, canvas.width/2, 270);
+}
+
+function ritaVinstskarm() {
+  ctx.fillStyle = "rgba(5,20,5,0.85)"; ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#ffd84d"; ctx.font = "bold 46px 'Courier New', monospace";
+  ctx.fillText("DU VANN!", canvas.width/2, 170);
+  ctx.fillStyle = "#9bf06a"; ctx.font = "bold 22px 'Courier New', monospace";
+  ctx.fillText("DU KLARADE ALLA 3 BANOR!", canvas.width/2, 215);
+  ctx.fillStyle = "#ffffff"; ctx.font = "bold 24px 'Courier New', monospace";
+  ctx.fillText("POÄNG: " + poang, canvas.width/2, 290);
+  ctx.fillStyle = "#6ad0c0"; ctx.font = "bold 18px 'Courier New', monospace";
+  ctx.fillText("TRYCK R FÖR ATT SPELA IGEN", canvas.width/2, 370);
+}
+
+function spelLoop() {
+  if (lage === "spelar") { flyttaGubbe(); flyttaBollar(); flyttaMonster(); kollaTraffar(); }
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ritaPlan();
+  if (lage === "start")    ritaStartskarm();
+  if (lage === "nivaKlar") ritaBanaKlar();
+  if (lage === "vunnit")   ritaVinstskarm();
+  requestAnimationFrame(spelLoop);
+}
+
+function borjaOm() {
+  startaLjud();
+  stoppaLat();   // stäng av segerlåten om den spelas
+  poang = 0;
+  document.getElementById("poang").textContent = 0;
+  laddaBana(0);
+  lage = "spelar";
+}
+
+// Starta på startskärmen
+laddaBana(0);
+lage = "start";
+spelLoop();
+</script>
+</body>
+</html>

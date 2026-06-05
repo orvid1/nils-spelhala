@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<title>Rymdäventyret</title>
+<style>
+  body { margin: 0; background: #111; overflow: hidden; }
+  canvas {
+    display: block;
+    margin: 20px auto;
+    background: #000;
+    border: 2px solid #29b6f6;          /* blå ram runt spelplanen */
+    box-shadow: 0 0 20px #29b6f6;       /* svag blå glöd */
+  }
+  #info {
+    position: fixed; top: 10px; left: 10px;
+    color: #fff; font-family: monospace; font-size: 14px;
+  }
+</style>
+</head>
+<body>
+<div id="info">W/↑ framåt &nbsp; S/↓ broms &nbsp; A/← vrid &nbsp; D/→ vrid &nbsp; MELLANSLAG skjut &nbsp; Q sköld (1 stjärna) &nbsp; P paus</div>
+<canvas id="spel" width="800" height="600"></canvas>
+
+<script>
+  // ---- Grundinställning ----
+  const canvas = document.getElementById("spel");
+  const ctx = canvas.getContext("2d");
+
+  // ---- Skeppet ----
+  const skepp = {
+    x: canvas.width / 2,   // mitten av skärmen
+    y: canvas.height / 2,
+    vinkel: -Math.PI / 2,  // pekar uppåt från start
+    fartX: 0,              // hastighet i sidled
+    fartY: 0,              // hastighet i höjdled
+    storlek: 15            // hur stor triangeln är
+  };
+
+  // ---- Lasrar ----
+  const lasrar = [];        // alla laserskott som flyger just nu
+  let skottCooldown = 0;    // räknare så man inte skjuter varje frame
+
+  // ---- Asteroider ----
+  const asteroider = [];
+
+  // ---- Stjärnor (power-up som droppar från asteroider) ----
+  const stjarnor = [];
+  let stjarnLager = 0;
+  const STJARN_MAX = 10;
+
+  function skapaStjarna(x, y, typ = "skold") {
+    const vinkel = Math.random() * Math.PI * 2;
+    const fart = 0.4 + Math.random() * 0.6;
+    stjarnor.push({
+      x, y, typ,
+      fartX: Math.cos(vinkel) * fart,
+      fartY: Math.sin(vinkel) * fart,
+      rotation: Math.random() * Math.PI * 2,
+      rotationsfart: 0.04,
+      liv: 720    // försvinner efter 12 sek om ingen plockar upp
+    });
+  }
+
+  // Skapa en asteroid med en oregelbunden form (vertices = avstånd från mitten)
+  function skapaAsteroid(x, y, radie) {
+    const hörn = 10;
+    const vertices = [];
+    for (let i = 0; i < hörn; i++) {
+      // varje hörn ligger på 80–110 % av radien så formen blir knölig
+      vertices.push(radie * (0.8 + Math.random() * 0.3));
+    }
+    // Kratrar — slumpas en gång så de sitter still på asteroiden
+    const kratrar = [];
+    const antalKratrar = 3 + Math.floor(Math.random() * 4);
+    for (let i = 0; i < antalKratrar; i++) {
+      const kv = Math.random() * Math.PI * 2;
+      const kd = Math.random() * radie * 0.65;
+      kratrar.push({
+        x: Math.cos(kv) * kd,
+        y: Math.sin(kv) * kd,
+        r: radie * (0.10 + Math.random() * 0.18)
+      });
+    }
+    // Små ljusa stenfläckar (highlights)
+    const flackar = [];
+    const antalFlackar = 2 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < antalFlackar; i++) {
+      const fv = Math.random() * Math.PI * 2;
+      const fd = Math.random() * radie * 0.6;
+      flackar.push({
+        x: Math.cos(fv) * fd,
+        y: Math.sin(fv) * fd,
+        r: radie * (0.05 + Math.random() * 0.08)
+      });
+    }
+    // Slumpa riktning och fart — större = långsammare
+    const vinkel = Math.random() * Math.PI * 2;
+    const fart = (40 / radie) * (0.5 + Math.random() * 0.7);
+    asteroider.push({
+      x, y, radie, vertices, kratrar, flackar,
+      fartX: Math.cos(vinkel) * fart,
+      fartY: Math.sin(vinkel) * fart,
+      rotation: 0,
+      rotationsfart: (Math.random() - 0.5) * 0.02
+    });
+  }
+
+  // Spawna startasteroider — inte för nära skeppet
+  function spawnaStartasteroider(antal) {
+    for (let i = 0; i < antal; i++) {
+      let x, y, avstand;
+      do {
+        x = Math.random() * canvas.width;
+        y = Math.random() * canvas.height;
+        avstand = Math.hypot(x - skepp.x, y - skepp.y);
+      } while (avstand < 120); // håll dem borta från skeppet
+      skapaAsteroid(x, y, 40);
+    }
+  }
+  spawnaStartasteroider(5);
+
+  // Hjälpare så piltangenter och WASD räknas som samma sak
+  function tryckt(...vals) { return vals.some(v => keys[v]); }
+  const framat   = () => tryckt("w", "arrowup");
+  const bakat    = () => tryckt("s", "arrowdown");
+  const vanster  = () => tryckt("a", "arrowleft");
+  const hoger    = () => tryckt("d", "arrowright");
+  const skjut    = () => tryckt(" ");
+
+  // ---- Vilka tangenter är nedtryckta? ----
+  const keys = {};
+  window.addEventListener("keydown", e => {
+    keys[e.key.toLowerCase()] = true;
+    // Piltangenter och mellanslag skrollar sidan annars — stoppa det
+    if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"," "].includes(e.key)) {
+      e.preventDefault();
+    }
+    // R startar om när det är game over
+    if (e.key.toLowerCase() === "r" && gameOver) resetSpel();
+    // P pausar / återupptar (inte under game over) — ignorera tangent-repetition
+    if (e.key.toLowerCase() === "p" && !gameOver && !e.repeat) pausad = !pausad;
+    // Q aktiverar sköld om man har stjärnor och inte redan har sköld
+    if (e.key.toLowerCase() === "q" && !gameOver
+        && stjarnLager > 0 && skoldTid <= 0) {
+      stjarnLager--;
+      skoldTid = 300;   // 5 sekunder
+    }
+  });
+  window.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
+
+  // ---- Spelstatus ----
+  let poang = 0;
+  let gameOver = false;
+  let pausad = false;
+  let respawnSkydd = 90;   // skeppet är osårbart i ~1.5 sek vid start
+  let niva = 1;
+  let liv = 3;             // antal liv kvar
+  let skada = 0;           // antal träffar skeppet tagit (0–2 visas, 3 = död)
+  let skoldTid = 0;        // frames kvar med aktiv sköld
+  let turboTid = 0;        // frames kvar med aktiv turbo
+
+  function tappaLiv() {
+    liv--;
+    skada++;
+    if (liv <= 0) {
+      gameOver = true;
+    } else {
+      // flytta tillbaka till mitten och stanna, ge skydd
+      skepp.x = canvas.width / 2;
+      skepp.y = canvas.height / 2;
+      skepp.fartX = 0;
+      skepp.fartY = 0;
+      skepp.vinkel = -Math.PI / 2;
+      respawnSkydd = 120;
+    }
+  }
+
+  function resetSpel() {
+    skepp.x = canvas.width / 2;
+    skepp.y = canvas.height / 2;
+    skepp.fartX = 0;
+    skepp.fartY = 0;
+    skepp.vinkel = -Math.PI / 2;
+    lasrar.length = 0;
+    asteroider.length = 0;
+    stjarnor.length = 0;
+    stjarnLager = 0;
+    skoldTid = 0;
+    turboTid = 0;
+    poang = 0;
+    niva = 1;
+    liv = 3;
+    skada = 0;
+    gameOver = false;
+    pausad = false;
+    respawnSkydd = 90;
+    spawnaStartasteroider(5);
+  }
+
+  // ---- Uppdatera spelet (60 gånger per sekund) ----
+  function uppdatera() {
+    if (gameOver || pausad) return;     // spelet är stilla
+    if (respawnSkydd > 0) respawnSkydd--;
+
+    // Vrid skeppet
+    if (vanster()) skepp.vinkel -= 0.07;
+    if (hoger())   skepp.vinkel += 0.07;
+
+    // Gasa framåt eller bakåt (turbo = starkare gas)
+    const gas = turboTid > 0 ? 0.22 : 0.1;
+    if (framat()) {
+      skepp.fartX += Math.cos(skepp.vinkel) * gas;
+      skepp.fartY += Math.sin(skepp.vinkel) * gas;
+    }
+    if (bakat()) {
+      // Broms: minska farten rakt mot 0 — backar inte
+      const fart = Math.hypot(skepp.fartX, skepp.fartY);
+      if (fart > 0.01) {
+        const broms = 0.08;
+        const ny = Math.max(0, fart - broms);
+        skepp.fartX = (skepp.fartX / fart) * ny;
+        skepp.fartY = (skepp.fartY / fart) * ny;
+      }
+    }
+
+    // Mild friktion i rymden — skeppet glider av sig själv mot 0
+    skepp.fartX *= 0.99;
+    skepp.fartY *= 0.99;
+
+    // Maxhastighet — turbo dubblar nästan taket
+    const MAX_FART = turboTid > 0 ? 9 : 5;
+    const farten = Math.hypot(skepp.fartX, skepp.fartY);
+    if (farten > MAX_FART) {
+      skepp.fartX = (skepp.fartX / farten) * MAX_FART;
+      skepp.fartY = (skepp.fartY / farten) * MAX_FART;
+    }
+
+    // Flytta skeppet
+    skepp.x += skepp.fartX;
+    skepp.y += skepp.fartY;
+
+    // Wrap-around: om skeppet åker ut till vänster, kommer det in till höger
+    if (skepp.x < 0) skepp.x = canvas.width;
+    if (skepp.x > canvas.width) skepp.x = 0;
+    if (skepp.y < 0) skepp.y = canvas.height;
+    if (skepp.y > canvas.height) skepp.y = 0;
+
+    // ---- Skjuta laser ----
+    if (skottCooldown > 0) skottCooldown--;
+    if (skjut() && skottCooldown <= 0) {
+      const noseAvstand = skepp.storlek * 1.2;
+      lasrar.push({
+        x: skepp.x + Math.cos(skepp.vinkel) * noseAvstand,
+        y: skepp.y + Math.sin(skepp.vinkel) * noseAvstand,
+        fartX: Math.cos(skepp.vinkel) * 8 + skepp.fartX,
+        fartY: Math.sin(skepp.vinkel) * 8 + skepp.fartY,
+        liv: 70  // antal frames innan lasern försvinner
+      });
+      skottCooldown = 10;  // vänta 10 frames innan nästa skott
+    }
+
+    // ---- Uppdatera lasrar ----
+    for (let i = lasrar.length - 1; i >= 0; i--) {
+      const l = lasrar[i];
+      l.x += l.fartX;
+      l.y += l.fartY;
+      l.liv--;
+      // Wrap-around även för lasrar
+      if (l.x < 0) l.x = canvas.width;
+      if (l.x > canvas.width) l.x = 0;
+      if (l.y < 0) l.y = canvas.height;
+      if (l.y > canvas.height) l.y = 0;
+      // Ta bort gamla lasrar
+      if (l.liv <= 0) lasrar.splice(i, 1);
+    }
+
+
+    // ---- Uppdatera asteroider ----
+    for (const a of asteroider) {
+      a.x += a.fartX;
+      a.y += a.fartY;
+      a.rotation += a.rotationsfart;
+      if (a.x < -a.radie) a.x = canvas.width + a.radie;
+      if (a.x > canvas.width + a.radie) a.x = -a.radie;
+      if (a.y < -a.radie) a.y = canvas.height + a.radie;
+      if (a.y > canvas.height + a.radie) a.y = -a.radie;
+    }
+
+    // ---- Krock: laser träffar asteroid ----
+    for (let i = asteroider.length - 1; i >= 0; i--) {
+      const a = asteroider[i];
+      for (let j = lasrar.length - 1; j >= 0; j--) {
+        const l = lasrar[j];
+        if (Math.hypot(a.x - l.x, a.y - l.y) < a.radie) {
+          // Träff! Ta bort lasern
+          lasrar.splice(j, 1);
+          // Poäng beroende på storlek — små är svårast att träffa
+          if (a.radie > 30)      poang += 20;
+          else if (a.radie > 18) poang += 50;
+          else                   poang += 100;
+          // Splittra asteroiden om den är stor nog
+          if (a.radie > 18) {
+            const nyRadie = a.radie * 0.55;
+            skapaAsteroid(a.x, a.y, nyRadie);
+            skapaAsteroid(a.x, a.y, nyRadie);
+          }
+          // 30 % chans guldstjärna (sköld), 8 % chans lila stjärna (turbo)
+          if (Math.random() < 0.30) skapaStjarna(a.x, a.y, "skold");
+          if (Math.random() < 0.08) skapaStjarna(a.x, a.y, "turbo");
+          asteroider.splice(i, 1);
+          break;
+        }
+      }
+    }
+
+    // ---- Uppdatera stjärnor + plocka upp ----
+    for (let i = stjarnor.length - 1; i >= 0; i--) {
+      const st = stjarnor[i];
+      st.x += st.fartX;
+      st.y += st.fartY;
+      st.rotation += st.rotationsfart;
+      st.liv--;
+      if (st.x < 0) st.x = canvas.width;
+      if (st.x > canvas.width) st.x = 0;
+      if (st.y < 0) st.y = canvas.height;
+      if (st.y > canvas.height) st.y = 0;
+      // Plocka upp om skeppet kommer nära
+      if (Math.hypot(st.x - skepp.x, st.y - skepp.y) < skepp.storlek + 10) {
+        if (st.typ === "turbo") {
+          turboTid = 300;          // 5 sek turbo direkt
+          stjarnor.splice(i, 1);
+          continue;
+        } else if (stjarnLager < STJARN_MAX) {
+          stjarnLager++;           // guld läggs i lagret
+          stjarnor.splice(i, 1);
+          continue;
+        }
+      }
+      if (st.liv <= 0) stjarnor.splice(i, 1);
+    }
+
+    // ---- Sköld och turbo räknar ner ----
+    if (skoldTid > 0) skoldTid--;
+    if (turboTid > 0) turboTid--;
+
+    // ---- Krock: skepp ↔ asteroid ----
+    if (respawnSkydd <= 0 && skoldTid <= 0) {
+      for (const a of asteroider) {
+        if (Math.hypot(a.x - skepp.x, a.y - skepp.y) < a.radie + skepp.storlek * 0.7) {
+          tappaLiv();
+          break;
+        }
+      }
+    }
+
+    // ---- Nästa nivå när alla asteroider är borta ----
+    if (asteroider.length === 0 && !gameOver) {
+      niva++;
+      respawnSkydd = 60;
+      spawnaStartasteroider(4 + niva);  // fler varje nivå
+    }
+  }
+
+  // ---- Rita skeppet ----
+  function rita() {
+    // Sudda hela skärmen (svart)
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Rita rymdskeppet (blinkar under respawn-skydd)
+    const skeppSynligt = respawnSkydd <= 0 || Math.floor(respawnSkydd / 6) % 2 === 0;
+    if (skeppSynligt && !gameOver) {
+    ctx.save();
+    ctx.translate(skepp.x, skepp.y);
+    ctx.rotate(skepp.vinkel);
+    const s = skepp.storlek;
+
+    // Bromsskärm bak när man bromsar och har fart kvar
+    const skeppFart = Math.hypot(skepp.fartX, skepp.fartY);
+    if (bakat() && skeppFart > 0.1) {
+      const flapp = Math.sin(Date.now() / 60) * 0.1;
+      const xc = -s * 1.9;                 // skärmens centrum
+      const r = s * 0.95 * (1 + flapp);    // pulserande radie för "flaxning"
+
+      // Linor från skeppets bakkant till skärmens rim
+      ctx.strokeStyle = "#e0e0e0";
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.9, -s * 0.4);  ctx.lineTo(xc, -r);
+      ctx.moveTo(-s * 0.9,  s * 0.4);  ctx.lineTo(xc,  r);
+      ctx.moveTo(-s * 0.9, -s * 0.1);  ctx.lineTo(xc, -r * 0.3);
+      ctx.moveTo(-s * 0.9,  s * 0.1);  ctx.lineTo(xc,  r * 0.3);
+      ctx.stroke();
+
+      // Själva skärmen (röd halvdome som öppnar sig bakåt)
+      ctx.fillStyle = "#ef5350";
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(xc, 0, r, -Math.PI / 2, Math.PI / 2, true);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Vit rand på mitten — klassisk fallskärms-look
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(xc - r, 0);
+      ctx.lineTo(xc, 0);
+      ctx.stroke();
+    }
+
+    // Flamma bak när man gasar — alltid tre flammor från tre motorer
+    if (framat()) {
+      const turbo = turboTid > 0;
+      const motorYn = [-s * 0.32, 0, s * 0.32];
+      for (const my of motorYn) {
+        const flammlangd = (turbo ? 16 : 10) + Math.random() * 8;
+        ctx.fillStyle = turbo ? "#9c27b0" : "#ff6a00";   // ytterflamma
+        ctx.beginPath();
+        ctx.moveTo(-s * 0.9, my - s * 0.18);
+        ctx.lineTo(-s - flammlangd, my);
+        ctx.lineTo(-s * 0.9, my + s * 0.18);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.fillStyle = turbo ? "#e040fb" : "#ffd000";   // innerflamma
+        ctx.beginPath();
+        ctx.moveTo(-s * 0.9, my - s * 0.09);
+        ctx.lineTo(-s - flammlangd * 0.6, my);
+        ctx.lineTo(-s * 0.9, my + s * 0.09);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+
+    // Vingar (bakre triangelvingar) — gradient ger 3D-känsla
+    const ovreVingGrad = ctx.createLinearGradient(0, -s * 1.0, 0, -s * 0.3);
+    ovreVingGrad.addColorStop(0, "#90a4ae");
+    ovreVingGrad.addColorStop(1, "#37474f");
+    ctx.fillStyle = ovreVingGrad;
+    ctx.strokeStyle = "#263238";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(-s * 0.2, -s * 0.4);
+    ctx.lineTo(-s * 1.1, -s * 1.0);
+    ctx.lineTo(-s * 0.9, -s * 0.3);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    const undreVingGrad = ctx.createLinearGradient(0, s * 0.3, 0, s * 1.0);
+    undreVingGrad.addColorStop(0, "#90a4ae");
+    undreVingGrad.addColorStop(1, "#37474f");
+    ctx.fillStyle = undreVingGrad;
+    ctx.beginPath();
+    ctx.moveTo(-s * 0.2, s * 0.4);
+    ctx.lineTo(-s * 1.1, s * 1.0);
+    ctx.lineTo(-s * 0.9, s * 0.3);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Huvudkropp — metallisk gradient (ljus topp, mörk botten)
+    const kroppGrad = ctx.createLinearGradient(0, -s * 0.55, 0, s * 0.55);
+    kroppGrad.addColorStop(0,    "#fafafa");   // metallreflex topp
+    kroppGrad.addColorStop(0.35, "#cfd8dc");
+    kroppGrad.addColorStop(0.7,  "#90a4ae");
+    kroppGrad.addColorStop(1,    "#455a64");   // skuggsida
+    ctx.fillStyle = kroppGrad;
+    ctx.strokeStyle = "#263238";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(s * 1.2, 0);              // nosen, längre fram
+    ctx.lineTo(s * 0.3, -s * 0.55);
+    ctx.lineTo(-s * 0.9, -s * 0.45);
+    ctx.lineTo(-s * 0.9, s * 0.45);
+    ctx.lineTo(s * 0.3, s * 0.55);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Panellinjer — små svetsfogar längs kroppen
+    ctx.strokeStyle = "rgba(38, 50, 56, 0.55)";
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(s * 0.9, -s * 0.18); ctx.lineTo(s * 0.9, s * 0.18);
+    ctx.moveTo(s * 0.0, -s * 0.5);  ctx.lineTo(s * 0.0, s * 0.5);
+    ctx.moveTo(-s * 0.5, -s * 0.47); ctx.lineTo(-s * 0.5, s * 0.47);
+    ctx.stroke();
+
+    // Liten ljus glansrand över ryggen
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(s * 1.05, -s * 0.05);
+    ctx.lineTo(s * 0.2,  -s * 0.42);
+    ctx.lineTo(-s * 0.85, -s * 0.32);
+    ctx.stroke();
+
+    // Cockpit — blank glaskupol med reflexer
+    ctx.save();
+    ctx.beginPath();
+    ctx.ellipse(s * 0.35, 0, s * 0.35, s * 0.25, 0, 0, Math.PI * 2);
+    ctx.clip();
+    // Bas-glas (mörk botten, ljus topp)
+    const glasGrad = ctx.createLinearGradient(0, -s * 0.25, 0, s * 0.25);
+    glasGrad.addColorStop(0,   "#81d4fa");
+    glasGrad.addColorStop(0.6, "#0288d1");
+    glasGrad.addColorStop(1,   "#01579b");
+    ctx.fillStyle = glasGrad;
+    ctx.fillRect(-s, -s, s * 3, s * 2);
+    // Vit reflex uppe till vänster
+    ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
+    ctx.beginPath();
+    ctx.ellipse(s * 0.22, -s * 0.13, s * 0.13, s * 0.06, -0.4, 0, Math.PI * 2);
+    ctx.fill();
+    // Liten extra reflex
+    ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
+    ctx.beginPath();
+    ctx.ellipse(s * 0.45, -s * 0.05, s * 0.05, s * 0.02, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    // Kant runt cockpit
+    ctx.strokeStyle = "#263238";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.ellipse(s * 0.35, 0, s * 0.35, s * 0.25, 0, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Motor bak — alltid tre munstycken
+    const turbo = turboTid > 0;
+    const motorYpos = [-s * 0.32, 0, s * 0.32];
+    const motorR = s * 0.16;
+    const innerR = s * 0.13;
+    for (const my of motorYpos) {
+      // Mörk ring runt munstycket
+      ctx.fillStyle = "#1a1a1a";
+      ctx.beginPath();
+      ctx.arc(-s * 0.85, my, motorR, 0, Math.PI * 2);
+      ctx.fill();
+      // Glödande kärna
+      const motorGrad = ctx.createRadialGradient(
+        -s * 0.85, my, 0,
+        -s * 0.85, my, innerR
+      );
+      if (turbo) {
+        motorGrad.addColorStop(0, "#ffffff");
+        motorGrad.addColorStop(0.4, "#e040fb");
+        motorGrad.addColorStop(1, "rgba(156, 39, 176, 0)");
+      } else {
+        motorGrad.addColorStop(0, "#ffffff");
+        motorGrad.addColorStop(0.4, "#ffd000");
+        motorGrad.addColorStop(1, "rgba(255, 106, 0, 0)");
+      }
+      ctx.fillStyle = motorGrad;
+      ctx.beginPath();
+      ctx.arc(-s * 0.85, my, innerR, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // ---- Skador efter krockar ----
+    if (skada >= 1) {
+      // Brännmärke på höger vinge
+      ctx.fillStyle = "#1a1a1a";
+      ctx.beginPath();
+      ctx.arc(-s * 0.55, s * 0.55, s * 0.22, 0, Math.PI * 2);
+      ctx.fill();
+      // Spricka över kroppen
+      ctx.strokeStyle = "#000";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(s * 0.6, -s * 0.2);
+      ctx.lineTo(s * 0.1, s * 0.1);
+      ctx.lineTo(-s * 0.2, -s * 0.05);
+      ctx.stroke();
+    }
+    if (skada >= 2) {
+      // Större brännmärke + glödande hål på vänster vinge
+      ctx.fillStyle = "#1a1a1a";
+      ctx.beginPath();
+      ctx.arc(-s * 0.5, -s * 0.5, s * 0.3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#ff5722"; // glödande röd kärna
+      ctx.beginPath();
+      ctx.arc(-s * 0.5, -s * 0.5, s * 0.1, 0, Math.PI * 2);
+      ctx.fill();
+      // Stor diagonal spricka
+      ctx.strokeStyle = "#000";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(s * 0.9, s * 0.3);
+      ctx.lineTo(-s * 0.3, -s * 0.2);
+      ctx.lineTo(-s * 0.7, s * 0.1);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+    }  // slut på "if (skeppSynligt && !gameOver)"
+
+    // ---- Rita stjärnor (power-ups) ----
+    for (const st of stjarnor) {
+      ctx.save();
+      ctx.translate(st.x, st.y);
+      ctx.rotate(st.rotation);
+      // Tindrande effekt
+      const twinkle = 0.65 + 0.35 * Math.sin(Date.now() / 120 + st.x);
+      ctx.globalAlpha = twinkle;
+      // Blinka snabbt om stjärnan snart försvinner
+      if (st.liv < 120 && Math.floor(st.liv / 6) % 2 === 0) {
+        ctx.globalAlpha *= 0.3;
+      }
+      if (st.typ === "turbo") {
+        ctx.fillStyle = "#ab47bc";       // lila kärna
+        ctx.strokeStyle = "#e1bee7";     // ljuslila kant
+      } else {
+        ctx.fillStyle = "#ffd54f";
+        ctx.strokeStyle = "#fff59d";
+      }
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      const yttreR = 12, inreR = 5;
+      for (let i = 0; i < 10; i++) {
+        const r = i % 2 === 0 ? yttreR : inreR;
+        const v = (i / 10) * Math.PI * 2 - Math.PI / 2;
+        const px = Math.cos(v) * r;
+        const py = Math.sin(v) * r;
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+
+    // ---- Sköld runt skeppet (om aktiv) ----
+    if (skoldTid > 0 && !gameOver) {
+      const sistSekund = skoldTid < 60;
+      const visa = !sistSekund || Math.floor(skoldTid / 5) % 2 === 0;
+      if (visa) {
+        ctx.save();
+        ctx.strokeStyle = "#29b6f6";
+        ctx.lineWidth = 3;
+        ctx.shadowColor = "#29b6f6";
+        ctx.shadowBlur = 18;
+        const puls = 1 + 0.05 * Math.sin(Date.now() / 80);
+        ctx.beginPath();
+        ctx.arc(skepp.x, skepp.y, skepp.storlek * 1.9 * puls, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    // ---- Rita asteroider (realistisk sten med ljus/skugga + kratrar) ----
+    for (const a of asteroider) {
+      ctx.save();
+      ctx.translate(a.x, a.y);
+      ctx.rotate(a.rotation);
+
+      // Bygg formen som path
+      const n = a.vertices.length;
+      ctx.beginPath();
+      for (let i = 0; i < n; i++) {
+        const v = a.vertices[i];
+        const vinkel = (i / n) * Math.PI * 2;
+        const px = Math.cos(vinkel) * v;
+        const py = Math.sin(vinkel) * v;
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+
+      // Fyll med radial gradient — solljus uppe vänster, mörk skuggsida
+      const grad = ctx.createRadialGradient(
+        -a.radie * 0.35, -a.radie * 0.35, a.radie * 0.1,
+         a.radie * 0.2,   a.radie * 0.2,   a.radie * 1.15
+      );
+      grad.addColorStop(0,    "#bfa78f");   // upplyst sida
+      grad.addColorStop(0.45, "#7a604c");
+      grad.addColorStop(1,    "#2a1d14");   // skuggsida
+      ctx.fillStyle = grad;
+      ctx.fill();
+
+      // Klipp till formen så kratrar inte hänger ut
+      ctx.clip();
+
+      // Ljusa stenfläckar (highlights)
+      for (const f of a.flackar) {
+        const fg = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, f.r);
+        fg.addColorStop(0, "rgba(220, 200, 175, 0.55)");
+        fg.addColorStop(1, "rgba(220, 200, 175, 0)");
+        ctx.fillStyle = fg;
+        ctx.beginPath();
+        ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Kratrar — mörk insida med en liten ljus kant nere till höger
+      for (const k of a.kratrar) {
+        // Mörk skugga
+        const krGrad = ctx.createRadialGradient(
+          k.x - k.r * 0.3, k.y - k.r * 0.3, 0,
+          k.x, k.y, k.r
+        );
+        krGrad.addColorStop(0,    "#1a0f08");
+        krGrad.addColorStop(0.75, "#3a2818");
+        krGrad.addColorStop(1,    "rgba(80, 55, 35, 0)");
+        ctx.fillStyle = krGrad;
+        ctx.beginPath();
+        ctx.arc(k.x, k.y, k.r, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Liten ljus kant nere till höger (motsatt ljuskällan)
+        ctx.strokeStyle = "rgba(210, 190, 165, 0.5)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(k.x, k.y, k.r * 0.95, Math.PI * 0.15, Math.PI * 0.85);
+        ctx.stroke();
+      }
+
+      ctx.restore();
+
+      // Yttre kant — ritas efter clip-passet
+      ctx.save();
+      ctx.translate(a.x, a.y);
+      ctx.rotate(a.rotation);
+      ctx.strokeStyle = "rgba(40, 28, 18, 0.9)";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      for (let i = 0; i < n; i++) {
+        const v = a.vertices[i];
+        const vinkel = (i / n) * Math.PI * 2;
+        const px = Math.cos(vinkel) * v;
+        const py = Math.sin(vinkel) * v;
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // ---- Rita lasrar ----
+    ctx.fillStyle = "#ff3333";
+    ctx.strokeStyle = "#ffaaaa";
+    ctx.lineWidth = 2;
+    for (const l of lasrar) {
+      ctx.beginPath();
+      ctx.arc(l.x, l.y, 3, 0, Math.PI * 2);
+      ctx.fill();
+      // En liten "svans" bakom lasern så det ser ut som ett skott
+      ctx.beginPath();
+      ctx.moveTo(l.x, l.y);
+      ctx.lineTo(l.x - l.fartX * 1.5, l.y - l.fartY * 1.5);
+      ctx.stroke();
+    }
+
+    // ---- Poäng och nivå uppe i hörnen ----
+    ctx.fillStyle = "#fff";
+    ctx.font = "20px monospace";
+    ctx.textAlign = "left";
+    ctx.fillText("Poäng: " + poang, 15, 30);
+    ctx.textAlign = "right";
+    ctx.fillText("Nivå: " + niva, canvas.width - 15, 30);
+
+    // ---- Liv som små skepp uppe till vänster ----
+    ctx.textAlign = "left";
+    ctx.fillStyle = "#fff";
+    ctx.fillText("Liv:", 15, 60);
+    for (let i = 0; i < liv; i++) {
+      const lx = 70 + i * 25;
+      const ly = 53;
+      // mini-skepp (liten triangel)
+      ctx.fillStyle = "#cfd8dc";
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(lx + 12, ly);
+      ctx.lineTo(lx, ly - 8);
+      ctx.lineTo(lx, ly + 8);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    // ---- Stjärnor som power-up-räkning ----
+    ctx.fillStyle = "#fff";
+    ctx.fillText("Stjärnor: " + stjarnLager + "/" + STJARN_MAX, 15, 90);
+    // Liten lysande stjärna bredvid texten
+    ctx.save();
+    ctx.translate(180, 84);
+    ctx.fillStyle = "#ffd54f";
+    ctx.strokeStyle = "#fff59d";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const r = i % 2 === 0 ? 9 : 4;
+      const v = (i / 10) * Math.PI * 2 - Math.PI / 2;
+      const px = Math.cos(v) * r;
+      const py = Math.sin(v) * r;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+
+    // ---- Sköld-timer när skölden är aktiv ----
+    if (skoldTid > 0) {
+      ctx.fillStyle = "#29b6f6";
+      ctx.font = "bold 18px monospace";
+      const sek = Math.ceil(skoldTid / 60);
+      ctx.fillText("SKÖLD: " + sek + "s", 15, 118);
+      ctx.font = "20px monospace";
+    }
+    // ---- Turbo-timer när turbo är aktiv ----
+    if (turboTid > 0) {
+      ctx.fillStyle = "#ce93d8";
+      ctx.font = "bold 18px monospace";
+      const sek = Math.ceil(turboTid / 60);
+      ctx.fillText("TURBO: " + sek + "s", 15, 144);
+      ctx.font = "20px monospace";
+    }
+
+    // ---- Paus-skärm ----
+    if (pausad && !gameOver) {
+      ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.fillStyle = "#29b6f6";
+      ctx.font = "bold 56px monospace";
+      ctx.textAlign = "center";
+      ctx.fillText("PAUS", canvas.width / 2, canvas.height / 2 - 10);
+
+      ctx.fillStyle = "#fff";
+      ctx.font = "20px monospace";
+      ctx.fillText("Tryck P för att fortsätta",
+                   canvas.width / 2, canvas.height / 2 + 35);
+    }
+
+    // ---- Game over-skärm ----
+    if (gameOver) {
+      ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.fillStyle = "#ff5252";
+      ctx.font = "bold 56px monospace";
+      ctx.textAlign = "center";
+      ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2 - 20);
+
+      ctx.fillStyle = "#fff";
+      ctx.font = "22px monospace";
+      ctx.fillText("Poäng: " + poang + "  •  Nivå: " + niva,
+                   canvas.width / 2, canvas.height / 2 + 20);
+      ctx.fillText("Tryck R för att börja om",
+                   canvas.width / 2, canvas.height / 2 + 60);
+    }
+  }
+
+  // ---- Spelloopen ----
+  function loop() {
+    uppdatera();
+    rita();
+    requestAnimationFrame(loop);
+  }
+  loop();
+</script>
+</body>
+</html>
