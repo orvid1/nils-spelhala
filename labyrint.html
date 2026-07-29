@@ -217,6 +217,22 @@ function uppdateraRekord() {
   }
 }
 
+// ===== BÖRJAN & SLUT: START-ruta + UTGÅNG (dörr) =====
+// Gubben börjar på START (uppe till vänster). Utgången ligger långt bort och är
+// LÅST tills alla slajm-monster är skjutna — då öppnas den och man går dit för att
+// klara banan.
+let mal = { kol: 1, rad: 1 };  // var utgången ligger på den aktuella banan
+let malOppet = false;          // blir true när alla monster är borta
+
+// Hittar en öppen ruta längst ner till höger (långt från starten uppe till vänster)
+function hittaMal(k) {
+  for (let r = k.length - 2; r >= 1; r--)
+    for (let c = k[0].length - 2; c >= 1; c--)
+      if (k[r][c] === 0 && !(r === 1 && c === 1)) return { kol: c, rad: r };
+  return { kol: k[0].length - 2, rad: k.length - 2 };
+}
+function ljudDorr() { pip(300, 0.15, "square", 0.12, 620); }  // "dörren öppnas"
+
 function arVagg(x, y) {
   const kol = Math.floor(x / RUTA), rad = Math.floor(y / RUTA);
   if (rad < 0 || rad >= karta.length || kol < 0 || kol >= karta[0].length) return true;
@@ -317,7 +333,20 @@ function kollaTraffar() {
   const kvar = monster.filter(m => m.levande).length;
   document.getElementById("poang").textContent = poang;
   document.getElementById("kvar").textContent = kvar;
-  if (kvar === 0) nastaBana();
+  if (kvar === 0 && !malOppet) {   // alla slajm borta → lås upp utgången!
+    malOppet = true;
+    ljudDorr();
+  }
+}
+
+// Klarar banan när gubben når den öppnade utgången
+function kollaMal() {
+  if (!malOppet) return;
+  const gk = Math.floor(gubbe.x / RUTA), gr = Math.floor(gubbe.y / RUTA);
+  if (gk === mal.kol && gr === mal.rad) {
+    malOppet = false;
+    nastaBana();
+  }
 }
 
 // Går vidare till nästa bana, eller vinner om alla banor är klara
@@ -341,8 +370,46 @@ function laddaBana(n) {
   gubbe.riktningX = 1; gubbe.riktningY = 0;
   bollar = [];
   skapaMonster();
+  mal = hittaMal(karta);   // sätt utgången på den här banan
+  malOppet = false;        // utgången är låst tills alla monster är borta
   document.getElementById("bana").textContent = n + 1;
   document.getElementById("kvar").textContent = monster.length;
+}
+
+// ===== RITA START-RUTA (början) =====
+function ritaStartruta() {
+  const x = 1*RUTA, y = 1*RUTA;
+  ctx.fillStyle = "rgba(155,240,106,0.16)";
+  ctx.fillRect(x+3, y+3, RUTA-6, RUTA-6);
+  ctx.strokeStyle = "#9bf06a"; ctx.lineWidth = 2;
+  ctx.strokeRect(x+4, y+4, RUTA-8, RUTA-8);
+  ctx.fillStyle = "#9bf06a"; ctx.font = "bold 9px 'Courier New', monospace";
+  ctx.textAlign = "center";
+  ctx.fillText("START", x+RUTA/2, y+RUTA-6);
+}
+
+// ===== RITA UTGÅNGEN (slut) — låst dörr, öppnas när alla slajm är borta =====
+function ritaMal() {
+  const x = mal.kol*RUTA, y = mal.rad*RUTA;
+  if (malOppet) {
+    // Öppen, grön glödande utgång som blinkar
+    const blink = (Math.floor(Date.now()/220) % 2 === 0);
+    ctx.fillStyle = blink ? "#9bf06a" : "#5ac02a";
+    ctx.fillRect(x+5, y+3, RUTA-10, RUTA-6);
+    ctx.fillStyle = "#08060f";           // svart öppning man går in i
+    ctx.fillRect(x+11, y+9, RUTA-22, RUTA-12);
+    ctx.fillStyle = "#ffd84d"; ctx.font = "bold 16px 'Courier New', monospace";
+    ctx.textAlign = "center";
+    ctx.fillText("→", x+RUTA/2, y+RUTA/2+6);
+  } else {
+    // Låst dörr med hänglås
+    ctx.fillStyle = "#6b4a2a"; ctx.fillRect(x+5, y+3, RUTA-10, RUTA-6);
+    ctx.fillStyle = "#3a2a18";
+    ctx.fillRect(x+5, y+RUTA/2-1, RUTA-10, 2);   // planka
+    ctx.fillRect(x+RUTA/2-1, y+3, 2, RUTA-6);    // planka
+    ctx.fillStyle = "#c0c0c0"; ctx.fillRect(x+RUTA/2-4, y+RUTA/2-2, 8, 8);   // lås
+    ctx.fillStyle = "#888"; ctx.fillRect(x+RUTA/2-2, y+RUTA/2-5, 4, 4);      // låsbygel
+  }
 }
 
 // ===== RITA SPELPLANEN =====
@@ -352,6 +419,8 @@ function ritaPlan() {
       if (karta[rad][kol] === 1) ritaVagg(kol*RUTA, rad*RUTA);
       else { ctx.fillStyle = "#100c22"; ctx.fillRect(kol*RUTA+18, rad*RUTA+18, 4, 4); }
     }
+  ritaStartruta();
+  ritaMal();
   for (const m of monster) if (m.levande) ritaSprite(monsterSprite, m.x, m.y, monsterFarger);
   for (const b of bollar) ritaSprite(bollSprite, b.x, b.y, bollFarger, 3);
   ritaSprite(gubbeSprite, gubbe.x, gubbe.y, gubbeFarger, 3);
@@ -369,7 +438,7 @@ function ritaStartskarm() {
   ctx.fillText("TRYCK MELLANSLAG", canvas.width/2, 290);
   ctx.fillText("FÖR ATT BÖRJA", canvas.width/2, 320);
   ctx.fillStyle = "#6ad0c0"; ctx.font = "bold 14px 'Courier New', monospace";
-  ctx.fillText("3 BANOR FULLA AV SLAJM-MONSTER!", canvas.width/2, 390);
+  ctx.fillText("SKJUT ALLA SLAJM → SPRING TILL UTGÅNGEN 🚪", canvas.width/2, 390);
   if (rekord > 0) {
     ctx.fillStyle = "#ffd84d"; ctx.font = "bold 18px 'Courier New', monospace";
     ctx.fillText("🏆 REKORD ATT SLÅ: " + rekord, canvas.width/2, 430);
@@ -406,9 +475,15 @@ function ritaVinstskarm() {
 }
 
 function spelLoop() {
-  if (lage === "spelar") { flyttaGubbe(); flyttaBollar(); flyttaMonster(); kollaTraffar(); }
+  if (lage === "spelar") { flyttaGubbe(); flyttaBollar(); flyttaMonster(); kollaTraffar(); kollaMal(); }
   ctx.clearRect(0,0,canvas.width,canvas.height);
   ritaPlan();
+  if (lage === "spelar" && malOppet) {
+    ctx.fillStyle = "rgba(5,20,5,0.75)"; ctx.fillRect(0, 8, canvas.width, 30);
+    ctx.fillStyle = "#9bf06a"; ctx.font = "bold 18px 'Courier New', monospace";
+    ctx.textAlign = "center";
+    ctx.fillText("ALLA SLAJM BORTA — SPRING TILL UTGÅNGEN! 🚪", canvas.width/2, 30);
+  }
   if (lage === "start")    ritaStartskarm();
   if (lage === "nivaKlar") ritaBanaKlar();
   if (lage === "vunnit")   ritaVinstskarm();
