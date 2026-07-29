@@ -31,7 +31,7 @@
 </head>
 <body>
   <h1>* NILS LABYRINT *</h1>
-  <div id="info">POÄNG: <span id="poang">0</span> &nbsp; BANA: <span id="bana">1</span>/3 &nbsp; MONSTER KVAR: <span id="kvar">0</span></div>
+  <div id="info">POÄNG: <span id="poang">0</span> &nbsp; BANA: <span id="bana">1</span>/3 &nbsp; MONSTER KVAR: <span id="kvar">0</span> &nbsp; 🏆 REKORD: <span id="rekord">0</span></div>
   <canvas id="spel" width="640" height="480"></canvas>
   <div id="hjalp">
     GÅ: <span class="tangent">PILAR</span> ELLER <span class="tangent">W A S D</span> &nbsp;
@@ -202,6 +202,21 @@ function stoppaLat() { if (latInterval) { clearInterval(latInterval); latInterva
 const gubbe = { x: 1*RUTA+RUTA/2, y: 1*RUTA+RUTA/2, radie: 12, riktningX: 1, riktningY: 0 };
 let bollar = [], monster = [], poang = 0;
 
+// ===== HIGHSCORE (sparas i webbläsaren — finns kvar mellan gångerna) =====
+let rekord = 0;
+let slogRekord = false;   // blir true om man slår rekordet under det här spelet
+try { rekord = parseInt(localStorage.getItem("nilsLabyrintRekord")) || 0; } catch (e) {}
+document.getElementById("rekord").textContent = rekord;
+
+function uppdateraRekord() {
+  if (poang > rekord) {
+    rekord = poang;
+    slogRekord = true;
+    document.getElementById("rekord").textContent = rekord;
+    try { localStorage.setItem("nilsLabyrintRekord", rekord); } catch (e) {}
+  }
+}
+
 function arVagg(x, y) {
   const kol = Math.floor(x / RUTA), rad = Math.floor(y / RUTA);
   if (rad < 0 || rad >= karta.length || kol < 0 || kol >= karta[0].length) return true;
@@ -298,6 +313,7 @@ function kollaTraffar() {
     }
   }
   bollar = bollar.filter(b => !b.traffad);
+  uppdateraRekord();
   const kvar = monster.filter(m => m.levande).length;
   document.getElementById("poang").textContent = poang;
   document.getElementById("kvar").textContent = kvar;
@@ -354,6 +370,10 @@ function ritaStartskarm() {
   ctx.fillText("FÖR ATT BÖRJA", canvas.width/2, 320);
   ctx.fillStyle = "#6ad0c0"; ctx.font = "bold 14px 'Courier New', monospace";
   ctx.fillText("3 BANOR FULLA AV SLAJM-MONSTER!", canvas.width/2, 390);
+  if (rekord > 0) {
+    ctx.fillStyle = "#ffd84d"; ctx.font = "bold 18px 'Courier New', monospace";
+    ctx.fillText("🏆 REKORD ATT SLÅ: " + rekord, canvas.width/2, 430);
+  }
 }
 
 function ritaBanaKlar() {
@@ -374,8 +394,15 @@ function ritaVinstskarm() {
   ctx.fillText("DU KLARADE ALLA 3 BANOR!", canvas.width/2, 215);
   ctx.fillStyle = "#ffffff"; ctx.font = "bold 24px 'Courier New', monospace";
   ctx.fillText("POÄNG: " + poang, canvas.width/2, 290);
+  if (slogRekord) {
+    ctx.fillStyle = "#ffd84d"; ctx.font = "bold 26px 'Courier New', monospace";
+    ctx.fillText("🏆 NYTT REKORD! 🏆", canvas.width/2, 330);
+  } else {
+    ctx.fillStyle = "#ffd84d"; ctx.font = "bold 18px 'Courier New', monospace";
+    ctx.fillText("🏆 REKORD: " + rekord, canvas.width/2, 328);
+  }
   ctx.fillStyle = "#6ad0c0"; ctx.font = "bold 18px 'Courier New', monospace";
-  ctx.fillText("TRYCK R FÖR ATT SPELA IGEN", canvas.width/2, 370);
+  ctx.fillText("TRYCK R FÖR ATT SPELA IGEN", canvas.width/2, 375);
 }
 
 function spelLoop() {
@@ -392,6 +419,7 @@ function borjaOm() {
   startaLjud();
   stoppaLat();   // stäng av segerlåten om den spelas
   poang = 0;
+  slogRekord = false;
   document.getElementById("poang").textContent = 0;
   laddaBana(0);
   lage = "spelar";
