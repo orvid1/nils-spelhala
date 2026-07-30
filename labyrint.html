@@ -244,6 +244,48 @@ stenTextur.width = 64; stenTextur.height = 64;
   }
 })();
 
+// ===== CRAWL SPACE-KÄNSLA (trångt, gungande, dammigt, läskigt) =====
+let horisont = canvas.height / 2;   // synlinjen — gungar upp/ner när man kryper
+let bobFas = 0, bobAmp = 0;         // huvudgunga
+let garNu = false;                  // rör sig gubben just nu?
+let hjartTimer = 0;                 // räknare mellan hjärtslag
+// Dammkorn som sakta svävar i ficklampe-ljuset
+const damm = [];
+for (let i = 0; i < 45; i++) damm.push({
+  x: Math.random() * canvas.width, y: Math.random() * canvas.height,
+  vx: (Math.random() - 0.5) * 0.3, vy: Math.random() * 0.4 + 0.1,
+});
+function ritaDamm() {
+  ctx.fillStyle = "rgba(220,220,235,0.16)";
+  for (const p of damm) {
+    p.x += p.vx; p.y += p.vy;
+    if (p.y > canvas.height) { p.y = 0; p.x = Math.random() * canvas.width; }
+    if (p.x < 0) p.x = canvas.width; else if (p.x > canvas.width) p.x = 0;
+    ctx.fillRect(p.x, p.y, 2, 2);
+  }
+}
+// Dovt hjärtslag (lub-dub) i låg frekvens
+function ljudHjartslag() {
+  pip(58, 0.11, "sine", 0.32, 42);
+  setTimeout(() => pip(50, 0.10, "sine", 0.26, 38), 135);
+}
+// Hjärtat slår snabbare ju närmare närmaste monster är
+function uppdateraHjartslag() {
+  let narmast = 1e9;
+  for (const m of monster) if (m.levande) {
+    const d = Math.hypot(m.x - gubbe.x, m.y - gubbe.y);
+    if (d < narmast) narmast = d;
+  }
+  if (narmast < 220) {
+    if (--hjartTimer <= 0) {
+      ljudHjartslag();
+      hjartTimer = Math.floor((narmast / 220) * 45) + 12;   // nära = kort intervall = snabbt
+    }
+  } else {
+    hjartTimer = 0;
+  }
+}
+
 // ===== HIGHSCORE (sparas i webbläsaren — finns kvar mellan gångerna) =====
 let rekord = 0;
 let slogRekord = false;   // blir true om man slår rekordet under det här spelet
@@ -343,6 +385,8 @@ function flyttaGubbe() {
   let framat = 0;
   if (tangenter["arrowup"]   || tangenter["w"]) framat = FART;
   if (tangenter["arrowdown"] || tangenter["s"]) framat = -FART;
+  garNu = (framat !== 0);
+  if (garNu) bobFas += 0.22;                              // huvudet gungar när man kryper
   const dx = Math.cos(gubbe.vinkel)*framat, dy = Math.sin(gubbe.vinkel)*framat;
   if (kanGaTill(gubbe.x+dx, gubbe.y, gubbe.radie)) gubbe.x += dx;
   if (kanGaTill(gubbe.x, gubbe.y+dy, gubbe.radie)) gubbe.y += dy;
@@ -463,7 +507,7 @@ function ritaBillboard(grid, farger, wx, wy, skala) {
   const storlek = (RUTA / perp) * projAvst * skala;
   const px = storlek / grid.length;
   const startX = skarmX - (grid[0].length * px) / 2;
-  const startY = canvas.height / 2 - storlek / 2;
+  const startY = horisont - storlek / 2;
   for (let r = 0; r < grid.length; r++)
     for (let c = 0; c < grid[r].length; c++) {
       const t = grid[r][c];
@@ -530,13 +574,16 @@ function ritaMinikarta() {
 // Ritar hela 3D-vyn från gubbens ögon
 function rita3D() {
   const cx = canvas.width / 2, cy = canvas.height / 2;
+  // Huvudgunga: synlinjen vaggar upp/ner när man kryper, lugnar sig när man står still
+  if (garNu) bobAmp = Math.min(6, bobAmp + 0.6); else bobAmp = Math.max(0, bobAmp - 0.6);
+  horisont = cy + Math.sin(bobFas) * bobAmp;
   // Tak (mörkt) och golv (svagt upplyst nära fötterna) med gradienter för djupkänsla
-  let g = ctx.createLinearGradient(0, 0, 0, cy);
+  let g = ctx.createLinearGradient(0, 0, 0, horisont);
   g.addColorStop(0, "#05050c"); g.addColorStop(1, "#171334");
-  ctx.fillStyle = g; ctx.fillRect(0, 0, canvas.width, cy);
-  g = ctx.createLinearGradient(0, cy, 0, canvas.height);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, canvas.width, horisont);
+  g = ctx.createLinearGradient(0, horisont, 0, canvas.height);
   g.addColorStop(0, "#0d0b1a"); g.addColorStop(1, "#33291c");
-  ctx.fillStyle = g; ctx.fillRect(0, cy, canvas.width, cy);
+  ctx.fillStyle = g; ctx.fillRect(0, horisont, canvas.width, canvas.height - horisont);
   // Väggar — texturerade STENremsor. Ficklampan når inte långt: mörkare på avstånd.
   for (let x = 0; x < canvas.width; x += STRIP) {
     const offset = Math.atan((x + STRIP / 2 - cx) / projAvst);
@@ -545,7 +592,7 @@ function rita3D() {
     const korr = tr.dist * Math.cos(offset);             // fisheye-korrigering
     for (let s = 0; s < STRIP; s++) zbuffer[x + s] = korr;
     const hojd = (RUTA / korr) * projAvst;
-    const topp = cy - hojd / 2;
+    const topp = horisont - hojd / 2;
     // Var på stenblocket strålen träffade → vilken texturkolumn vi ritar
     const traff = (tr.sida === 0)
       ? gubbe.y + Math.sin(vinkel) * tr.dist
@@ -559,12 +606,21 @@ function rita3D() {
     ctx.fillRect(x, topp, STRIP, hojd);
   }
   ritaSprites3D();
-  // FICKLAMPA: klart sken i mitten, becksvart i kanterna
-  const sken = ctx.createRadialGradient(cx, cy, 50, cx, cy, canvas.width * 0.62);
+  ritaDamm();                                            // dammkorn i luften
+  // FICKLAMPA: klart sken där man tittar, becksvart i kanterna (följer gungan)
+  const sken = ctx.createRadialGradient(cx, horisont, 50, cx, horisont, canvas.width * 0.6);
   sken.addColorStop(0, "rgba(0,0,0,0)");
-  sken.addColorStop(0.65, "rgba(0,0,0,0.33)");
-  sken.addColorStop(1, "rgba(0,0,0,0.9)");
+  sken.addColorStop(0.6, "rgba(0,0,0,0.36)");
+  sken.addColorStop(1, "rgba(0,0,0,0.92)");
   ctx.fillStyle = sken; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  // TRÅNGT UTRYMME: mörka band upptill/nedtill — som att klämma sig genom ett lågt kryphål
+  const band = 54;
+  let lb = ctx.createLinearGradient(0, 0, 0, band);
+  lb.addColorStop(0, "rgba(0,0,0,0.96)"); lb.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = lb; ctx.fillRect(0, 0, canvas.width, band);
+  lb = ctx.createLinearGradient(0, canvas.height - band, 0, canvas.height);
+  lb.addColorStop(0, "rgba(0,0,0,0)"); lb.addColorStop(1, "rgba(0,0,0,0.96)");
+  ctx.fillStyle = lb; ctx.fillRect(0, canvas.height - band, canvas.width, band);
   // Hårkorssikte i mitten
   ctx.strokeStyle = "rgba(255,255,255,0.55)"; ctx.lineWidth = 2;
   ctx.beginPath();
@@ -673,7 +729,7 @@ function ritaVinstskarm() {
 }
 
 function spelLoop() {
-  if (lage === "spelar") { flyttaGubbe(); flyttaBollar(); flyttaMonster(); kollaTraffar(); kollaMal(); }
+  if (lage === "spelar") { flyttaGubbe(); flyttaBollar(); flyttaMonster(); kollaTraffar(); kollaMal(); uppdateraHjartslag(); }
   ctx.clearRect(0,0,canvas.width,canvas.height);
   rita3D();
   if (lage === "spelar" && malOppet) {
