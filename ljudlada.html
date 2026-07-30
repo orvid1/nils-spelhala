@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nils Ljudlåda 🎤</title>
+<style>
+  :root {
+    --bg: #1a1033;
+    --bg2: #241548;
+    --panel: #2e1a5e;
+    --panel-edge: #4a2da0;
+    --ink: #fff4ff;
+    --muted: #b9a6e8;
+    --glow: #ff4dd2;
+    --c1: #ff4d8d; /* rosa */
+    --c2: #29e0d8; /* cyan */
+    --c3: #ffd43b; /* gul */
+    --c4: #9bff4d; /* lime */
+    --c5: #ff9f2e; /* orange */
+    --c6: #b07bff; /* lila */
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: 'Comic Sans MS', 'Chalkboard SE', 'Baloo', system-ui, sans-serif;
+    color: var(--ink);
+    background:
+      radial-gradient(1100px 700px at 15% -10%, #3a1f7a 0%, transparent 55%),
+      radial-gradient(900px 600px at 100% 0%, #5a1b6e 0%, transparent 50%),
+      linear-gradient(160deg, var(--bg), var(--bg2));
+    background-attachment: fixed;
+    padding: 22px 16px 60px;
+  }
+
+  .wrap { max-width: 920px; margin: 0 auto; }
+
+  .back {
+    display: inline-flex; align-items: center; gap: 8px;
+    text-decoration: none; color: var(--ink);
+    font-family: inherit; font-size: 1rem; font-weight: bold;
+    background: rgba(255,255,255,.08);
+    border: 2px solid var(--panel-edge);
+    padding: 8px 16px; border-radius: 14px;
+    margin-bottom: 14px;
+    transition: transform .1s, border-color .1s;
+  }
+  .back:hover { transform: translateX(-3px); border-color: var(--c2); }
+
+  header { text-align: center; margin-bottom: 8px; }
+
+  h1 {
+    font-size: clamp(2.4rem, 8vw, 4.2rem);
+    margin: 0;
+    line-height: 0.95;
+    letter-spacing: 1px;
+    text-wrap: balance;
+    color: #fff;
+    text-shadow:
+      0 0 14px var(--glow),
+      0 0 34px #7a2dff,
+      4px 5px 0 #12082b;
+  }
+  h1 .star { display: inline-block; animation: spin 6s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .tagline { color: var(--muted); font-size: 1.05rem; margin: 6px 0 22px; }
+
+  /* Skapa-panel */
+  .maker {
+    background: linear-gradient(180deg, var(--panel), #241150);
+    border: 3px solid var(--panel-edge);
+    border-radius: 22px;
+    padding: 18px;
+    box-shadow: 0 10px 0 #160a38, 0 14px 30px rgba(0,0,0,.45);
+    margin-bottom: 26px;
+  }
+
+  .maker label { display: block; font-size: .95rem; color: var(--muted); margin: 0 0 6px 4px; }
+
+  .type-row { display: flex; gap: 10px; flex-wrap: wrap; }
+
+  #text {
+    flex: 1 1 240px;
+    min-width: 0;
+    font-family: inherit;
+    font-size: 1.3rem;
+    padding: 14px 16px;
+    border-radius: 16px;
+    border: 3px solid var(--panel-edge);
+    background: #17092f;
+    color: #fff;
+    outline: none;
+  }
+  #text:focus { border-color: var(--c2); box-shadow: 0 0 0 4px rgba(41,224,216,.25); }
+  #text::placeholder { color: #7c6bb0; }
+
+  .add-btn {
+    font-family: inherit;
+    font-size: 1.25rem;
+    font-weight: bold;
+    padding: 14px 24px;
+    border: none;
+    border-radius: 16px;
+    cursor: pointer;
+    color: #12082b;
+    background: linear-gradient(180deg, #ffe86b, var(--c3));
+    box-shadow: 0 6px 0 #b8951f;
+    transition: transform .06s, box-shadow .06s;
+  }
+  .add-btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #b8951f; }
+
+  /* Färgväljare */
+  .swatches { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; align-items: center; }
+  .swatches .lbl { color: var(--muted); font-size: .95rem; margin-right: 2px; }
+  .swatch {
+    width: 34px; height: 34px; border-radius: 50%;
+    border: 3px solid rgba(255,255,255,.35);
+    cursor: pointer; padding: 0;
+    transition: transform .1s;
+  }
+  .swatch:hover { transform: scale(1.12); }
+  .swatch[aria-pressed="true"] { border-color: #fff; box-shadow: 0 0 0 3px #12082b, 0 0 14px currentColor; transform: scale(1.15); }
+
+  /* Röst-kontroller */
+  .voice-box {
+    display: flex; flex-wrap: wrap; gap: 16px 24px;
+    align-items: center; justify-content: center;
+    background: rgba(255,255,255,.06);
+    border: 2px dashed var(--panel-edge);
+    border-radius: 18px; padding: 14px 16px; margin-bottom: 26px;
+  }
+  .voice-box .ctrl { display: flex; flex-direction: column; gap: 4px; font-size: .9rem; color: var(--muted); }
+  .voice-box .ctrl b { color: var(--ink); }
+  select {
+    font-family: inherit; font-size: 1rem; padding: 8px 10px;
+    border-radius: 12px; border: 2px solid var(--panel-edge);
+    background: #17092f; color: #fff; max-width: 220px;
+  }
+  input[type=range] { width: 150px; accent-color: var(--c1); cursor: pointer; }
+  .test-btn {
+    font-family: inherit; font-size: 1rem; font-weight: bold;
+    padding: 10px 18px; border: none; border-radius: 14px; cursor: pointer;
+    color: #fff; background: linear-gradient(180deg, #ff77b0, var(--c1));
+    box-shadow: 0 5px 0 #a8265e;
+  }
+  .test-btn:active { transform: translateY(3px); box-shadow: 0 2px 0 #a8265e; }
+
+  /* Knapp-rutnät */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 16px;
+  }
+
+  .pad {
+    position: relative;
+    font-family: inherit;
+    font-size: 1.35rem;
+    font-weight: bold;
+    color: #12082b;
+    min-height: 120px;
+    border: none;
+    border-radius: 20px;
+    cursor: pointer;
+    padding: 18px 14px;
+    text-align: center;
+    word-break: break-word;
+    box-shadow: 0 8px 0 var(--shadow), 0 10px 22px rgba(0,0,0,.4);
+    transition: transform .07s, box-shadow .07s, filter .15s;
+  }
+  .pad:hover { filter: brightness(1.08); }
+  .pad:active { transform: translateY(6px); box-shadow: 0 2px 0 var(--shadow), 0 4px 10px rgba(0,0,0,.4); }
+  .pad.playing { animation: wiggle .4s ease; filter: brightness(1.2); }
+  @keyframes wiggle {
+    0%,100% { transform: rotate(0); }
+    25% { transform: rotate(-3deg) scale(1.05); }
+    75% { transform: rotate(3deg) scale(1.05); }
+  }
+
+  .pad .del {
+    position: absolute; top: 6px; right: 6px;
+    width: 26px; height: 26px; border-radius: 50%;
+    border: none; cursor: pointer;
+    background: rgba(0,0,0,.35); color: #fff;
+    font-size: 1rem; line-height: 1; font-family: inherit;
+    display: none; align-items: center; justify-content: center;
+  }
+  .pad:hover .del { display: flex; }
+  .pad .del:hover { background: #e0245e; }
+
+  .empty {
+    grid-column: 1 / -1;
+    text-align: center; color: var(--muted);
+    padding: 40px; font-size: 1.2rem;
+  }
+
+  footer { text-align: center; color: #7c6bb0; margin-top: 40px; font-size: .9rem; }
+
+  @media (prefers-reduced-motion: reduce) {
+    h1 .star, .pad.playing { animation: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="index.html">⬅ Tillbaka till spelhålan</a>
+  <header>
+    <h1><span class="star">⭐</span> NILS LJUDLÅDA <span class="star">⭐</span></h1>
+    <p class="tagline">Skriv vad du vill — datorn säger det! Gör dina egna knappar. 🎤</p>
+  </header>
+
+  <section class="maker">
+    <label for="text">1. Skriv vad knappen ska säga:</label>
+    <div class="type-row">
+      <input id="text" type="text" maxlength="60" placeholder="t.ex. Hej allihopa!" autocomplete="off">
+      <button class="add-btn" id="addBtn">➕ Lägg till knapp</button>
+    </div>
+    <div class="swatches">
+      <span class="lbl">2. Välj färg:</span>
+      <button class="swatch" style="background:var(--c1);color:var(--c1)" data-color="var(--c1)" data-shadow="#a8265e"></button>
+      <button class="swatch" style="background:var(--c2);color:var(--c2)" data-color="var(--c2)" data-shadow="#158f89"></button>
+      <button class="swatch" style="background:var(--c3);color:var(--c3)" data-color="var(--c3)" data-shadow="#b8951f"></button>
+      <button class="swatch" style="background:var(--c4);color:var(--c4)" data-color="var(--c4)" data-shadow="#5aa81f"></button>
+      <button class="swatch" style="background:var(--c5);color:var(--c5)" data-color="var(--c5)" data-shadow="#b86c15"></button>
+      <button class="swatch" style="background:var(--c6);color:var(--c6)" data-color="var(--c6)" data-shadow="#6e42b8"></button>
+    </div>
+  </section>
+
+  <section class="voice-box">
+    <div class="ctrl">
+      <b>🗣️ Röst</b>
+      <select id="voiceSel"></select>
+    </div>
+    <div class="ctrl">
+      <b>🐢 Hastighet</b>
+      <input type="range" id="rate" min="0.5" max="1.8" step="0.1" value="1">
+    </div>
+    <div class="ctrl">
+      <b>🎚️ Ljus/Mörk röst</b>
+      <input type="range" id="pitch" min="0" max="2" step="0.1" value="1">
+    </div>
+    <button class="test-btn" id="testBtn">▶️ Testa rösten</button>
+  </section>
+
+  <section class="grid" id="grid"></section>
+
+  <footer>Gjord av Nils 💜 — dina knappar sparas i den här datorn</footer>
+</div>
+
+<script>
+  const synth = window.speechSynthesis;
+  const grid = document.getElementById('grid');
+  const textInput = document.getElementById('text');
+  const addBtn = document.getElementById('addBtn');
+  const voiceSel = document.getElementById('voiceSel');
+  const rateEl = document.getElementById('rate');
+  const pitchEl = document.getElementById('pitch');
+  const testBtn = document.getElementById('testBtn');
+
+  const STORE_KEY = 'nils_ljudlada_v1';
+  let chosen = { color: 'var(--c1)', shadow: '#a8265e' };
+
+  // ---- Färgväljare ----
+  const swatches = [...document.querySelectorAll('.swatch')];
+  function pickSwatch(el) {
+    swatches.forEach(s => s.setAttribute('aria-pressed', 'false'));
+    el.setAttribute('aria-pressed', 'true');
+    chosen = { color: el.dataset.color, shadow: el.dataset.shadow };
+  }
+  swatches.forEach(s => s.addEventListener('click', () => pickSwatch(s)));
+  pickSwatch(swatches[0]);
+
+  // ---- Röster ----
+  let voices = [];
+  function loadVoices() {
+    voices = synth.getVoices();
+    // svenska först
+    voices.sort((a, b) => (b.lang.startsWith('sv') ? 1 : 0) - (a.lang.startsWith('sv') ? 1 : 0));
+    voiceSel.innerHTML = '';
+    voices.forEach((v, i) => {
+      const opt = document.createElement('option');
+      opt.value = i;
+      const flag = v.lang.startsWith('sv') ? '🇸🇪 ' : '';
+      opt.textContent = flag + v.name;
+      voiceSel.appendChild(opt);
+    });
+  }
+  loadVoices();
+  if (synth.onvoiceschanged !== undefined) synth.onvoiceschanged = loadVoices;
+
+  // ---- Tala ----
+  function speak(text) {
+    if (!text) return;
+    synth.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    const v = voices[voiceSel.value];
+    if (v) { u.voice = v; u.lang = v.lang; }
+    u.rate = parseFloat(rateEl.value);
+    u.pitch = parseFloat(pitchEl.value);
+    synth.speak(u);
+  }
+
+  testBtn.addEventListener('click', () => speak(textInput.value.trim() || 'Hej, jag är din röst!'));
+
+  // ---- Knappar (pads) ----
+  function makePad(item) {
+    const btn = document.createElement('button');
+    btn.className = 'pad';
+    btn.style.background = 'linear-gradient(180deg, ' + item.color + ', ' + item.color + ')';
+    btn.style.setProperty('--shadow', item.shadow);
+    btn.dataset.color = item.color;
+    btn.dataset.shadow = item.shadow;
+    btn.innerHTML = '<span class="txt"></span><span class="del" title="Ta bort">✕</span>';
+    btn.querySelector('.txt').textContent = item.text;
+
+    btn.addEventListener('click', (e) => {
+      if (e.target.classList.contains('del')) return;
+      speak(item.text);
+      btn.classList.remove('playing');
+      void btn.offsetWidth;
+      btn.classList.add('playing');
+    });
+    btn.querySelector('.del').addEventListener('click', (e) => {
+      e.stopPropagation();
+      btn.remove();
+      save();
+      showEmptyIfNeeded();
+    });
+    return btn;
+  }
+
+  function showEmptyIfNeeded() {
+    if (!grid.querySelector('.pad')) {
+      grid.innerHTML = '<div class="empty">Inga knappar än — skriv något där uppe och tryck <b>Lägg till knapp</b>! 👆</div>';
+    }
+  }
+  function hideEmpty() {
+    const e = grid.querySelector('.empty');
+    if (e) e.remove();
+  }
+
+  // ---- Spara / ladda ----
+  function save() {
+    const data = [...grid.querySelectorAll('.pad')].map(p => ({
+      text: p.querySelector('.txt').textContent,
+      color: p.dataset.color,
+      shadow: p.dataset.shadow
+    }));
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(data)); } catch (e) {}
+  }
+
+  function load() {
+    let data = null;
+    try { data = JSON.parse(localStorage.getItem(STORE_KEY)); } catch (e) {}
+    if (!data || !data.length) {
+      // Startknappar så det inte är tomt
+      data = [
+        { text: 'Hej allihopa!', color: 'var(--c1)', shadow: '#a8265e' },
+        { text: 'Hahaha!', color: 'var(--c3)', shadow: '#b8951f' },
+        { text: 'Game over', color: 'var(--c2)', shadow: '#158f89' },
+        { text: 'Du vann!', color: 'var(--c4)', shadow: '#5aa81f' }
+      ];
+    }
+    data.forEach(d => grid.appendChild(makePad(d)));
+    showEmptyIfNeeded();
+  }
+
+  // ---- Lägg till-flöde ----
+  function doAdd() {
+    const t = textInput.value.trim();
+    if (!t) { textInput.focus(); return; }
+    hideEmpty();
+    grid.appendChild(makePad({ text: t, color: chosen.color, shadow: chosen.shadow }));
+    save();
+    textInput.value = '';
+    textInput.focus();
+  }
+  addBtn.addEventListener('click', doAdd);
+  textInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') doAdd(); });
+
+  load();
+</script>
+</body>
+</html>
