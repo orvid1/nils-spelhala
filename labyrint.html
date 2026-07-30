@@ -34,7 +34,8 @@
   <div id="info">POÄNG: <span id="poang">0</span> &nbsp; BANA: <span id="bana">1</span>/3 &nbsp; MONSTER KVAR: <span id="kvar">0</span> &nbsp; 🏆 REKORD: <span id="rekord">0</span></div>
   <canvas id="spel" width="640" height="480"></canvas>
   <div id="hjalp">
-    GÅ: <span class="tangent">PILAR</span> ELLER <span class="tangent">W A S D</span> &nbsp;
+    SVÄNG: <span class="tangent">← →</span> ELLER <span class="tangent">A D</span> &nbsp;
+    GÅ FRAM/BAK: <span class="tangent">↑ ↓</span> ELLER <span class="tangent">W S</span> &nbsp;
     SKJUT: <span class="tangent">MELLANSLAG</span> &nbsp;
     BÖRJA OM: <span class="tangent">R</span>
   </div>
@@ -116,6 +117,17 @@ const monsterSprite = [
 const monsterFarger = { p:"#b84dff", w:"#ffffff", k:"#1a1a1a" };
 const bollSprite = [ " GG ","GGGG","GGGG"," GG " ];
 const bollFarger = { G:"#9bf06a" };
+// Utgången ritad som en billboard-sprite i 3D-vyn
+const dorrStangdSprite = [
+  "dddddddd","dttttttd","dttttttd","dttttttd","dttttLtd","dttttLtd",
+  "dttttttd","dttttttd","dttttttd","dttttttd","dttttttd","dddddddd",
+];
+const dorrStangdFarger = { d:"#5a3a1a", t:"#8a5a2a", L:"#c9c9c9" };
+const dorrOppenSprite = [
+  "gggggggg","g000000g","g000g00g","g0000g0g","gggggggg","g0000g0g",
+  "g000g00g","g00g000g","g000000g","g000000g","g000000g","gggggggg",
+];
+const dorrOppenFarger = { g:"#9bf06a", "0":"#08060f" };
 
 function ritaSprite(grid, mittX, mittY, palett, px) {
   px = px || PX;
@@ -199,8 +211,15 @@ function spelaSandstorm() {
 function stoppaLat() { if (latInterval) { clearInterval(latInterval); latInterval = null; } }
 
 // ===== GUBBEN =====
-const gubbe = { x: 1*RUTA+RUTA/2, y: 1*RUTA+RUTA/2, radie: 12, riktningX: 1, riktningY: 0 };
+const gubbe = { x: 1*RUTA+RUTA/2, y: 1*RUTA+RUTA/2, radie: 12, riktningX: 1, riktningY: 0, vinkel: 0 };
 let bollar = [], monster = [], poang = 0;
+
+// ===== FÖRSTAPERSONS-VY (raycasting — "gubbens ögon") =====
+const FOV = Math.PI/3;                                 // 60° synfält
+const STRIP = 2;                                        // pixelbredd per stråle
+const projAvst = (canvas.width/2) / Math.tan(FOV/2);   // avstånd till projektionsplanet
+const SVANGFART = 0.05;                                 // hur snabbt man svänger
+let zbuffer = new Array(canvas.width).fill(1e9);        // väggavstånd per skärmkolumn (skymmer sprites)
 
 // ===== HIGHSCORE (sparas i webbläsaren — finns kvar mellan gångerna) =====
 let rekord = 0;
@@ -282,10 +301,11 @@ document.addEventListener("keyup", (e) => { tangenter[e.key.toLowerCase()] = fal
 let kanSkjuta = true;
 function skjut() {
   if (!kanSkjuta) return;
+  const cx = Math.cos(gubbe.vinkel), cy = Math.sin(gubbe.vinkel);
   bollar.push({
-    x: gubbe.x + gubbe.riktningX*16,
-    y: gubbe.y + gubbe.riktningY*16 + 4,
-    dx: gubbe.riktningX*6, dy: gubbe.riktningY*6, radie: 7,
+    x: gubbe.x + cx*18,
+    y: gubbe.y + cy*18,
+    dx: cx*6, dy: cy*6, radie: 7,
   });
   ljudSkott();
   kanSkjuta = false;
@@ -293,17 +313,18 @@ function skjut() {
 }
 
 function flyttaGubbe() {
-  let dx=0, dy=0;
-  if (tangenter["arrowleft"] || tangenter["a"]) dx = -FART;
-  if (tangenter["arrowright"]|| tangenter["d"]) dx = FART;
-  if (tangenter["arrowup"]   || tangenter["w"]) dy = -FART;
-  if (tangenter["arrowdown"] || tangenter["s"]) dy = FART;
-  if (dx !== 0 || dy !== 0) {
-    gubbe.riktningX = dx === 0 ? 0 : (dx > 0 ? 1 : -1);
-    gubbe.riktningY = dy === 0 ? 0 : (dy > 0 ? 1 : -1);
-  }
+  // Svänga vänster/höger (ändrar blickriktningen)
+  if (tangenter["arrowleft"] || tangenter["a"]) gubbe.vinkel -= SVANGFART;
+  if (tangenter["arrowright"]|| tangenter["d"]) gubbe.vinkel += SVANGFART;
+  // Gå framåt/bakåt i den riktning man tittar
+  let framat = 0;
+  if (tangenter["arrowup"]   || tangenter["w"]) framat = FART;
+  if (tangenter["arrowdown"] || tangenter["s"]) framat = -FART;
+  const dx = Math.cos(gubbe.vinkel)*framat, dy = Math.sin(gubbe.vinkel)*framat;
   if (kanGaTill(gubbe.x+dx, gubbe.y, gubbe.radie)) gubbe.x += dx;
   if (kanGaTill(gubbe.x, gubbe.y+dy, gubbe.radie)) gubbe.y += dy;
+  gubbe.riktningX = Math.cos(gubbe.vinkel);   // hålls synkat (kompatibilitet)
+  gubbe.riktningY = Math.sin(gubbe.vinkel);
 }
 
 function flyttaBollar() {
@@ -367,13 +388,146 @@ function laddaBana(n) {
   nivaNr = n;
   karta = nivaer[n].karta;
   gubbe.x = 1*RUTA+RUTA/2; gubbe.y = 1*RUTA+RUTA/2;
-  gubbe.riktningX = 1; gubbe.riktningY = 0;
+  gubbe.riktningX = 1; gubbe.riktningY = 0; gubbe.vinkel = 0;
   bollar = [];
   skapaMonster();
   mal = hittaMal(karta);   // sätt utgången på den här banan
   malOppet = false;        // utgången är låst tills alla monster är borta
   document.getElementById("bana").textContent = n + 1;
   document.getElementById("kvar").textContent = monster.length;
+}
+
+// ===== FÖRSTAPERSONS-RENDERING (raycasting) =====
+// Skjuter en stråle från gubben tills den träffar en vägg. Returnerar raka avståndet
+// (i pixlar) samt vilken sida av väggen (0 = öst/väst, 1 = nord/syd) för skuggning.
+function kastaStrale(vinkel) {
+  const dirX = Math.cos(vinkel), dirY = Math.sin(vinkel);
+  const posX = gubbe.x / RUTA, posY = gubbe.y / RUTA;   // position i cell-enheter
+  let mapX = Math.floor(posX), mapY = Math.floor(posY);
+  const deltaX = Math.abs(dirX) < 1e-9 ? 1e9 : Math.abs(1 / dirX);
+  const deltaY = Math.abs(dirY) < 1e-9 ? 1e9 : Math.abs(1 / dirY);
+  let stepX, stepY, sideX, sideY;
+  if (dirX < 0) { stepX = -1; sideX = (posX - mapX) * deltaX; }
+  else          { stepX =  1; sideX = (mapX + 1 - posX) * deltaX; }
+  if (dirY < 0) { stepY = -1; sideY = (posY - mapY) * deltaY; }
+  else          { stepY =  1; sideY = (mapY + 1 - posY) * deltaY; }
+  let sida = 0, steg = 0;
+  while (steg < 64) {
+    if (sideX < sideY) { sideX += deltaX; mapX += stepX; sida = 0; }
+    else               { sideY += deltaY; mapY += stepY; sida = 1; }
+    if (mapY < 0 || mapY >= karta.length || mapX < 0 || mapX >= karta[0].length) break;
+    if (karta[mapY][mapX] === 1) break;
+    steg++;
+  }
+  const dist = (sida === 0 ? (sideX - deltaX) : (sideY - deltaY)) * RUTA;
+  return { dist: Math.max(dist, 1), sida };
+}
+
+// Projicerar en sprite (bild-rutnät) i 3D-vyn på rätt plats och storlek, skymd av väggar.
+function ritaBillboard(grid, farger, wx, wy, skala) {
+  skala = skala || 1;
+  const dx = wx - gubbe.x, dy = wy - gubbe.y;
+  const avst = Math.hypot(dx, dy);
+  if (avst < 6) return;
+  let rel = Math.atan2(dy, dx) - gubbe.vinkel;
+  while (rel < -Math.PI) rel += 2 * Math.PI;
+  while (rel >  Math.PI) rel -= 2 * Math.PI;
+  if (Math.abs(rel) > FOV / 2 + 0.3) return;             // utanför synfältet
+  const perp = avst * Math.cos(rel);                     // vinkelrätt avstånd (för z-test)
+  if (perp < 1) return;
+  const skarmX = canvas.width / 2 + Math.tan(rel) * projAvst;
+  const storlek = (RUTA / perp) * projAvst * skala;
+  const px = storlek / grid.length;
+  const startX = skarmX - (grid[0].length * px) / 2;
+  const startY = canvas.height / 2 - storlek / 2;
+  for (let r = 0; r < grid.length; r++)
+    for (let c = 0; c < grid[r].length; c++) {
+      const t = grid[r][c];
+      if (t === " ") continue;
+      const sx = startX + c * px;
+      const kol = Math.floor(sx + px / 2);
+      if (kol < 0 || kol >= canvas.width) continue;
+      if (perp >= zbuffer[kol]) continue;                // bakom en vägg → skyms
+      ctx.fillStyle = farger[t];
+      ctx.fillRect(Math.floor(sx), Math.floor(startY + r * px), Math.ceil(px) + 1, Math.ceil(px) + 1);
+    }
+}
+
+// Samlar alla sprites (monster, bollar, utgången), sorterar bort→nära och ritar dem.
+function ritaSprites3D() {
+  const lista = [];
+  for (const m of monster) if (m.levande)
+    lista.push({ wx: m.x, wy: m.y, grid: monsterSprite, farg: monsterFarger, skala: 0.9 });
+  for (const b of bollar)
+    lista.push({ wx: b.x, wy: b.y, grid: bollSprite, farg: bollFarger, skala: 0.35 });
+  const mx = mal.kol * RUTA + RUTA / 2, my = mal.rad * RUTA + RUTA / 2;
+  lista.push({
+    wx: mx, wy: my,
+    grid: malOppet ? dorrOppenSprite : dorrStangdSprite,
+    farg: malOppet ? dorrOppenFarger : dorrStangdFarger, skala: 1.15,
+  });
+  lista.sort((a, b) =>
+    Math.hypot(b.wx - gubbe.x, b.wy - gubbe.y) - Math.hypot(a.wx - gubbe.x, a.wy - gubbe.y));
+  for (const s of lista) ritaBillboard(s.grid, s.farg, s.wx, s.wy, s.skala);
+}
+
+// En enkel pistol/hand längst ner i mitten (så det känns som att gubben håller den)
+function ritaPistolFP() {
+  const cx = canvas.width / 2, by = canvas.height;
+  ctx.fillStyle = "#ffce8a"; ctx.fillRect(cx + 12, by - 54, 24, 54);   // hand
+  ctx.fillStyle = "#3a3a3a"; ctx.fillRect(cx + 2, by - 64, 42, 16);    // pistol
+  ctx.fillStyle = "#222222"; ctx.fillRect(cx + 4, by - 48, 16, 30);    // grepp
+  ctx.fillStyle = "#9aa";    ctx.fillRect(cx + 42, by - 62, 8, 6);     // mynning
+}
+
+// Liten karta uppifrån i hörnet så man inte går vilse
+function ritaMinikarta() {
+  const cell = 8, ox = 8, oy = 8;
+  const w = karta[0].length * cell, h = karta.length * cell;
+  ctx.fillStyle = "rgba(5,5,20,0.78)"; ctx.fillRect(ox - 2, oy - 2, w + 4, h + 4);
+  for (let r = 0; r < karta.length; r++)
+    for (let c = 0; c < karta[r].length; c++)
+      if (karta[r][c] === 1) { ctx.fillStyle = "#3a2e7a"; ctx.fillRect(ox + c * cell, oy + r * cell, cell, cell); }
+  ctx.fillStyle = "#5ac02a"; ctx.fillRect(ox + cell + 1, oy + cell + 1, cell - 2, cell - 2);  // start
+  ctx.fillStyle = malOppet ? "#9bf06a" : "#8a5a2a";
+  ctx.fillRect(ox + mal.kol * cell + 1, oy + mal.rad * cell + 1, cell - 2, cell - 2);          // mål
+  ctx.fillStyle = "#b84dff";
+  for (const m of monster) if (m.levande)
+    ctx.fillRect(ox + (m.x / RUTA) * cell - 1.5, oy + (m.y / RUTA) * cell - 1.5, 3, 3);         // monster
+  const gx = ox + (gubbe.x / RUTA) * cell, gy = oy + (gubbe.y / RUTA) * cell;
+  ctx.fillStyle = "#ffd84d"; ctx.beginPath(); ctx.arc(gx, gy, 3, 0, 7); ctx.fill();             // gubbe
+  ctx.strokeStyle = "#ffd84d"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(gx, gy);
+  ctx.lineTo(gx + Math.cos(gubbe.vinkel) * 8, gy + Math.sin(gubbe.vinkel) * 8); ctx.stroke();   // blickriktning
+}
+
+// Ritar hela 3D-vyn från gubbens ögon
+function rita3D() {
+  // Tak och golv
+  ctx.fillStyle = "#0b0b1a"; ctx.fillRect(0, 0, canvas.width, canvas.height / 2);
+  ctx.fillStyle = "#161228"; ctx.fillRect(0, canvas.height / 2, canvas.width, canvas.height / 2);
+  // Väggar — en vertikal remsa per stråle
+  for (let x = 0; x < canvas.width; x += STRIP) {
+    const offset = Math.atan((x + STRIP / 2 - canvas.width / 2) / projAvst);
+    const tr = kastaStrale(gubbe.vinkel + offset);
+    const korr = tr.dist * Math.cos(offset);             // fisheye-korrigering
+    for (let s = 0; s < STRIP; s++) zbuffer[x + s] = korr;
+    const hojd = (RUTA / korr) * projAvst;
+    const topp = canvas.height / 2 - hojd / 2;
+    let ljus = Math.max(0.2, 1 - korr / 520);            // mörkare på avstånd
+    if (tr.sida === 1) ljus *= 0.7;                      // mörkare på nord/syd-sidor
+    const bas = tr.sida === 1 ? [40, 32, 110] : [58, 46, 122];
+    ctx.fillStyle = `rgb(${Math.floor(bas[0]*ljus)},${Math.floor(bas[1]*ljus)},${Math.floor(bas[2]*ljus)})`;
+    ctx.fillRect(x, topp, STRIP, hojd);
+  }
+  ritaSprites3D();
+  // Hårkorssikte i mitten
+  const cx = canvas.width / 2, cy = canvas.height / 2;
+  ctx.strokeStyle = "rgba(255,255,255,0.55)"; ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(cx - 8, cy); ctx.lineTo(cx + 8, cy);
+  ctx.moveTo(cx, cy - 8); ctx.lineTo(cx, cy + 8); ctx.stroke();
+  ritaPistolFP();
+  ritaMinikarta();
 }
 
 // ===== RITA START-RUTA (början) =====
@@ -477,7 +631,7 @@ function ritaVinstskarm() {
 function spelLoop() {
   if (lage === "spelar") { flyttaGubbe(); flyttaBollar(); flyttaMonster(); kollaTraffar(); kollaMal(); }
   ctx.clearRect(0,0,canvas.width,canvas.height);
-  ritaPlan();
+  rita3D();
   if (lage === "spelar" && malOppet) {
     ctx.fillStyle = "rgba(5,20,5,0.75)"; ctx.fillRect(0, 8, canvas.width, 30);
     ctx.fillStyle = "#9bf06a"; ctx.font = "bold 18px 'Courier New', monospace";
