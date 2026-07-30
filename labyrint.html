@@ -221,6 +221,29 @@ const projAvst = (canvas.width/2) / Math.tan(FOV/2);   // avstånd till projekti
 const SVANGFART = 0.05;                                 // hur snabbt man svänger
 let zbuffer = new Array(canvas.width).fill(1e9);        // väggavstånd per skärmkolumn (skymmer sprites)
 
+// Procedurell STEN-textur (byggs en gång) — riktiga stenblock med fogar, brus och lite mossa
+const stenTextur = document.createElement("canvas");
+stenTextur.width = 64; stenTextur.height = 64;
+(function byggStenTextur() {
+  const t = stenTextur.getContext("2d");
+  t.fillStyle = "#3a3a3e"; t.fillRect(0, 0, 64, 64);                 // mörk fog i botten
+  const bh = 16;                                                     // blockhöjd
+  for (let ry = 0, rad = 0; ry < 64; ry += bh, rad++) {
+    const skift = (rad % 2) * 16;                                    // förskjut varannan rad
+    for (let rx = -16; rx < 64; rx += 32) {
+      const g = 78 + Math.floor(Math.random() * 34);                // varje sten lite olika grå
+      t.fillStyle = `rgb(${g},${g - 6},${g - 12})`;
+      t.fillRect(rx + skift + 1, ry + 1, 30, bh - 2);               // själva stenblocket
+    }
+  }
+  for (let i = 0; i < 1500; i++) {                                   // skrovlighet + mossa
+    const x = Math.floor(Math.random() * 64), y = Math.floor(Math.random() * 64);
+    const v = Math.floor(Math.random() * 60);
+    t.fillStyle = Math.random() < 0.10 ? `rgba(70,${100 + v},60,0.5)` : `rgba(${v},${v},${v},0.35)`;
+    t.fillRect(x, y, 1, 1);
+  }
+})();
+
 // ===== HIGHSCORE (sparas i webbläsaren — finns kvar mellan gångerna) =====
 let rekord = 0;
 let slogRekord = false;   // blir true om man slår rekordet under det här spelet
@@ -435,6 +458,7 @@ function ritaBillboard(grid, farger, wx, wy, skala) {
   if (Math.abs(rel) > FOV / 2 + 0.3) return;             // utanför synfältet
   const perp = avst * Math.cos(rel);                     // vinkelrätt avstånd (för z-test)
   if (perp < 1) return;
+  const morker = Math.min(0.8, perp / 470);              // samma ficklampe-dämpning som väggarna
   const skarmX = canvas.width / 2 + Math.tan(rel) * projAvst;
   const storlek = (RUTA / perp) * projAvst * skala;
   const px = storlek / grid.length;
@@ -448,8 +472,11 @@ function ritaBillboard(grid, farger, wx, wy, skala) {
       const kol = Math.floor(sx + px / 2);
       if (kol < 0 || kol >= canvas.width) continue;
       if (perp >= zbuffer[kol]) continue;                // bakom en vägg → skyms
+      const rx = Math.floor(sx), ry = Math.floor(startY + r * px);
+      const pw = Math.ceil(px) + 1, ph = Math.ceil(px) + 1;
       ctx.fillStyle = farger[t];
-      ctx.fillRect(Math.floor(sx), Math.floor(startY + r * px), Math.ceil(px) + 1, Math.ceil(px) + 1);
+      ctx.fillRect(rx, ry, pw, ph);
+      if (morker > 0.02) { ctx.fillStyle = `rgba(0,0,0,${morker})`; ctx.fillRect(rx, ry, pw, ph); }
     }
 }
 
@@ -502,26 +529,43 @@ function ritaMinikarta() {
 
 // Ritar hela 3D-vyn från gubbens ögon
 function rita3D() {
-  // Tak och golv
-  ctx.fillStyle = "#0b0b1a"; ctx.fillRect(0, 0, canvas.width, canvas.height / 2);
-  ctx.fillStyle = "#161228"; ctx.fillRect(0, canvas.height / 2, canvas.width, canvas.height / 2);
-  // Väggar — en vertikal remsa per stråle
+  const cx = canvas.width / 2, cy = canvas.height / 2;
+  // Tak (mörkt) och golv (svagt upplyst nära fötterna) med gradienter för djupkänsla
+  let g = ctx.createLinearGradient(0, 0, 0, cy);
+  g.addColorStop(0, "#05050c"); g.addColorStop(1, "#171334");
+  ctx.fillStyle = g; ctx.fillRect(0, 0, canvas.width, cy);
+  g = ctx.createLinearGradient(0, cy, 0, canvas.height);
+  g.addColorStop(0, "#0d0b1a"); g.addColorStop(1, "#33291c");
+  ctx.fillStyle = g; ctx.fillRect(0, cy, canvas.width, cy);
+  // Väggar — texturerade STENremsor. Ficklampan når inte långt: mörkare på avstånd.
   for (let x = 0; x < canvas.width; x += STRIP) {
-    const offset = Math.atan((x + STRIP / 2 - canvas.width / 2) / projAvst);
-    const tr = kastaStrale(gubbe.vinkel + offset);
+    const offset = Math.atan((x + STRIP / 2 - cx) / projAvst);
+    const vinkel = gubbe.vinkel + offset;
+    const tr = kastaStrale(vinkel);
     const korr = tr.dist * Math.cos(offset);             // fisheye-korrigering
     for (let s = 0; s < STRIP; s++) zbuffer[x + s] = korr;
     const hojd = (RUTA / korr) * projAvst;
-    const topp = canvas.height / 2 - hojd / 2;
-    let ljus = Math.max(0.2, 1 - korr / 520);            // mörkare på avstånd
-    if (tr.sida === 1) ljus *= 0.7;                      // mörkare på nord/syd-sidor
-    const bas = tr.sida === 1 ? [40, 32, 110] : [58, 46, 122];
-    ctx.fillStyle = `rgb(${Math.floor(bas[0]*ljus)},${Math.floor(bas[1]*ljus)},${Math.floor(bas[2]*ljus)})`;
+    const topp = cy - hojd / 2;
+    // Var på stenblocket strålen träffade → vilken texturkolumn vi ritar
+    const traff = (tr.sida === 0)
+      ? gubbe.y + Math.sin(vinkel) * tr.dist
+      : gubbe.x + Math.cos(vinkel) * tr.dist;
+    const texX = Math.min(63, Math.floor((((traff % RUTA) + RUTA) % RUTA) / RUTA * 64));
+    ctx.drawImage(stenTextur, texX, 0, 1, 64, x, topp, STRIP, hojd);
+    // Ficklampe-mörker: långt bort = mörkare, nord/syd-väggar lite mörkare
+    let morker = Math.min(0.88, korr / 470);
+    if (tr.sida === 1) morker = Math.min(0.92, morker + 0.12);
+    ctx.fillStyle = `rgba(0,0,0,${morker})`;
     ctx.fillRect(x, topp, STRIP, hojd);
   }
   ritaSprites3D();
+  // FICKLAMPA: klart sken i mitten, becksvart i kanterna
+  const sken = ctx.createRadialGradient(cx, cy, 50, cx, cy, canvas.width * 0.62);
+  sken.addColorStop(0, "rgba(0,0,0,0)");
+  sken.addColorStop(0.65, "rgba(0,0,0,0.33)");
+  sken.addColorStop(1, "rgba(0,0,0,0.9)");
+  ctx.fillStyle = sken; ctx.fillRect(0, 0, canvas.width, canvas.height);
   // Hårkorssikte i mitten
-  const cx = canvas.width / 2, cy = canvas.height / 2;
   ctx.strokeStyle = "rgba(255,255,255,0.55)"; ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(cx - 8, cy); ctx.lineTo(cx + 8, cy);
