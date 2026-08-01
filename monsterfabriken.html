@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Monsterfabriken 👹</title>
+<style>
+  :root {
+    --bg: #12102e;
+    --bg2: #1d1046;
+    --panel: #2b1a5c;
+    --panel-edge: #4a2da0;
+    --ink: #fff4ff;
+    --muted: #b9a6e8;
+    --glow: #7bff4d;
+    --c1: #ff4d8d;
+    --c2: #29e0d8;
+    --c3: #ffd43b;
+    --c4: #9bff4d;
+    --c5: #ff9f2e;
+    --c6: #b07bff;
+    --dark: #1b0b33;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: 'Comic Sans MS', 'Chalkboard SE', 'Baloo', system-ui, sans-serif;
+    color: var(--ink);
+    background:
+      radial-gradient(1100px 700px at 12% -10%, #2c4a1f 0%, transparent 55%),
+      radial-gradient(900px 600px at 100% 0%, #5a1b6e 0%, transparent 50%),
+      linear-gradient(160deg, var(--bg), var(--bg2));
+    background-attachment: fixed;
+    padding: 20px 14px 70px;
+    overflow-x: hidden;
+  }
+
+  .wrap { max-width: 980px; margin: 0 auto; }
+
+  .topbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+
+  .back, .mute {
+    display: inline-flex; align-items: center; gap: 8px;
+    text-decoration: none; color: var(--ink); cursor: pointer;
+    font-family: inherit; font-size: 1rem; font-weight: bold;
+    background: rgba(255,255,255,.08);
+    border: 2px solid var(--panel-edge);
+    padding: 8px 16px; border-radius: 14px;
+    transition: transform .1s, border-color .1s;
+  }
+  .back:hover { transform: translateX(-3px); border-color: var(--c2); }
+  .mute { margin-left: auto; }
+  .mute:hover { border-color: var(--c3); }
+
+  header { text-align: center; margin-bottom: 6px; }
+
+  h1 {
+    font-size: clamp(2.2rem, 8vw, 4rem);
+    margin: 0; line-height: .95; letter-spacing: 1px;
+    color: #fff;
+    text-shadow: 0 0 14px var(--glow), 0 0 34px #2dff7a, 4px 5px 0 #0d1a08;
+  }
+  h1 .wob { display: inline-block; animation: wob 2.4s ease-in-out infinite; }
+  @keyframes wob { 0%,100%{transform:rotate(-8deg)} 50%{transform:rotate(8deg)} }
+
+  .tagline { color: var(--muted); font-size: 1.05rem; margin: 6px 0 18px; text-align: center; }
+
+  /* Flikar */
+  .tabs { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-bottom: 20px; }
+  .tab {
+    font-family: inherit; font-size: 1.05rem; font-weight: bold; cursor: pointer;
+    padding: 11px 20px; border-radius: 16px; color: var(--ink);
+    background: rgba(255,255,255,.07);
+    border: 3px solid var(--panel-edge);
+    transition: transform .08s, background .12s, border-color .12s;
+  }
+  .tab:active { transform: translateY(2px); }
+  .tab.on { background: linear-gradient(180deg, #7bff4d, #3ec21f); color: #0d2408; border-color: #2a8a12; }
+
+  .view { display: none; }
+  .view.on { display: block; animation: fade .25s ease-out; }
+  @keyframes fade { from { opacity: 0; transform: translateY(8px);} to { opacity: 1; transform: none; } }
+
+  .panel {
+    background: linear-gradient(180deg, var(--panel), #21114c);
+    border: 3px solid var(--panel-edge);
+    border-radius: 22px;
+    padding: 16px;
+    box-shadow: 0 10px 0 #150936, 0 14px 30px rgba(0,0,0,.45);
+  }
+
+  /* Byggvyn */
+  .build { display: grid; grid-template-columns: minmax(0,320px) minmax(0,1fr); gap: 18px; align-items: start; }
+  @media (max-width: 720px) { .build { grid-template-columns: 1fr; } }
+
+  .stage {
+    background: radial-gradient(circle at 50% 30%, #3b2a72, #1a0e3c 70%);
+    border-radius: 18px; border: 3px solid var(--panel-edge);
+    padding: 8px; text-align: center;
+  }
+  .stage svg { width: 100%; height: auto; max-height: 320px; display: block; }
+
+  .namerow { display: flex; gap: 8px; margin-top: 12px; }
+  input[type=text] {
+    flex: 1 1 auto; min-width: 0;
+    font-family: inherit; font-size: 1.15rem;
+    padding: 12px 14px; border-radius: 14px;
+    border: 3px solid var(--panel-edge);
+    background: #17092f; color: #fff; outline: none;
+  }
+  input[type=text]:focus { border-color: var(--c2); box-shadow: 0 0 0 4px rgba(41,224,216,.25); }
+  input[type=text]::placeholder { color: #7c6bb0; }
+
+  .btn {
+    font-family: inherit; font-size: 1.1rem; font-weight: bold;
+    padding: 12px 20px; border: none; border-radius: 14px; cursor: pointer;
+    color: #12082b; background: linear-gradient(180deg, #ffe86b, var(--c3));
+    box-shadow: 0 6px 0 #b8951f;
+    transition: transform .06s, box-shadow .06s;
+  }
+  .btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #b8951f; }
+  .btn.green { background: linear-gradient(180deg, #a9ff7a, #56d42c); box-shadow: 0 6px 0 #2f8a12; }
+  .btn.green:active { box-shadow: 0 2px 0 #2f8a12; }
+  .btn.pink { background: linear-gradient(180deg, #ff8fba, #ff2f78); color: #fff; box-shadow: 0 6px 0 #a3103f; }
+  .btn.pink:active { box-shadow: 0 2px 0 #a3103f; }
+  .btn.big { font-size: 1.5rem; padding: 16px 34px; border-radius: 18px; }
+  .btn:disabled { opacity: .45; cursor: default; transform: none; }
+
+  /* Delväljare */
+  .cat { margin-bottom: 12px; }
+  .cat h3 { margin: 0 0 6px 2px; font-size: 1rem; color: var(--muted); font-weight: normal; }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip {
+    font-family: inherit; font-size: .95rem; cursor: pointer;
+    padding: 9px 13px; border-radius: 13px; color: var(--ink);
+    background: rgba(255,255,255,.06);
+    border: 3px solid rgba(255,255,255,.13);
+    transition: transform .07s, border-color .12s, background .12s;
+  }
+  .chip:active { transform: translateY(2px); }
+  .chip.on { background: rgba(123,255,77,.18); border-color: var(--c4); color: #fff; }
+
+  .swatches { display: flex; gap: 8px; flex-wrap: wrap; }
+  .swatch { width: 34px; height: 34px; border-radius: 50%; cursor: pointer; border: 3px solid rgba(255,255,255,.25); padding: 0; }
+  .swatch.on { border-color: #fff; transform: scale(1.15); box-shadow: 0 0 14px currentColor; }
+
+  /* Statstaplar */
+  .stats { margin-top: 12px; }
+  .stat { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; font-size: .95rem; }
+  .stat .lbl { width: 92px; flex: none; }
+  .stat .bar { flex: 1; height: 16px; border-radius: 10px; background: rgba(0,0,0,.35); overflow: hidden; border: 2px solid rgba(255,255,255,.12); }
+  .stat .fill { height: 100%; width: 0; border-radius: 8px; transition: width .3s ease; }
+  .stat .num { width: 34px; text-align: right; flex: none; font-weight: bold; }
+  .f-str { background: linear-gradient(90deg, #ff9f2e, #ff2f4d); }
+  .f-spd { background: linear-gradient(90deg, #7bffe8, #29a0e0); }
+  .f-hp  { background: linear-gradient(90deg, #a9ff7a, #2fc24d); }
+
+  /* Monsterlista */
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 14px; }
+  .mcard {
+    background: linear-gradient(180deg, #34206b, #21114c);
+    border: 3px solid var(--panel-edge); border-radius: 18px;
+    padding: 10px; text-align: center;
+  }
+  .mcard svg { width: 100%; height: auto; max-height: 150px; }
+  .mcard .nm { font-weight: bold; font-size: 1.05rem; margin: 4px 0 2px; word-break: break-word; }
+  .mcard .sm { font-size: .8rem; color: var(--muted); }
+  .mcard .row { display: flex; gap: 6px; justify-content: center; margin-top: 8px; }
+  .mini {
+    font-family: inherit; font-size: .85rem; cursor: pointer;
+    padding: 6px 10px; border-radius: 10px; color: var(--ink);
+    background: rgba(255,255,255,.09); border: 2px solid rgba(255,255,255,.18);
+  }
+  .mini:hover { border-color: var(--c1); }
+
+  .empty { text-align: center; color: var(--muted); padding: 26px 10px; font-size: 1.05rem; }
+
+  /* Arena */
+  .pickrow { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .picker h3 { margin: 0 0 8px; text-align: center; font-size: 1.05rem; }
+  select {
+    width: 100%; font-family: inherit; font-size: 1rem;
+    padding: 11px 12px; border-radius: 13px;
+    border: 3px solid var(--panel-edge); background: #17092f; color: #fff; outline: none;
+  }
+
+  .ring { display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: center; margin-top: 16px; }
+  .fighter { text-align: center; }
+  .fighter svg { width: 100%; height: auto; max-height: 210px; }
+  .fighter.f2 svg { transform: scaleX(-1); }
+  .fighter .fname { font-weight: bold; font-size: 1.1rem; margin-top: 2px; word-break: break-word; }
+  .hpbar { height: 18px; border-radius: 10px; background: rgba(0,0,0,.4); border: 2px solid rgba(255,255,255,.15); overflow: hidden; margin-top: 6px; }
+  .hpfill { height: 100%; width: 100%; background: linear-gradient(90deg, #a9ff7a, #2fc24d); transition: width .35s ease; }
+  .hpfill.low { background: linear-gradient(90deg, #ffd43b, #ff9f2e); }
+  .hpfill.crit { background: linear-gradient(90deg, #ff8f6b, #ff2f4d); }
+  .hptext { font-size: .85rem; color: var(--muted); margin-top: 2px; }
+  .vs { font-size: clamp(1.4rem, 6vw, 2.4rem); font-weight: bold; color: var(--c3); text-shadow: 0 0 12px #ff9f2e; }
+
+  .hit { animation: hit .4s ease-out; }
+  @keyframes hit { 0%{transform:translateX(0)} 25%{transform:translateX(-12px) rotate(-6deg)} 60%{transform:translateX(9px) rotate(5deg)} 100%{transform:none} }
+  .f2.hit svg { animation: hit2 .4s ease-out; }
+  @keyframes hit2 { 0%{transform:scaleX(-1)} 25%{transform:scaleX(-1) translateX(-12px)} 60%{transform:scaleX(-1) translateX(9px)} 100%{transform:scaleX(-1)} }
+  .fallen { opacity: .35; filter: grayscale(.7); transform: rotate(12deg); transition: all .5s ease; }
+  .f2 svg.fallen { transform: scaleX(-1) rotate(12deg); }
+
+  .log {
+    margin-top: 14px; background: #150a30; border: 3px solid var(--panel-edge);
+    border-radius: 16px; padding: 12px; min-height: 90px; max-height: 210px; overflow-y: auto;
+    font-size: 1rem; line-height: 1.5;
+  }
+  .log p { margin: 0 0 5px; }
+  .log .big { font-size: 1.2rem; font-weight: bold; color: var(--c3); }
+  .log .win { font-size: 1.35rem; font-weight: bold; color: var(--c4); }
+
+  .center { text-align: center; margin-top: 14px; }
+
+  /* Konfetti */
+  #confetti { position: fixed; inset: 0; pointer-events: none; z-index: 50; overflow: hidden; }
+  .conf { position: absolute; font-size: 26px; animation: fall linear forwards; }
+  @keyframes fall { to { transform: translateY(105vh) rotate(720deg); opacity: .2; } }
+</style>
+</head>
+<body>
+<div id="confetti"></div>
+<div class="wrap">
+
+  <div class="topbar">
+    <a class="back" href="index.html">⬅ Tillbaka till spelhålan</a>
+    <button class="mute" id="muteBtn" type="button">🔊 Ljud på</button>
+  </div>
+
+  <header>
+    <h1><span class="wob">👹</span> Monsterfabriken</h1>
+    <p class="tagline">Bygg dina egna monster – och låt dem slåss i arenan!</p>
+  </header>
+
+  <div class="tabs">
+    <button class="tab on" data-view="bygg" type="button">🔧 Bygg monster</button>
+    <button class="tab" data-view="lista" type="button">📚 Mina monster <span id="countBadge"></span></button>
+    <button class="tab" data-view="arena" type="button">🏟️ Arenan</button>
+  </div>
+
+  <!-- ============ BYGG ============ -->
+  <section class="view on" id="view-bygg">
+    <div class="panel build">
+      <div>
+        <div class="stage" id="preview"></div>
+        <div class="namerow">
+          <input type="text" id="namn" maxlength="18" placeholder="Vad heter monstret?">
+          <button class="btn green" id="saveBtn" type="button">Spara!</button>
+        </div>
+        <div class="center">
+          <button class="btn pink" id="randomBtn" type="button">🎲 Slumpa monster</button>
+        </div>
+        <div class="stats" id="statBars"></div>
+      </div>
+
+      <div id="controls"></div>
+    </div>
+  </section>
+
+  <!-- ============ LISTA ============ -->
+  <section class="view" id="view-lista">
+    <div class="panel">
+      <div class="grid" id="mlist"></div>
+      <div class="empty" id="mempty" style="display:none;">
+        Du har inga monster än!<br>Gå till <b>🔧 Bygg monster</b> och gör ditt första. 👹
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ ARENA ============ -->
+  <section class="view" id="view-arena">
+    <div class="panel">
+      <div class="pickrow">
+        <div class="picker">
+          <h3>🟢 Kämpe 1</h3>
+          <select id="pick1"></select>
+        </div>
+        <div class="picker">
+          <h3>🔴 Kämpe 2</h3>
+          <select id="pick2"></select>
+        </div>
+      </div>
+
+      <div class="center">
+        <button class="btn big" id="fightBtn" type="button">⚔️ SLÅSS!</button>
+      </div>
+
+      <div class="ring">
+        <div class="fighter f1" id="f1">
+          <div id="f1svg"></div>
+          <div class="fname" id="f1name">–</div>
+          <div class="hpbar"><div class="hpfill" id="f1hp"></div></div>
+          <div class="hptext" id="f1hptext"></div>
+        </div>
+        <div class="vs">VS</div>
+        <div class="fighter f2" id="f2">
+          <div id="f2svg"></div>
+          <div class="fname" id="f2name">–</div>
+          <div class="hpbar"><div class="hpfill" id="f2hp"></div></div>
+          <div class="hptext" id="f2hptext"></div>
+        </div>
+      </div>
+
+      <div class="log" id="log"><p>Välj två monster och tryck på <b>SLÅSS!</b> 🥊</p></div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+/* ==========================================================
+   Monsterfabriken – delar, statistik, ritning och strid
+   ========================================================== */
+
+const NYCKEL = 'nils_monsterfabrik_v1';
+
+const FARGER = ['#ff4d8d','#29e0d8','#ffd43b','#9bff4d','#ff9f2e','#b07bff','#ff5c3a','#57b9ff','#ffffff','#8a8f9e'];
+
+const DELAR = {
+  kropp: { titel: 'Kropp', val: [
+    { id:'blobb',   namn:'🫧 Blobb',    str:0, spd:1, hp:6 },
+    { id:'fyrkant', namn:'🧱 Fyrkant',  str:1, spd:-2, hp:10 },
+    { id:'agg',     namn:'🥚 Ägg',      str:0, spd:3, hp:4 },
+    { id:'taggig',  namn:'⭐ Taggig',   str:4, spd:0, hp:5 },
+  ]},
+  ogon: { titel: 'Ögon', val: [
+    { id:'ett',  namn:'👁️ Ett stort', str:2, spd:1, hp:0 },
+    { id:'tva',  namn:'👀 Två',       str:0, spd:2, hp:1 },
+    { id:'tre',  namn:'🔺 Tre',       str:0, spd:3, hp:1 },
+    { id:'fem',  namn:'✨ Fem små',   str:-1, spd:5, hp:0 },
+  ]},
+  mun: { titel: 'Mun', val: [
+    { id:'glad',    namn:'😄 Glatt leende', str:0, spd:0, hp:4 },
+    { id:'tander',  namn:'🦷 Vassa tänder', str:5, spd:0, hp:0 },
+    { id:'sug',     namn:'🫠 Sugmun',       str:2, spd:0, hp:3 },
+    { id:'tandlos', namn:'😮 Tandlös',      str:0, spd:3, hp:0 },
+  ]},
+  horn: { titel: 'Horn', val: [
+    { id:'inga',     namn:'🚫 Inga horn',  str:0, spd:2, hp:0 },
+    { id:'spetsiga', namn:'😈 Två spetsar', str:4, spd:0, hp:0 },
+    { id:'krona',    namn:'👑 Hornkrona',  str:2, spd:0, hp:3 },
+    { id:'antenner', namn:'🐜 Antenner',   str:0, spd:4, hp:0 },
+  ]},
+  armar: { titel: 'Armar', val: [
+    { id:'sma',       namn:'🤏 Små armar',  str:0, spd:3, hp:0 },
+    { id:'klor',      namn:'🦀 Klor',       str:5, spd:0, hp:0 },
+    { id:'tentakler', namn:'🐙 Tentakler',  str:3, spd:1, hp:0 },
+    { id:'navar',     namn:'🥊 Jättenävar', str:6, spd:-2, hp:0 },
+  ]},
+  ben: { titel: 'Ben', val: [
+    { id:'stubbar',  namn:'🦵 Stubbar',    str:0, spd:-1, hp:5 },
+    { id:'langa',    namn:'🦩 Långa ben',  str:0, spd:4, hp:0 },
+    { id:'fjader',   namn:'🌀 Hoppfjädrar', str:0, spd:3, hp:2 },
+    { id:'slemfot',  namn:'🐌 Slemfot',    str:0, spd:2, hp:3 },
+  ]},
+  monster: { titel: 'Mönster', val: [
+    { id:'inget',    namn:'⬜ Slätt',    str:0, spd:0, hp:0 },
+    { id:'prickar',  namn:'🔵 Prickar',  str:0, spd:0, hp:3 },
+    { id:'rander',   namn:'🦓 Ränder',   str:0, spd:2, hp:0 },
+    { id:'stjarnor', namn:'⭐ Stjärnor', str:2, spd:0, hp:0 },
+  ]},
+};
+
+const BAS = { str: 5, spd: 5, hp: 30 };
+
+/* ---------- Statistik ---------- */
+function statsFor(m) {
+  const s = { str: BAS.str, spd: BAS.spd, hp: BAS.hp };
+  for (const kat in DELAR) {
+    const del = DELAR[kat].val.find(v => v.id === m.delar[kat]) || DELAR[kat].val[0];
+    s.str += del.str; s.spd += del.spd; s.hp += del.hp;
+  }
+  s.str = Math.max(1, s.str);
+  s.spd = Math.max(1, s.spd);
+  s.hp = Math.max(10, s.hp);
+  return s;
+}
+
+/* ---------- Ritning (SVG) ---------- */
+let clipRaknare = 0;
+
+function kroppForm(id) {
+  switch (id) {
+    case 'fyrkant': return '<rect x="42" y="52" width="116" height="112" rx="22"/>';
+    case 'agg':     return '<ellipse cx="100" cy="106" rx="49" ry="62"/>';
+    case 'taggig':  return '<path d="M100 38 L119 62 L148 55 L143 86 L168 106 L143 126 L148 157 L119 150 L100 174 L81 150 L52 157 L57 126 L32 106 L57 86 L52 55 L81 62 Z"/>';
+    default:        return '<ellipse cx="100" cy="108" rx="60" ry="55"/>';
+  }
+}
+
+function ritaOgon(id) {
+  const vit = (x, y, r) =>
+    `<circle cx="${x}" cy="${y}" r="${r}" fill="#fff" stroke="${'#1b0b33'}" stroke-width="4"/>` +
+    `<circle cx="${x}" cy="${y + r * 0.15}" r="${r * 0.45}" fill="#1b0b33"/>`;
+  switch (id) {
+    case 'ett': return vit(100, 96, 24);
+    case 'tre': return vit(70, 92, 14) + vit(100, 78, 14) + vit(130, 92, 14);
+    case 'fem': return vit(64, 96, 10) + vit(85, 82, 10) + vit(106, 92, 10) + vit(127, 80, 10) + vit(138, 100, 10);
+    default:    return vit(78, 94, 17) + vit(122, 94, 17);
+  }
+}
+
+function ritaMun(id) {
+  switch (id) {
+    case 'tander':
+      return '<path d="M70 132 h60 v18 a30 30 0 0 1 -60 0 Z" fill="#1b0b33"/>' +
+             '<path d="M72 133 l9 12 l9 -12 l9 12 l9 -12 l9 12 l9 -12 Z" fill="#fff"/>' +
+             '<path d="M76 158 l8 -10 l8 10 Z M108 158 l8 -10 l8 10 Z" fill="#fff"/>';
+    case 'sug':
+      return '<ellipse cx="100" cy="142" rx="20" ry="16" fill="#1b0b33"/>' +
+             '<ellipse cx="100" cy="142" rx="10" ry="8" fill="#ff4d8d"/>';
+    case 'tandlos':
+      return '<ellipse cx="100" cy="142" rx="15" ry="12" fill="#1b0b33"/>';
+    default:
+      return '<path d="M72 132 q28 30 56 0" fill="none" stroke="#1b0b33" stroke-width="7" stroke-linecap="round"/>';
+  }
+}
+
+function ritaHorn(id, farg) {
+  switch (id) {
+    case 'spetsiga':
+      return `<path d="M62 66 L54 22 L86 54 Z" fill="${farg}" stroke="#1b0b33" stroke-width="4"/>` +
+             `<path d="M138 66 L146 22 L114 54 Z" fill="${farg}" stroke="#1b0b33" stroke-width="4"/>`;
+    case 'krona':
+      return `<path d="M58 58 L66 26 L84 50 L100 20 L116 50 L134 26 L142 58 Z" fill="${farg}" stroke="#1b0b33" stroke-width="4"/>`;
+    case 'antenner':
+      return `<path d="M80 58 q-12 -30 -22 -38" fill="none" stroke="#1b0b33" stroke-width="6" stroke-linecap="round"/>` +
+             `<path d="M120 58 q12 -30 22 -38" fill="none" stroke="#1b0b33" stroke-width="6" stroke-linecap="round"/>` +
+             `<circle cx="57" cy="19" r="10" fill="${farg}" stroke="#1b0b33" stroke-width="4"/>` +
+             `<circle cx="143" cy="19" r="10" fill="${farg}" stroke="#1b0b33" stroke-width="4"/>`;
+    default: return '';
+  }
+}
+
+function ritaArmar(id, farg) {
+  const st = `fill="${farg}" stroke="#1b0b33" stroke-width="4"`;
+  switch (id) {
+    case 'klor':
+      return `<rect x="6" y="102" width="46" height="15" rx="7" ${st}/>` +
+             `<path d="M14 96 L2 108 L14 120 M14 104 L-2 110 L14 116" fill="none" stroke="#1b0b33" stroke-width="6" stroke-linecap="round"/>` +
+             `<rect x="148" y="102" width="46" height="15" rx="7" ${st}/>` +
+             `<path d="M186 96 L198 108 L186 120 M186 104 L202 110 L186 116" fill="none" stroke="#1b0b33" stroke-width="6" stroke-linecap="round"/>`;
+    case 'tentakler':
+      return `<path d="M46 106 q-30 6 -34 30 q-2 16 12 18" fill="none" stroke="${farg}" stroke-width="13" stroke-linecap="round"/>` +
+             `<path d="M46 106 q-30 6 -34 30 q-2 16 12 18" fill="none" stroke="#1b0b33" stroke-width="3" stroke-linecap="round" opacity=".35"/>` +
+             `<path d="M154 106 q30 6 34 30 q2 16 -12 18" fill="none" stroke="${farg}" stroke-width="13" stroke-linecap="round"/>` +
+             `<path d="M154 106 q30 6 34 30 q2 16 -12 18" fill="none" stroke="#1b0b33" stroke-width="3" stroke-linecap="round" opacity=".35"/>`;
+    case 'navar':
+      return `<rect x="16" y="102" width="34" height="14" rx="7" ${st}/>` +
+             `<circle cx="16" cy="109" r="22" ${st}/>` +
+             `<rect x="150" y="102" width="34" height="14" rx="7" ${st}/>` +
+             `<circle cx="184" cy="109" r="22" ${st}/>`;
+    default:
+      return `<ellipse cx="38" cy="112" rx="15" ry="9" ${st}/>` +
+             `<ellipse cx="162" cy="112" rx="15" ry="9" ${st}/>`;
+  }
+}
+
+function ritaBen(id, farg) {
+  const st = `fill="${farg}" stroke="#1b0b33" stroke-width="4"`;
+  switch (id) {
+    case 'langa':
+      return `<rect x="72" y="140" width="14" height="52" rx="7" ${st}/>` +
+             `<rect x="114" y="140" width="14" height="52" rx="7" ${st}/>` +
+             `<ellipse cx="76" cy="193" rx="21" ry="10" ${st}/>` +
+             `<ellipse cx="124" cy="193" rx="21" ry="10" ${st}/>`;
+    case 'fjader':
+      return `<path d="M79 146 l-14 8 l28 8 l-28 8 l28 8 l-20 8" fill="none" stroke="${farg}" stroke-width="8" stroke-linecap="round"/>` +
+             `<path d="M121 146 l14 8 l-28 8 l28 8 l-28 8 l20 8" fill="none" stroke="${farg}" stroke-width="8" stroke-linecap="round"/>` +
+             `<ellipse cx="74" cy="191" rx="19" ry="9" ${st}/>` +
+             `<ellipse cx="126" cy="191" rx="19" ry="9" ${st}/>`;
+    case 'slemfot':
+      return `<path d="M46 168 q54 34 108 0 q6 22 -54 22 q-60 0 -54 -22 Z" ${st}/>` +
+             `<ellipse cx="72" cy="184" rx="7" ry="4" fill="#ffffff" opacity=".35"/>` +
+             `<ellipse cx="120" cy="187" rx="9" ry="4" fill="#ffffff" opacity=".3"/>`;
+    default:
+      return `<rect x="68" y="148" width="22" height="34" rx="10" ${st}/>` +
+             `<rect x="110" y="148" width="22" height="34" rx="10" ${st}/>` +
+             `<ellipse cx="79" cy="185" rx="18" ry="9" ${st}/>` +
+             `<ellipse cx="121" cy="185" rx="18" ry="9" ${st}/>`;
+  }
+}
+
+function ritaMonster(id, clipId) {
+  if (id === 'inget') return '';
+  let inne = '';
+  if (id === 'prickar') {
+    const p = [[74,80],[124,120],[86,140],[132,72],[60,118],[104,58],[142,146],[68,156]];
+    inne = p.map(([x, y]) => `<circle cx="${x}" cy="${y}" r="9" fill="#000" opacity=".18"/>`).join('');
+  } else if (id === 'rander') {
+    inne = [30, 56, 82, 108, 134, 160].map(y =>
+      `<rect x="20" y="${y}" width="170" height="12" fill="#000" opacity=".16"/>`).join('');
+  } else if (id === 'stjarnor') {
+    const stj = (x, y, s) =>
+      `<path transform="translate(${x} ${y}) scale(${s})" d="M0 -12 L3.5 -4 L12 -3.5 L5.5 2 L7.5 11 L0 6 L-7.5 11 L-5.5 2 L-12 -3.5 L-3.5 -4 Z" fill="#fff" opacity=".45"/>`;
+    inne = stj(70, 78, 1) + stj(130, 118, 1.2) + stj(92, 148, .9) + stj(140, 70, .8) + stj(58, 126, 1);
+  }
+  return `<g clip-path="url(#${clipId})">${inne}</g>`;
+}
+
+function monsterSVG(m) {
+  const cid = 'clip' + (clipRaknare++);
+  const farg = m.farg;
+  const morkare = 'stroke="#1b0b33" stroke-width="5"';
+  return `<svg viewBox="0 0 200 205" xmlns="http://www.w3.org/2000/svg">
+    <defs><clipPath id="${cid}">${kroppForm(m.delar.kropp)}</clipPath></defs>
+    ${ritaBen(m.delar.ben, farg)}
+    ${ritaArmar(m.delar.armar, farg)}
+    ${ritaHorn(m.delar.horn, farg)}
+    <g fill="${farg}" ${morkare}>${kroppForm(m.delar.kropp)}</g>
+    ${ritaMonster(m.delar.monster, cid)}
+    ${ritaOgon(m.delar.ogon)}
+    ${ritaMun(m.delar.mun)}
+  </svg>`;
+}
+
+/* ---------- Lagring ---------- */
+function ladda() {
+  try {
+    const r = JSON.parse(localStorage.getItem(NYCKEL));
+    return Array.isArray(r) ? r : [];
+  } catch (e) { return []; }
+}
+function spara(lista) {
+  try { localStorage.setItem(NYCKEL, JSON.stringify(lista)); } catch (e) {}
+}
+
+let monster = ladda();
+
+/* ---------- Ljud ---------- */
+let ljudPa = true;
+let actx = null;
+function pip(freq, langd, typ) {
+  if (!ljudPa) return;
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    const o = actx.createOscillator(), g = actx.createGain();
+    o.type = typ || 'square';
+    o.frequency.value = freq;
+    g.gain.value = 0.06;
+    o.connect(g); g.connect(actx.destination);
+    o.start();
+    g.gain.exponentialRampToValueAtTime(0.001, actx.currentTime + langd);
+    o.stop(actx.currentTime + langd);
+  } catch (e) {}
+}
+document.getElementById('muteBtn').addEventListener('click', function () {
+  ljudPa = !ljudPa;
+  this.textContent = ljudPa ? '🔊 Ljud på' : '🔇 Ljud av';
+});
+
+/* ---------- Byggvyn ---------- */
+const aktuell = {
+  namn: '',
+  farg: FARGER[3],
+  delar: { kropp:'blobb', ogon:'tva', mun:'glad', horn:'inga', armar:'sma', ben:'stubbar', monster:'inget' }
+};
+
+function byggKontroller() {
+  const box = document.getElementById('controls');
+  let html = '';
+  for (const kat in DELAR) {
+    html += `<div class="cat"><h3>${DELAR[kat].titel}</h3><div class="chips">` +
+      DELAR[kat].val.map(v =>
+        `<button class="chip${aktuell.delar[kat] === v.id ? ' on' : ''}" type="button" data-kat="${kat}" data-id="${v.id}">${v.namn}</button>`
+      ).join('') + '</div></div>';
+  }
+  html += '<div class="cat"><h3>Färg</h3><div class="swatches">' +
+    FARGER.map(f =>
+      `<button class="swatch${aktuell.farg === f ? ' on' : ''}" type="button" data-farg="${f}" style="background:${f};color:${f}"></button>`
+    ).join('') + '</div></div>';
+  box.innerHTML = html;
+
+  box.querySelectorAll('.chip').forEach(b => b.addEventListener('click', () => {
+    aktuell.delar[b.dataset.kat] = b.dataset.id;
+    pip(520, .07);
+    byggKontroller(); ritaForhandsvisning();
+  }));
+  box.querySelectorAll('.swatch').forEach(b => b.addEventListener('click', () => {
+    aktuell.farg = b.dataset.farg;
+    pip(660, .07);
+    byggKontroller(); ritaForhandsvisning();
+  }));
+}
+
+function statRad(ikon, namn, varde, max, klass) {
+  const p = Math.max(4, Math.min(100, Math.round(varde / max * 100)));
+  return `<div class="stat"><span class="lbl">${ikon} ${namn}</span>
+    <span class="bar"><span class="fill ${klass}" style="width:${p}%"></span></span>
+    <span class="num">${varde}</span></div>`;
+}
+
+function ritaForhandsvisning() {
+  document.getElementById('preview').innerHTML = monsterSVG(aktuell);
+  const s = statsFor(aktuell);
+  document.getElementById('statBars').innerHTML =
+    statRad('💪', 'Styrka', s.str, 22, 'f-str') +
+    statRad('⚡', 'Fart',   s.spd, 22, 'f-spd') +
+    statRad('❤️', 'Liv',    s.hp, 55, 'f-hp');
+}
+
+const FORLED = ['Slem','Gnag','Skräll','Blubb','Tugg','Fnys','Rumpel','Snor','Grym','Tass','Bös','Kladd','Vrål','Puff','Knas'];
+const EFTERLED = ['mula','tass','käft','buse','snurra','klump','tand','fnatt','blubb','skalle','pyssling','trut','muff','gubbe'];
+function slumpNamn() {
+  return FORLED[Math.floor(Math.random() * FORLED.length)] + EFTERLED[Math.floor(Math.random() * EFTERLED.length)];
+}
+function slumpDel(kat) {
+  const v = DELAR[kat].val;
+  return v[Math.floor(Math.random() * v.length)].id;
+}
+function slumpaMonster() {
+  const d = {};
+  for (const kat in DELAR) d[kat] = slumpDel(kat);
+  return { namn: slumpNamn(), farg: FARGER[Math.floor(Math.random() * FARGER.length)], delar: d, vinster: 0, forluster: 0 };
+}
+
+document.getElementById('randomBtn').addEventListener('click', () => {
+  const m = slumpaMonster();
+  aktuell.farg = m.farg;
+  aktuell.delar = m.delar;
+  document.getElementById('namn').value = m.namn;
+  pip(880, .12);
+  byggKontroller(); ritaForhandsvisning();
+});
+
+document.getElementById('saveBtn').addEventListener('click', () => {
+  const f = document.getElementById('namn');
+  const namn = (f.value || '').trim() || slumpNamn();
+  const nytt = {
+    id: 'm' + Date.now() + Math.floor(Math.random() * 999),
+    namn: namn,
+    farg: aktuell.farg,
+    delar: Object.assign({}, aktuell.delar),
+    vinster: 0, forluster: 0
+  };
+  monster.push(nytt);
+  spara(monster);
+  f.value = '';
+  pip(700, .1); setTimeout(() => pip(1000, .14), 110);
+  ritaLista(); fyllValjare();
+  visa('lista');
+});
+
+/* ---------- Listvyn ---------- */
+function ritaLista() {
+  const box = document.getElementById('mlist');
+  document.getElementById('mempty').style.display = monster.length ? 'none' : 'block';
+  document.getElementById('countBadge').textContent = monster.length ? '(' + monster.length + ')' : '';
+  box.innerHTML = monster.map(m => {
+    const s = statsFor(m);
+    return `<div class="mcard">
+      ${monsterSVG(m)}
+      <div class="nm">${skydda(m.namn)}</div>
+      <div class="sm">💪${s.str} ⚡${s.spd} ❤️${s.hp}</div>
+      <div class="sm">🏆 ${m.vinster || 0} vinster · ${m.forluster || 0} förluster</div>
+      <div class="row">
+        <button class="mini" type="button" data-kopiera="${m.id}">✏️ Kopiera</button>
+        <button class="mini" type="button" data-radera="${m.id}">🗑️</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  box.querySelectorAll('[data-radera]').forEach(b => b.addEventListener('click', () => {
+    monster = monster.filter(x => x.id !== b.dataset.radera);
+    spara(monster); ritaLista(); fyllValjare(); pip(200, .15, 'sawtooth');
+  }));
+  box.querySelectorAll('[data-kopiera]').forEach(b => b.addEventListener('click', () => {
+    const m = monster.find(x => x.id === b.dataset.kopiera);
+    if (!m) return;
+    aktuell.farg = m.farg;
+    aktuell.delar = Object.assign({}, m.delar);
+    document.getElementById('namn').value = m.namn + ' 2';
+    byggKontroller(); ritaForhandsvisning(); visa('bygg'); pip(640, .09);
+  }));
+}
+
+function skydda(t) {
+  return String(t).replace(/[&<>"']/g, c =>
+    ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+}
+
+/* ---------- Arenan ---------- */
+function fyllValjare() {
+  [1, 2].forEach(n => {
+    const sel = document.getElementById('pick' + n);
+    const tidigare = sel.value;
+    let html = monster.map(m => `<option value="${m.id}">${skydda(m.namn)}</option>`).join('');
+    html += '<option value="__vilt">🎲 Slumpat vildmonster</option>';
+    sel.innerHTML = html;
+    if (tidigare && sel.querySelector(`option[value="${tidigare}"]`)) sel.value = tidigare;
+    else if (monster[n - 1]) sel.value = monster[n - 1].id;
+    else sel.value = '__vilt';
+  });
+  visaKampar();
+}
+
+function hamtaKampe(n) {
+  const v = document.getElementById('pick' + n).value;
+  if (v === '__vilt' || !v) {
+    const m = slumpaMonster();
+    m.id = '__vilt' + n;
+    m.vilt = true;
+    return m;
+  }
+  const m = monster.find(x => x.id === v);
+  return m ? JSON.parse(JSON.stringify(m)) : slumpaMonster();
+}
+
+let kampe1 = null, kampe2 = null, strid = false;
+
+function visaKampar() {
+  kampe1 = hamtaKampe(1);
+  kampe2 = hamtaKampe(2);
+  rensaSkador();
+  document.getElementById('f1svg').innerHTML = monsterSVG(kampe1);
+  document.getElementById('f2svg').innerHTML = monsterSVG(kampe2);
+  document.getElementById('f1name').textContent = kampe1.namn;
+  document.getElementById('f2name').textContent = kampe2.namn;
+  const s1 = statsFor(kampe1), s2 = statsFor(kampe2);
+  sattHP('f1', s1.hp, s1.hp);
+  sattHP('f2', s2.hp, s2.hp);
+}
+
+function rensaSkador() {
+  ['f1', 'f2'].forEach(id => {
+    const e = document.getElementById(id);
+    e.classList.remove('hit');
+    e.querySelector('svg') && e.querySelector('svg').classList.remove('fallen');
+  });
+}
+
+function sattHP(id, nu, max) {
+  const p = Math.max(0, nu) / max * 100;
+  const f = document.getElementById(id + 'hp');
+  f.style.width = p + '%';
+  f.className = 'hpfill' + (p <= 25 ? ' crit' : p <= 55 ? ' low' : '');
+  document.getElementById(id + 'hptext').textContent = Math.max(0, Math.round(nu)) + ' / ' + max + ' liv';
+}
+
+const ATTACK_NAMN = {
+  sma: ['gav en snabb liten smäll', 'kittlade till', 'petade hårt'],
+  klor: ['högg med KLORNA', 'rev till', 'klämde med klon'],
+  tentakler: ['piskade med tentakeln', 'slog en tentakel-snärt', 'virade in'],
+  navar: ['dunkade med JÄTTENÄVEN', 'gav en rejäl smockis', 'slog en bomb'],
+};
+const MUN_ATTACK = {
+  tander: 'BET till med de vassa tänderna',
+  sug: 'sög i sig lite kraft',
+  glad: 'skrattade så det small',
+  tandlos: 'blåste en rejäl vindpust',
+};
+
+function loggaText(html, klass) {
+  const l = document.getElementById('log');
+  const p = document.createElement('p');
+  if (klass) p.className = klass;
+  p.innerHTML = html;
+  l.appendChild(p);
+  l.scrollTop = l.scrollHeight;
+}
+
+function slumpVal(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+document.getElementById('pick1').addEventListener('change', () => { if (!strid) visaKampar(); });
+document.getElementById('pick2').addEventListener('change', () => { if (!strid) visaKampar(); });
+
+document.getElementById('fightBtn').addEventListener('click', startaStrid);
+
+function startaStrid() {
+  if (strid) return;
+  strid = true;
+  document.getElementById('fightBtn').disabled = true;
+  document.getElementById('log').innerHTML = '';
+  visaKampar();
+
+  const s1 = statsFor(kampe1), s2 = statsFor(kampe2);
+  const a = { m: kampe1, s: s1, hp: s1.hp, max: s1.hp, sida: 'f1' };
+  const b = { m: kampe2, s: s2, hp: s2.hp, max: s2.hp, sida: 'f2' };
+
+  loggaText(`🥊 <b>${skydda(a.m.namn)}</b> möter <b>${skydda(b.m.namn)}</b>!`, 'big');
+  if (a.m.vilt || b.m.vilt) loggaText('Ett vilt monster har dykt upp! 🎲');
+
+  let forst = a.s.spd >= b.s.spd ? a : b;
+  let sen = forst === a ? b : a;
+  loggaText(`⚡ ${skydda(forst.m.namn)} är snabbast och börjar!`);
+
+  let rundor = 0;
+  const MAXRUNDOR = 80;
+
+  function tur(anfallare, forsvarare) {
+    if (!strid) return;
+    rundor++;
+
+    const dodge = Math.min(0.32, forsvarare.s.spd / 130);
+    const traff = Math.random() >= dodge;
+
+    if (!traff) {
+      loggaText(`💨 ${skydda(anfallare.m.namn)} slog … men ${skydda(forsvarare.m.namn)} <b>duckade</b>!`);
+      pip(300, .08, 'triangle');
+    } else {
+      const krit = Math.random() < Math.min(0.28, anfallare.s.spd / 160);
+      let skada = anfallare.s.str * (0.7 + Math.random() * 0.6);
+      if (rundor > 40) skada *= 1.8;
+      if (krit) skada *= 2;
+      skada = Math.max(1, Math.round(skada));
+      forsvarare.hp -= skada;
+
+      const armId = anfallare.m.delar.armar;
+      let text = slumpVal(ATTACK_NAMN[armId] || ATTACK_NAMN.sma);
+      if (Math.random() < 0.3) text = MUN_ATTACK[anfallare.m.delar.mun] || text;
+
+      loggaText(
+        (krit ? '💥 <b>SUPERTRÄFF!</b> ' : '👊 ') +
+        `${skydda(anfallare.m.namn)} ${text} – <b>${skada}</b> i skada!`,
+        krit ? 'big' : ''
+      );
+      pip(krit ? 180 : 420, krit ? .18 : .07, krit ? 'sawtooth' : 'square');
+
+      const el = document.getElementById(forsvarare.sida);
+      el.classList.remove('hit');
+      void el.offsetWidth;
+      el.classList.add('hit');
+      sattHP(forsvarare.sida, forsvarare.hp, forsvarare.max);
+    }
+
+    if (forsvarare.hp <= 0) { slut(anfallare, forsvarare); return; }
+    if (rundor >= MAXRUNDOR) {
+      const vinnare = a.hp >= b.hp ? a : b;
+      const forlorare = vinnare === a ? b : a;
+      slut(vinnare, forlorare, true);
+      return;
+    }
+    setTimeout(() => tur(forsvarare, anfallare), 950);
+  }
+
+  function slut(vinnare, forlorare, patid) {
+    const svg = document.getElementById(forlorare.sida).querySelector('svg');
+    if (svg) svg.classList.add('fallen');
+    if (patid) loggaText('⏰ Tiden är ute – den med mest liv kvar vinner!');
+    loggaText(`🏆 <b>${skydda(vinnare.m.namn)} VANN!</b> 🎉`, 'win');
+
+    const vm = monster.find(x => x.id === vinnare.m.id);
+    const fm = monster.find(x => x.id === forlorare.m.id);
+    if (vm) vm.vinster = (vm.vinster || 0) + 1;
+    if (fm) fm.forluster = (fm.forluster || 0) + 1;
+    if (vm || fm) { spara(monster); ritaLista(); }
+
+    segerLjud();
+    konfetti();
+    strid = false;
+    document.getElementById('fightBtn').disabled = false;
+  }
+
+  setTimeout(() => tur(forst, sen), 800);
+}
+
+function segerLjud() {
+  [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => pip(f, .16, 'triangle'), i * 130));
+}
+
+function konfetti() {
+  const box = document.getElementById('confetti');
+  const emojis = ['🎉', '⭐', '👹', '💥', '🏆', '✨'];
+  for (let i = 0; i < 34; i++) {
+    const d = document.createElement('div');
+    d.className = 'conf';
+    d.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+    d.style.left = Math.random() * 100 + '%';
+    d.style.top = '-40px';
+    d.style.animationDuration = (2 + Math.random() * 1.8) + 's';
+    d.style.animationDelay = (Math.random() * .6) + 's';
+    box.appendChild(d);
+    setTimeout(() => d.remove(), 5000);
+  }
+}
+
+/* ---------- Flikar ---------- */
+function visa(namn) {
+  document.querySelectorAll('.view').forEach(v => v.classList.toggle('on', v.id === 'view-' + namn));
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('on', t.dataset.view === namn));
+  if (namn === 'arena') fyllValjare();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+document.querySelectorAll('.tab').forEach(t =>
+  t.addEventListener('click', () => { pip(600, .06); visa(t.dataset.view); }));
+
+/* ---------- Start ---------- */
+byggKontroller();
+ritaForhandsvisning();
+ritaLista();
+fyllValjare();
+</script>
+</body>
+</html>

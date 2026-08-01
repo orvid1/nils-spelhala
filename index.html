@@ -87,6 +87,8 @@
   .c-poop:hover   { border-color: var(--gold);  box-shadow: 0 0 28px rgba(255,210,63,.55); }
   .c-voice  { color: #b07bff; }
   .c-voice:hover  { border-color: #b07bff; box-shadow: 0 0 28px rgba(176,123,255,.55); }
+  .c-monster{ color: #7bff4d; }
+  .c-monster:hover{ border-color: #7bff4d; box-shadow: 0 0 28px rgba(123,255,77,.55); }
   .badge { display:inline-block; background:var(--gold); color:#3a2410; font-size:.7rem;
            font-weight:bold; padding:1px 7px; border-radius:8px; margin-left:6px; vertical-align:middle; }
   @keyframes pop { 0%{transform:scale(.6);opacity:0} 70%{transform:scale(1.08)} 100%{transform:scale(1);opacity:1} }
@@ -101,9 +103,15 @@
     <p class="sub">Välj ett äventyr!</p>
 
     <div class="cards">
+      <a class="card c-monster" href="monsterfabriken.html">
+        <span class="emoji">👹</span>
+        <span class="txt"><b>Monsterfabriken<span class="badge">NYTT!</span></b><span>Bygg egna monster och låt dem slåss i arenan</span></span>
+        <span class="go">▶</span>
+      </a>
+
       <a class="card c-voice" href="ljudlada.html">
         <span class="emoji">🎤</span>
-        <span class="txt"><b>Ljudlådan<span class="badge">NYTT!</span></b><span>Skriv egna knappar – datorn säger det du skriver!</span></span>
+        <span class="txt"><b>Ljudlådan</b><span>Skriv egna knappar – datorn säger det du skriver!</span></span>
         <span class="go">▶</span>
       </a>
 
@@ -127,7 +135,7 @@
 
       <a class="card c-poop" id="bajskorvCard" href="bajskorv.html" style="display:none;">
         <span class="emoji">💩</span>
-        <span class="txt"><b>Bajskorv-flykten<span class="badge">NYTT!</span></b><span>Flyg genom avloppet som en missil 🚀</span></span>
+        <span class="txt"><b>Bajskorv-flykten</b><span>Flyg genom avloppet som en missil 🚀</span></span>
         <span class="go">▶</span>
       </a>
     </div>
