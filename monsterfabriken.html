@@ -217,6 +217,43 @@
 
   .center { text-align: center; margin-top: 14px; }
 
+  /* Skadesiffror */
+  .fighter { position: relative; }
+  .dmgpop {
+    position: absolute; left: 50%; top: 28%;
+    font-size: 1.7rem; font-weight: bold; pointer-events: none; z-index: 5;
+    text-shadow: 2px 2px 0 #1b0b33, 0 0 10px rgba(0,0,0,.6);
+    animation: dmgup .95s ease-out forwards;
+  }
+  .dmgpop.dmg  { color: #ff5c7a; }
+  .dmgpop.krit { color: #ffd43b; font-size: 2.3rem; }
+  .dmgpop.heal { color: #a9ff7a; }
+  .dmgpop.frys { color: #7bffe8; font-size: 2rem; }
+  @keyframes dmgup {
+    0%   { opacity: 1; transform: translate(-50%, 0) scale(.6); }
+    25%  { transform: translate(-50%, -16px) scale(1.3); }
+    100% { opacity: 0; transform: translate(-50%, -52px) scale(1); }
+  }
+
+  /* Turnering */
+  .tinfo { text-align: center; color: var(--muted); margin: 4px 0 8px; }
+  .trond h3 { text-align: center; color: var(--c3); margin: 20px 0 10px; font-size: 1.25rem; text-shadow: 0 0 10px rgba(255,159,46,.5); }
+  .tmatch {
+    display: flex; align-items: center; justify-content: center; gap: 12px;
+    background: rgba(0,0,0,.24); border: 2px solid rgba(255,255,255,.1);
+    border-radius: 16px; padding: 8px; margin-bottom: 10px;
+    animation: fade .3s ease-out;
+  }
+  .tside { width: 120px; text-align: center; font-size: .85rem; font-weight: bold; border-radius: 12px; padding: 4px; transition: all .4s; word-break: break-word; }
+  .tside svg { width: 78px; height: auto; }
+  .tvs { font-weight: bold; color: var(--c3); font-size: 1.1rem; }
+  .tside.tvinn { background: rgba(123,255,77,.16); box-shadow: 0 0 0 3px var(--c4); }
+  .tside.tforl { opacity: .35; filter: grayscale(.8); }
+  .champ { text-align: center; margin-top: 20px; animation: fade .4s ease-out; }
+  .champ svg { width: 200px; height: auto; }
+  .champtitel { font-size: clamp(1.6rem, 6vw, 2.3rem); font-weight: bold; color: var(--c3); text-shadow: 0 0 16px #ff9f2e, 3px 3px 0 #1b0b33; }
+  .champnamn { font-size: 1.4rem; font-weight: bold; margin-top: 2px; }
+
   /* Konfetti */
   #confetti { position: fixed; inset: 0; pointer-events: none; z-index: 50; overflow: hidden; }
   .conf { position: absolute; font-size: 26px; animation: fall linear forwards; }
@@ -241,6 +278,7 @@
     <button class="tab on" data-view="bygg" type="button">🔧 Bygg monster</button>
     <button class="tab" data-view="lista" type="button">📚 Mina monster <span id="countBadge"></span></button>
     <button class="tab" data-view="arena" type="button">🏟️ Arenan</button>
+    <button class="tab" data-view="turnering" type="button">🏆 Turnering</button>
   </div>
 
   <!-- ============ BYGG ============ -->
@@ -310,6 +348,18 @@
     </div>
   </section>
 
+  <!-- ============ TURNERING ============ -->
+  <section class="view" id="view-turnering">
+    <div class="panel">
+      <p class="tinfo">Alla dina monster gör upp om pokalen! Om ni är för få fylls turneringen på med 🎲 vilda monster.</p>
+      <div class="center" style="margin-top:4px;">
+        <button class="btn big" id="tournyBtn" type="button">🏆 Starta turnering!</button>
+      </div>
+      <div id="tbracket"></div>
+      <div id="tchamp"></div>
+    </div>
+  </section>
+
 </div>
 
 <script>
@@ -364,7 +414,16 @@ const DELAR = {
     { id:'rander',   namn:'🦓 Ränder',   str:0, spd:2, hp:0 },
     { id:'stjarnor', namn:'⭐ Stjärnor', str:2, spd:0, hp:0 },
   ]},
+  kraft: { titel: 'Superkraft', val: [
+    { id:'ingen', namn:'🚫 Ingen',      str:1, spd:1, hp:2 },
+    { id:'eld',   namn:'🔥 Eldsprut',   str:2, spd:0, hp:0 },
+    { id:'blixt', namn:'⚡ Blixtkraft', str:0, spd:2, hp:0 },
+    { id:'is',    namn:'❄️ Isandning',  str:0, spd:0, hp:3 },
+    { id:'lake',  namn:'💚 Läkekraft',  str:0, spd:0, hp:4 },
+  ]},
 };
+
+const KRAFT_SYMBOL = { eld:'🔥', blixt:'⚡', is:'❄️', lake:'💚' };
 
 const BAS = { str: 5, spd: 5, hp: 30 };
 
@@ -516,6 +575,7 @@ function monsterSVG(m) {
     ${ritaMonster(m.delar.monster, cid)}
     ${ritaOgon(m.delar.ogon)}
     ${ritaMun(m.delar.mun)}
+    ${KRAFT_SYMBOL[m.delar.kraft] ? `<text x="172" y="36" font-size="27" text-anchor="middle">${KRAFT_SYMBOL[m.delar.kraft]}</text>` : ''}
   </svg>`;
 }
 
@@ -558,7 +618,7 @@ document.getElementById('muteBtn').addEventListener('click', function () {
 const aktuell = {
   namn: '',
   farg: FARGER[3],
-  delar: { kropp:'blobb', ogon:'tva', mun:'glad', horn:'inga', armar:'sma', ben:'stubbar', monster:'inget' }
+  delar: { kropp:'blobb', ogon:'tva', mun:'glad', horn:'inga', armar:'sma', ben:'stubbar', monster:'inget', kraft:'ingen' }
 };
 
 function byggKontroller() {
@@ -766,6 +826,15 @@ function loggaText(html, klass) {
 
 function slumpVal(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 
+function popSkada(sida, text, klass) {
+  const el = document.getElementById(sida);
+  const d = document.createElement('div');
+  d.className = 'dmgpop ' + (klass || 'dmg');
+  d.textContent = text;
+  el.appendChild(d);
+  setTimeout(() => d.remove(), 1000);
+}
+
 document.getElementById('pick1').addEventListener('change', () => { if (!strid) visaKampar(); });
 document.getElementById('pick2').addEventListener('change', () => { if (!strid) visaKampar(); });
 
@@ -796,6 +865,20 @@ function startaStrid() {
     if (!strid) return;
     rundor++;
 
+    if (anfallare.frusen) {
+      anfallare.frusen = false;
+      loggaText(`🧊 ${skydda(anfallare.m.namn)} är fastfrusen och missar sin tur!`);
+      popSkada(anfallare.sida, '🧊', 'frys');
+      pip(240, .14, 'triangle');
+      if (rundor >= MAXRUNDOR) {
+        const vinnare = a.hp >= b.hp ? a : b;
+        slut(vinnare, vinnare === a ? b : a, true);
+        return;
+      }
+      setTimeout(() => tur(forsvarare, anfallare), 950);
+      return;
+    }
+
     const dodge = Math.min(0.32, forsvarare.s.spd / 130);
     const traff = Math.random() >= dodge;
 
@@ -820,12 +903,46 @@ function startaStrid() {
         krit ? 'big' : ''
       );
       pip(krit ? 180 : 420, krit ? .18 : .07, krit ? 'sawtooth' : 'square');
+      popSkada(forsvarare.sida, '-' + skada, krit ? 'krit' : 'dmg');
 
       const el = document.getElementById(forsvarare.sida);
       el.classList.remove('hit');
       void el.offsetWidth;
       el.classList.add('hit');
       sattHP(forsvarare.sida, forsvarare.hp, forsvarare.max);
+
+      /* Superkraft kan trigga efter en träff */
+      const kraft = anfallare.m.delar.kraft;
+      if (kraft && kraft !== 'ingen' && forsvarare.hp > 0 && Math.random() < 0.28) {
+        if (kraft === 'eld') {
+          const extra = Math.max(2, Math.round(anfallare.s.str * 0.8));
+          forsvarare.hp -= extra;
+          loggaText(`🔥 ${skydda(anfallare.m.namn)} sprutade <b>ELD</b> – ${extra} extra i skada!`, 'big');
+          popSkada(forsvarare.sida, '-' + extra + ' 🔥', 'krit');
+          pip(150, .2, 'sawtooth');
+        } else if (kraft === 'blixt') {
+          const extra = Math.max(1, Math.round(anfallare.s.str * 0.5));
+          forsvarare.hp -= extra;
+          loggaText(`⚡ ${skydda(anfallare.m.namn)} slog <b>BLIXTSNABBT</b> en gång till – ${extra} extra!`);
+          popSkada(forsvarare.sida, '-' + extra + ' ⚡', 'dmg');
+          pip(900, .1); setTimeout(() => pip(1100, .08), 90);
+        } else if (kraft === 'is') {
+          forsvarare.frusen = true;
+          loggaText(`❄️ ${skydda(anfallare.m.namn)} blåste <b>ISANDNING</b> – ${skydda(forsvarare.m.namn)} frös fast!`);
+          popSkada(forsvarare.sida, '❄️', 'frys');
+          pip(1300, .15, 'triangle');
+        } else if (kraft === 'lake') {
+          const heal = Math.min(anfallare.max - anfallare.hp, 3 + Math.floor(Math.random() * 4));
+          if (heal > 0) {
+            anfallare.hp += heal;
+            loggaText(`💚 ${skydda(anfallare.m.namn)} använde <b>LÄKEKRAFT</b> och fick tillbaka ${heal} liv!`);
+            popSkada(anfallare.sida, '+' + heal + ' 💚', 'heal');
+            sattHP(anfallare.sida, anfallare.hp, anfallare.max);
+            pip(760, .12, 'triangle');
+          }
+        }
+        sattHP(forsvarare.sida, forsvarare.hp, forsvarare.max);
+      }
     }
 
     if (forsvarare.hp <= 0) { slut(anfallare, forsvarare); return; }
@@ -877,6 +994,132 @@ function konfetti() {
     box.appendChild(d);
     setTimeout(() => d.remove(), 5000);
   }
+}
+
+/* ---------- Turnering ---------- */
+const tournyBtn = document.getElementById('tournyBtn');
+let turneringPagar = false;
+
+function blanda(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+/* Snabb strid utan animation – samma regler som arenan */
+function simMatch(m1, m2) {
+  const s1 = statsFor(m1), s2 = statsFor(m2);
+  const a = { m: m1, s: s1, hp: s1.hp };
+  const b = { m: m2, s: s2, hp: s2.hp };
+  let ang = s1.spd >= s2.spd ? a : b;
+  let fo = ang === a ? b : a;
+
+  for (let r = 0; r < 80 && a.hp > 0 && b.hp > 0; r++) {
+    const dodge = Math.min(0.32, fo.s.spd / 130);
+    if (Math.random() >= dodge) {
+      const krit = Math.random() < Math.min(0.28, ang.s.spd / 160);
+      let skada = ang.s.str * (0.7 + Math.random() * 0.6);
+      if (r > 40) skada *= 1.8;
+      if (krit) skada *= 2;
+      fo.hp -= Math.max(1, Math.round(skada));
+
+      const k = ang.m.delar.kraft;
+      if (k && k !== 'ingen' && fo.hp > 0 && Math.random() < 0.28) {
+        if (k === 'eld') fo.hp -= Math.max(2, Math.round(ang.s.str * 0.8));
+        else if (k === 'blixt') fo.hp -= Math.max(1, Math.round(ang.s.str * 0.5));
+        else if (k === 'lake') ang.hp = Math.min(ang.s.hp, ang.hp + 5);
+        else if (k === 'is') continue; /* motståndaren fryser och missar sin tur */
+      }
+    }
+    const t = ang; ang = fo; fo = t;
+  }
+  return a.hp >= b.hp ? { vinnare: m1, forlorare: m2 } : { vinnare: m2, forlorare: m1 };
+}
+
+tournyBtn.addEventListener('click', () => {
+  if (turneringPagar) return;
+  turneringPagar = true;
+  tournyBtn.disabled = true;
+  document.getElementById('tchamp').innerHTML = '';
+  document.getElementById('tbracket').innerHTML = '';
+
+  let falt = monster.slice(0, 16).map(m => JSON.parse(JSON.stringify(m)));
+  let mal = 2;
+  while (mal < falt.length) mal *= 2;
+  let viltNr = 1;
+  while (falt.length < mal) {
+    const v = slumpaMonster();
+    v.id = '__tvilt' + (viltNr++);
+    v.namn = '🎲 ' + v.namn;
+    falt.push(v);
+  }
+  blanda(falt);
+  pip(600, .1); setTimeout(() => pip(800, .12), 120);
+  spelaRond(falt, 1);
+});
+
+function spelaRond(falt, rondNr) {
+  const br = document.getElementById('tbracket');
+  const rubrik = falt.length === 2 ? '🏆 FINALEN' : falt.length === 4 ? '🥈 Semifinaler' : '⚔️ Rond ' + rondNr;
+  const sekt = document.createElement('div');
+  sekt.className = 'trond';
+  sekt.innerHTML = `<h3>${rubrik}</h3>`;
+  br.appendChild(sekt);
+
+  const vinnare = [];
+  let i = 0;
+
+  function nastaMatch() {
+    if (i >= falt.length) {
+      if (vinnare.length === 1) krona(vinnare[0]);
+      else setTimeout(() => spelaRond(vinnare, rondNr + 1), 900);
+      return;
+    }
+    const m1 = falt[i], m2 = falt[i + 1];
+    i += 2;
+
+    const rad = document.createElement('div');
+    rad.className = 'tmatch';
+    rad.innerHTML =
+      `<div class="tside" data-id="${m1.id}">${monsterSVG(m1)}<div>${skydda(m1.namn)}</div></div>` +
+      `<div class="tvs">VS</div>` +
+      `<div class="tside" data-id="${m2.id}">${monsterSVG(m2)}<div>${skydda(m2.namn)}</div></div>`;
+    sekt.appendChild(rad);
+    rad.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    pip(500, .06);
+
+    setTimeout(() => {
+      const res = simMatch(m1, m2);
+      vinnare.push(res.vinnare);
+      rad.querySelectorAll('.tside').forEach(el =>
+        el.classList.add(el.dataset.id === res.vinnare.id ? 'tvinn' : 'tforl'));
+
+      const vm = monster.find(x => x.id === res.vinnare.id);
+      const fm = monster.find(x => x.id === res.forlorare.id);
+      if (vm) vm.vinster = (vm.vinster || 0) + 1;
+      if (fm) fm.forluster = (fm.forluster || 0) + 1;
+
+      pip(720, .08);
+      setTimeout(nastaMatch, 850);
+    }, 1000);
+  }
+  nastaMatch();
+}
+
+function krona(m) {
+  spara(monster);
+  ritaLista();
+  const c = document.getElementById('tchamp');
+  c.innerHTML = `<div class="champ">${monsterSVG(m)}
+    <div class="champtitel">👑 MÄSTARE! 👑</div>
+    <div class="champnamn">${skydda(m.namn)}</div></div>`;
+  c.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  segerLjud(); setTimeout(segerLjud, 550);
+  konfetti(); setTimeout(konfetti, 800);
+  turneringPagar = false;
+  tournyBtn.disabled = false;
 }
 
 /* ---------- Flikar ---------- */
