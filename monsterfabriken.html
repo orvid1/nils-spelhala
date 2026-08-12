@@ -254,6 +254,25 @@
   .champtitel { font-size: clamp(1.6rem, 6vw, 2.3rem); font-weight: bold; color: var(--c3); text-shadow: 0 0 16px #ff9f2e, 3px 3px 0 #1b0b33; }
   .champnamn { font-size: 1.4rem; font-weight: bold; margin-top: 2px; }
 
+  /* Online */
+  .onlinegrid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 6px; }
+  @media (max-width: 640px) { .onlinegrid { grid-template-columns: 1fr; } }
+  .obox {
+    background: rgba(0,0,0,.22); border: 2px solid rgba(255,255,255,.1);
+    border-radius: 16px; padding: 12px;
+  }
+  .obox h3 { margin: 0 0 10px; font-size: 1.05rem; color: var(--c2); text-align: center; }
+  .kodvisning {
+    text-align: center; margin-top: 10px; font-size: 1.1rem;
+    background: rgba(123,255,77,.1); border: 2px dashed var(--c4);
+    border-radius: 12px; padding: 8px;
+  }
+  .kodvisning b { font-size: 2rem; letter-spacing: 8px; color: var(--c4); display: block; }
+  .joinrow { display: flex; gap: 8px; margin-top: 10px; }
+  .joinrow input { text-transform: uppercase; letter-spacing: 6px; text-align: center; font-size: 1.4rem; font-weight: bold; }
+  .ostatus { margin-top: 10px; text-align: center; color: var(--muted); font-size: .95rem; min-height: 1.3em; }
+  .ostatus.bra { color: var(--c4); font-weight: bold; }
+
   /* Konfetti */
   #confetti { position: fixed; inset: 0; pointer-events: none; z-index: 50; overflow: hidden; }
   .conf { position: absolute; font-size: 26px; animation: fall linear forwards; }
@@ -279,6 +298,7 @@
     <button class="tab" data-view="lista" type="button">📚 Mina monster <span id="countBadge"></span></button>
     <button class="tab" data-view="arena" type="button">🏟️ Arenan</button>
     <button class="tab" data-view="turnering" type="button">🏆 Turnering</button>
+    <button class="tab" data-view="online" type="button">🌍 Online</button>
   </div>
 
   <!-- ============ BYGG ============ -->
@@ -360,8 +380,60 @@
     </div>
   </section>
 
+  <!-- ============ ONLINE ============ -->
+  <section class="view" id="view-online">
+    <div class="panel">
+      <p class="tinfo">Utmana en kompis på en annan dator! En av er skapar en match och säger koden – den andra skriver in koden och ansluter.</p>
+
+      <div class="onlinegrid">
+        <div class="obox">
+          <h3>1️⃣ Välj ditt monster</h3>
+          <select id="opick"></select>
+        </div>
+        <div class="obox">
+          <h3>2️⃣ Skapa eller anslut</h3>
+          <div class="center" style="margin-top:0;">
+            <button class="btn green" id="skapaMatchBtn" type="button">🟢 Skapa match</button>
+          </div>
+          <div class="kodvisning" id="kodvisning" style="display:none;">
+            Säg koden till din kompis:
+            <b id="minKod"></b>
+          </div>
+          <div class="joinrow">
+            <input type="text" id="kodInput" maxlength="4" placeholder="KOD" autocomplete="off">
+            <button class="btn" id="anslutBtn" type="button">Anslut</button>
+          </div>
+          <div class="ostatus" id="ostatus">Inte ansluten än.</div>
+        </div>
+      </div>
+
+      <div class="center">
+        <button class="btn big" id="startaOnlineBtn" type="button" style="display:none;">⚔️ STARTA MATCHEN!</button>
+      </div>
+
+      <div class="ring">
+        <div class="fighter f1" id="o1">
+          <div id="o1svg"></div>
+          <div class="fname" id="o1name">–</div>
+          <div class="hpbar"><div class="hpfill" id="o1hp"></div></div>
+          <div class="hptext" id="o1hptext"></div>
+        </div>
+        <div class="vs">VS</div>
+        <div class="fighter f2" id="o2">
+          <div id="o2svg"></div>
+          <div class="fname" id="o2name">–</div>
+          <div class="hpbar"><div class="hpfill" id="o2hp"></div></div>
+          <div class="hptext" id="o2hptext"></div>
+        </div>
+      </div>
+
+      <div class="log" id="olog"><p>Anslut till en kompis så kan ni slåss! 🌍</p></div>
+    </div>
+  </section>
+
 </div>
 
+<script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
 <script>
 /* ==========================================================
    Monsterfabriken – delar, statistik, ritning och strid
@@ -1122,11 +1194,368 @@ function krona(m) {
   tournyBtn.disabled = false;
 }
 
+/* ---------- Online (PeerJS / WebRTC) ---------- */
+let peer = null, conn = null, arHost = false;
+let motstandarMonster = null, mittOnline = null, onlineSpelas = false;
+
+const skapaMatchBtn = document.getElementById('skapaMatchBtn');
+const anslutBtn = document.getElementById('anslutBtn');
+const startaOnlineBtn = document.getElementById('startaOnlineBtn');
+const ostatus = document.getElementById('ostatus');
+
+const KODTECKEN = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+function nyKod() {
+  let s = '';
+  for (let i = 0; i < 4; i++) s += KODTECKEN[Math.floor(Math.random() * KODTECKEN.length)];
+  return s;
+}
+
+function sagStatus(text, bra) {
+  ostatus.textContent = text;
+  ostatus.className = 'ostatus' + (bra ? ' bra' : '');
+}
+
+/* Släpp aldrig in konstiga värden från nätet i sidan */
+function saneraMonster(m) {
+  m = m || {};
+  const ren = {
+    id: String(m.id || 'fjarr').slice(0, 40),
+    namn: String(m.namn || 'Mystiskt monster').slice(0, 24),
+    farg: /^#[0-9a-fA-F]{6}$/.test(m.farg) ? m.farg : '#9bff4d',
+    delar: {}
+  };
+  const d = m.delar || {};
+  for (const kat in DELAR) {
+    ren.delar[kat] = DELAR[kat].val.some(v => v.id === d[kat]) ? d[kat] : DELAR[kat].val[0].id;
+  }
+  return ren;
+}
+
+function fyllOnlineValjare() {
+  const sel = document.getElementById('opick');
+  const tidigare = sel.value;
+  let html = monster.map(m => `<option value="${m.id}">${skydda(m.namn)}</option>`).join('');
+  html += '<option value="__vilt">🎲 Slumpat vildmonster</option>';
+  sel.innerHTML = html;
+  if (tidigare && sel.querySelector(`option[value="${tidigare}"]`)) sel.value = tidigare;
+  uppdateraMittOnline();
+}
+
+function uppdateraMittOnline() {
+  const v = document.getElementById('opick').value;
+  if (v === '__vilt' || !v) {
+    mittOnline = slumpaMonster();
+    mittOnline.id = '__vilt_online';
+  } else {
+    const m = monster.find(x => x.id === v);
+    mittOnline = m ? JSON.parse(JSON.stringify(m)) : slumpaMonster();
+  }
+  visaOnlineKampar();
+  if (conn && conn.open) conn.send({ typ: 'monster', m: mittOnline });
+}
+
+document.getElementById('opick').addEventListener('change', () => {
+  if (!onlineSpelas) { uppdateraMittOnline(); pip(520, .06); }
+});
+
+function ritaOnlineSida(sida, m) {
+  document.getElementById(sida + 'svg').innerHTML = m ? monsterSVG(m) : '';
+  document.getElementById(sida + 'name').textContent = m ? m.namn : '–';
+  if (m) {
+    const s = statsFor(m);
+    sattHP(sida, s.hp, s.hp);
+  } else {
+    document.getElementById(sida + 'hp').style.width = '0';
+    document.getElementById(sida + 'hptext').textContent = '';
+  }
+}
+
+/* Värden är alltid vänster (o1), gästen höger (o2) */
+function visaOnlineKampar() {
+  if (onlineSpelas) return;
+  const vanster = arHost || !conn ? mittOnline : motstandarMonster;
+  const hoger = arHost || !conn ? motstandarMonster : mittOnline;
+  ['o1', 'o2'].forEach(id => {
+    const e = document.getElementById(id);
+    e.classList.remove('hit');
+    const svg = e.querySelector('svg');
+    if (svg) svg.classList.remove('fallen');
+  });
+  ritaOnlineSida('o1', vanster);
+  ritaOnlineSida('o2', hoger);
+}
+
+function loggaO(html, klass) {
+  const l = document.getElementById('olog');
+  const p = document.createElement('p');
+  if (klass) p.className = klass;
+  p.innerHTML = html;
+  l.appendChild(p);
+  l.scrollTop = l.scrollHeight;
+}
+
+function stangNer() {
+  if (conn) { try { conn.close(); } catch (e) {} conn = null; }
+  if (peer) { try { peer.destroy(); } catch (e) {} peer = null; }
+  motstandarMonster = null;
+  arHost = false;
+  onlineSpelas = false;
+  startaOnlineBtn.style.display = 'none';
+  document.getElementById('kodvisning').style.display = 'none';
+  skapaMatchBtn.disabled = false;
+  anslutBtn.disabled = false;
+}
+
+skapaMatchBtn.addEventListener('click', () => {
+  if (typeof Peer === 'undefined') { sagStatus('Online-delen kunde inte laddas – kolla internet och ladda om sidan.'); return; }
+  stangNer();
+  arHost = true;
+  skapaMatchBtn.disabled = true;
+  const kod = nyKod();
+  sagStatus('Skapar match …');
+  peer = new Peer('nils-mf-' + kod);
+  peer.on('open', () => {
+    document.getElementById('minKod').textContent = kod;
+    document.getElementById('kodvisning').style.display = 'block';
+    sagStatus('Väntar på att en kompis ansluter …');
+    pip(700, .1);
+  });
+  peer.on('connection', c => {
+    conn = c;
+    kopplaConn();
+  });
+  peer.on('error', e => {
+    if (e.type === 'unavailable-id') { skapaMatchBtn.disabled = false; skapaMatchBtn.click(); return; }
+    sagStatus('Hoppsan, något gick fel: ' + e.type);
+    stangNer();
+  });
+});
+
+anslutBtn.addEventListener('click', () => {
+  if (typeof Peer === 'undefined') { sagStatus('Online-delen kunde inte laddas – kolla internet och ladda om sidan.'); return; }
+  const kod = document.getElementById('kodInput').value.trim().toUpperCase();
+  if (kod.length !== 4) { sagStatus('Skriv in kompisens kod med 4 tecken först!'); return; }
+  stangNer();
+  arHost = false;
+  anslutBtn.disabled = true;
+  sagStatus('Letar efter matchen ' + kod + ' …');
+  peer = new Peer();
+  peer.on('open', () => {
+    conn = peer.connect('nils-mf-' + kod, { reliable: true });
+    kopplaConn();
+  });
+  peer.on('error', e => {
+    if (e.type === 'peer-unavailable') sagStatus('Hittade ingen match med koden ' + kod + '. Stämmer den?');
+    else sagStatus('Hoppsan, något gick fel: ' + e.type);
+    anslutBtn.disabled = false;
+  });
+});
+
+function kopplaConn() {
+  conn.on('open', () => {
+    sagStatus('Ansluten! 🎉', true);
+    pip(700, .1); setTimeout(() => pip(1000, .12), 110);
+    conn.send({ typ: 'monster', m: mittOnline });
+  });
+  conn.on('data', hanteraData);
+  conn.on('close', () => {
+    sagStatus('Kompisen lämnade matchen.');
+    loggaO('👋 Kompisen lämnade matchen.');
+    stangNer();
+    visaOnlineKampar();
+  });
+}
+
+function hanteraData(d) {
+  if (!d || typeof d !== 'object') return;
+  if (d.typ === 'monster') {
+    motstandarMonster = saneraMonster(d.m);
+    sagStatus('Motståndare: ' + motstandarMonster.namn + ' – redo att slåss!', true);
+    visaOnlineKampar();
+    if (arHost && !onlineSpelas) startaOnlineBtn.style.display = 'inline-block';
+  } else if (d.typ === 'match' && !arHost) {
+    const m1 = saneraMonster(d.m1), m2 = saneraMonster(d.m2);
+    if (Array.isArray(d.events) && d.events.length && d.events.length <= 400) {
+      spelaUppMatch(m1, m2, d.events);
+    }
+  }
+}
+
+startaOnlineBtn.addEventListener('click', () => {
+  if (!arHost || !conn || !conn.open || !motstandarMonster || onlineSpelas) return;
+  const ev = simuleraOnlineMatch(mittOnline, motstandarMonster);
+  conn.send({ typ: 'match', m1: mittOnline, m2: motstandarMonster, events: ev });
+  spelaUppMatch(mittOnline, motstandarMonster, ev);
+});
+
+/* Värden simulerar hela matchen och skickar händelserna – båda spelar upp samma film */
+function simuleraOnlineMatch(m1, m2) {
+  const s1 = statsFor(m1), s2 = statsFor(m2);
+  const a = { namn: m1.namn, delar: m1.delar, s: s1, hp: s1.hp, max: s1.hp, sida: 'o1', frusen: false };
+  const b = { namn: m2.namn, delar: m2.delar, s: s2, hp: s2.hp, max: s2.hp, sida: 'o2', frusen: false };
+  const ev = [{ t: 'start', forst: s1.spd >= s2.spd ? 'o1' : 'o2' }];
+  let ang = s1.spd >= s2.spd ? a : b;
+  let fo = ang === a ? b : a;
+  let rundor = 0;
+
+  while (rundor < 80 && a.hp > 0 && b.hp > 0) {
+    rundor++;
+    if (ang.frusen) {
+      ang.frusen = false;
+      ev.push({ t: 'frusen', sida: ang.sida });
+      const t = ang; ang = fo; fo = t;
+      continue;
+    }
+    const dodge = Math.min(0.32, fo.s.spd / 130);
+    if (Math.random() < dodge) {
+      ev.push({ t: 'miss', av: ang.sida, mot: fo.sida });
+    } else {
+      const krit = Math.random() < Math.min(0.28, ang.s.spd / 160);
+      let skada = ang.s.str * (0.7 + Math.random() * 0.6);
+      if (rundor > 40) skada *= 1.8;
+      if (krit) skada *= 2;
+      skada = Math.max(1, Math.round(skada));
+      fo.hp -= skada;
+      let text = slumpVal(ATTACK_NAMN[ang.delar.armar] || ATTACK_NAMN.sma);
+      if (Math.random() < 0.3) text = MUN_ATTACK[ang.delar.mun] || text;
+      ev.push({ t: 'traff', av: ang.sida, mot: fo.sida, skada, krit, text, hp: Math.max(0, fo.hp) });
+
+      const kraft = ang.delar.kraft;
+      if (kraft && kraft !== 'ingen' && fo.hp > 0 && Math.random() < 0.28) {
+        if (kraft === 'eld') {
+          const extra = Math.max(2, Math.round(ang.s.str * 0.8));
+          fo.hp -= extra;
+          ev.push({ t: 'eld', av: ang.sida, mot: fo.sida, extra, hp: Math.max(0, fo.hp) });
+        } else if (kraft === 'blixt') {
+          const extra = Math.max(1, Math.round(ang.s.str * 0.5));
+          fo.hp -= extra;
+          ev.push({ t: 'blixt', av: ang.sida, mot: fo.sida, extra, hp: Math.max(0, fo.hp) });
+        } else if (kraft === 'is') {
+          fo.frusen = true;
+          ev.push({ t: 'is', av: ang.sida, mot: fo.sida });
+        } else if (kraft === 'lake') {
+          const heal = Math.min(ang.max - ang.hp, 3 + Math.floor(Math.random() * 4));
+          if (heal > 0) { ang.hp += heal; ev.push({ t: 'lake', av: ang.sida, heal, hp: ang.hp }); }
+        }
+      }
+    }
+    const t = ang; ang = fo; fo = t;
+  }
+  ev.push({ t: 'slut', vinnare: a.hp >= b.hp ? 'o1' : 'o2', patid: a.hp > 0 && b.hp > 0 });
+  return ev;
+}
+
+function spelaUppMatch(m1, m2, events) {
+  onlineSpelas = true;
+  startaOnlineBtn.style.display = 'none';
+  document.getElementById('olog').innerHTML = '';
+  ['o1', 'o2'].forEach(id => {
+    const svg = document.getElementById(id).querySelector('svg');
+    if (svg) svg.classList.remove('fallen');
+  });
+  ritaOnlineSida('o1', m1);
+  ritaOnlineSida('o2', m2);
+  const namnAv = { o1: skydda(m1.namn), o2: skydda(m2.namn) };
+  const maxAv = { o1: statsFor(m1).hp, o2: statsFor(m2).hp };
+
+  let i = 0;
+  function steg() {
+    if (i >= events.length || !onlineSpelas) return;
+    const e = events[i++];
+
+    if (e.t === 'start') {
+      loggaO(`🥊 <b>${namnAv.o1}</b> möter <b>${namnAv.o2}</b> – online!`, 'big');
+      loggaO(`⚡ ${namnAv[e.forst]} är snabbast och börjar!`);
+      pip(600, .1);
+    } else if (e.t === 'frusen') {
+      loggaO(`🧊 ${namnAv[e.sida]} är fastfrusen och missar sin tur!`);
+      popSkada(e.sida, '🧊', 'frys');
+      pip(240, .14, 'triangle');
+    } else if (e.t === 'miss') {
+      loggaO(`💨 ${namnAv[e.av]} slog … men ${namnAv[e.mot]} <b>duckade</b>!`);
+      pip(300, .08, 'triangle');
+    } else if (e.t === 'traff') {
+      loggaO(
+        (e.krit ? '💥 <b>SUPERTRÄFF!</b> ' : '👊 ') +
+        `${namnAv[e.av]} ${e.text} – <b>${e.skada}</b> i skada!`,
+        e.krit ? 'big' : ''
+      );
+      popSkada(e.mot, '-' + e.skada, e.krit ? 'krit' : 'dmg');
+      const el = document.getElementById(e.mot);
+      el.classList.remove('hit'); void el.offsetWidth; el.classList.add('hit');
+      sattHP(e.mot, e.hp, maxAv[e.mot]);
+      pip(e.krit ? 180 : 420, e.krit ? .18 : .07, e.krit ? 'sawtooth' : 'square');
+    } else if (e.t === 'eld') {
+      loggaO(`🔥 ${namnAv[e.av]} sprutade <b>ELD</b> – ${e.extra} extra i skada!`, 'big');
+      popSkada(e.mot, '-' + e.extra + ' 🔥', 'krit');
+      sattHP(e.mot, e.hp, maxAv[e.mot]);
+      pip(150, .2, 'sawtooth');
+    } else if (e.t === 'blixt') {
+      loggaO(`⚡ ${namnAv[e.av]} slog <b>BLIXTSNABBT</b> en gång till – ${e.extra} extra!`);
+      popSkada(e.mot, '-' + e.extra + ' ⚡', 'dmg');
+      sattHP(e.mot, e.hp, maxAv[e.mot]);
+      pip(900, .1); setTimeout(() => pip(1100, .08), 90);
+    } else if (e.t === 'is') {
+      loggaO(`❄️ ${namnAv[e.av]} blåste <b>ISANDNING</b> – ${namnAv[e.mot]} frös fast!`);
+      popSkada(e.mot, '❄️', 'frys');
+      pip(1300, .15, 'triangle');
+    } else if (e.t === 'lake') {
+      loggaO(`💚 ${namnAv[e.av]} använde <b>LÄKEKRAFT</b> och fick tillbaka ${e.heal} liv!`);
+      popSkada(e.av, '+' + e.heal + ' 💚', 'heal');
+      sattHP(e.av, e.hp, maxAv[e.av]);
+      pip(760, .12, 'triangle');
+    } else if (e.t === 'slut') {
+      avslutaOnline(e, namnAv);
+      return;
+    }
+    setTimeout(steg, 950);
+  }
+  steg();
+}
+
+function avslutaOnline(e, namnAv) {
+  const forlorare = e.vinnare === 'o1' ? 'o2' : 'o1';
+  const svg = document.getElementById(forlorare).querySelector('svg');
+  if (svg) svg.classList.add('fallen');
+  if (e.patid) loggaO('⏰ Tiden är ute – den med mest liv kvar vinner!');
+  loggaO(`🏆 <b>${namnAv[e.vinnare]} VANN!</b> 🎉`, 'win');
+
+  const minSida = arHost ? 'o1' : 'o2';
+  const jagVann = e.vinnare === minSida;
+  if (jagVann) { konfetti(); segerLjud(); loggaO('🎊 DU vann matchen! Bra jobbat!', 'win'); }
+  else { pip(220, .3, 'sawtooth'); loggaO('😢 Du förlorade … utmana igen!'); }
+
+  const mitt = monster.find(x => mittOnline && x.id === mittOnline.id);
+  if (mitt) {
+    if (jagVann) mitt.vinster = (mitt.vinster || 0) + 1;
+    else mitt.forluster = (mitt.forluster || 0) + 1;
+    spara(monster); ritaLista();
+  }
+
+  onlineSpelas = false;
+  if (arHost && conn && conn.open) {
+    startaOnlineBtn.textContent = '⚔️ SPELA IGEN!';
+    startaOnlineBtn.style.display = 'inline-block';
+  } else if (conn && conn.open) {
+    sagStatus('Vill ni köra igen? Kompisen som skapade matchen trycker på SPELA IGEN.', true);
+  }
+}
+
+function initOnline() {
+  fyllOnlineValjare();
+  if (typeof Peer === 'undefined') {
+    sagStatus('Online-delen kunde inte laddas – kolla internet och ladda om sidan.');
+    skapaMatchBtn.disabled = true;
+    anslutBtn.disabled = true;
+  }
+}
+
 /* ---------- Flikar ---------- */
 function visa(namn) {
   document.querySelectorAll('.view').forEach(v => v.classList.toggle('on', v.id === 'view-' + namn));
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('on', t.dataset.view === namn));
   if (namn === 'arena') fyllValjare();
+  if (namn === 'online') initOnline();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 document.querySelectorAll('.tab').forEach(t =>
