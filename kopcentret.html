@@ -200,6 +200,7 @@ const flash = new THREE.SpotLight(0xfff0cc, 30, 20, .5, .45, 1);
 flash.position.set(.25, -.25, 0);
 flash.target.position.set(0, -.3, -1);
 camera.add(flash); camera.add(flash.target);
+function lockMouse() { try { const r = cv.requestPointerLock(); if (r && r.catch) r.catch(() => {}); } catch (e) {} }
 function resize() { renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); }
 addEventListener('resize', resize); resize();
 
@@ -403,7 +404,7 @@ document.addEventListener('mousemove', e => {
   if (document.pointerLockElement !== cv) return;
   yaw -= e.movementX * .0022; pitch = clamp(pitch - e.movementY * .0022, -1.1, 1.1);
 });
-cv.addEventListener('click', () => { if (state === 'play' && !isTouch) cv.requestPointerLock(); });
+cv.addEventListener('click', () => { if (state === 'play' && !isTouch) lockMouse(); });
 const joy = { on:false, id:null, ox:0, oy:0, x:0, y:0 }, look = { id:null, x:0, y:0 };
 cv.addEventListener('touchstart', e => {
   for (const t of e.changedTouches) {
@@ -654,7 +655,7 @@ function menu() {
 }
 function start() {
   hide(); state = 'play'; beep(440, .05);
-  if (!isTouch) cv.requestPointerLock();
+  if (!isTouch) lockMouse();
 }
 function lose(why) {
   state = 'over'; sfx.lose();
