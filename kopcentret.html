@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Mörka köpcentret</title>
+<style>
+  :root { --bg:#0b0820; --neon:#00e5ff; --pink:#ff3df0; --gold:#ffd23f; --green:#45ff8a; --red:#ff4d6d; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; background:var(--bg); color:#fff; overflow:hidden;
+    font-family:'Trebuchet MS', system-ui, sans-serif; touch-action:none; user-select:none; -webkit-user-select:none; }
+  canvas { display:block; }
+  #hud { position:fixed; top:0; left:0; right:0; display:flex; gap:14px; align-items:center; flex-wrap:wrap;
+    padding:8px 12px; background:rgba(11,8,32,.85); font-weight:bold; font-size:16px; pointer-events:none;
+    border-bottom:2px solid rgba(0,229,255,.35); }
+  #hud a { pointer-events:auto; color:var(--neon); text-decoration:none; }
+  .bar { width:80px; height:12px; background:#2b2650; border-radius:6px; overflow:hidden; display:inline-block; vertical-align:middle; margin-left:4px; }
+  .bar i { display:block; height:100%; transition:width .1s; }
+  #clock.warn { color:var(--red); animation:blink .6s infinite; }
+  @keyframes blink { 50% { opacity:.3; } }
+  #list { position:fixed; top:54px; right:10px; background:rgba(11,8,32,.88); border:2px solid var(--gold);
+    border-radius:14px; padding:8px 12px; font-size:15px; min-width:180px; max-width:46vw; cursor:pointer; }
+  #list h3 { margin:6px 0 2px; font-size:14px; color:var(--gold); }
+  #list .it { padding:1px 0; }
+  #list .it small { color:#aaa; }
+  #list .it.got { color:var(--green); text-decoration:line-through; opacity:.75; }
+  #list.small .items { display:none; }
+  #scare { position:fixed; inset:0; display:none; align-items:center; justify-content:center; font-size:60vmin; background:rgba(120,0,0,.55); pointer-events:none; }
+  #screen { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(11,8,32,.9); padding:16px; overflow:auto; }
+  #screen.hidden { display:none; }
+  .box { max-width:560px; width:100%; background:#171235; border:3px solid var(--neon); border-radius:22px; padding:22px;
+    text-align:center; box-shadow:0 0 40px rgba(0,229,255,.35); }
+  .box h1 { margin:0 0 8px; font-size:30px; color:var(--gold); }
+  .box p { font-size:17px; line-height:1.45; }
+  .notes { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin:12px 0; }
+  .note { background:#fff8c9; color:#333; border-radius:6px; padding:10px 14px; text-align:left; min-width:150px;
+    transform:rotate(-2deg); box-shadow:3px 4px 0 rgba(0,0,0,.4); font-size:16px; }
+  .note:nth-child(2) { transform:rotate(2deg); background:#d6f5ff; }
+  .note b { display:block; margin-bottom:4px; }
+  .btn { font:inherit; font-size:20px; font-weight:bold; padding:12px 26px; margin:6px; border:none; border-radius:14px; cursor:pointer;
+    background:var(--green); color:#0b0820; box-shadow:0 5px 0 #1b9c4e; }
+  .btn:active { transform:translateY(3px); box-shadow:0 2px 0 #1b9c4e; }
+  .btn.alt { background:var(--neon); box-shadow:0 5px 0 #0089a0; }
+  .tips { font-size:14px; color:#bbb; text-align:left; margin-top:10px; }
+  .stars { font-size:44px; letter-spacing:6px; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">
+  <a href="index.html">⬅</a>
+  <span>Nivå <span id="lvl">1</span></span>
+  <span>💰 <span id="money">0</span> kr</span>
+  <span id="clock">🕛 20:00</span>
+  <span>🔦 Batteri<span class="bar"><i id="eBar"></i></span></span>
+  <span>😱 Rädsla<span class="bar"><i id="fBar"></i></span></span>
+  <span>🚽 Kissnödig<span class="bar"><i id="kBar"></i></span></span>
+</div>
+<div id="list" title="Tryck för att visa/dölja"></div>
+<div id="scare">🧟</div>
+<div id="screen"></div>
+
+<script>
+// ===== Inställningar och karta =====
+const TS = 48, MW = 36, MH = 26;
+const SHOPS = [
+  { name:'Mataffären', sign:'🛒', x0:0,  y0:0,  x1:12, y1:9,  door:[6,9],   floor:'#cfe8cf', shelves:true,
+    items:[['🥛','Mjölk',15],['🍌','Bananer',20],['🧀','Ost',45],['🥚','Ägg',30],['🍝','Pasta',18],['🥕','Morötter',12],['🍎','Äpplen',22],['🧈','Smör',35],['🧻','Toapapper',40],['🥒','Gurka',14]] },
+  { name:'Apoteket', sign:'💊', x0:12, y0:0,  x1:20, y1:9,  door:[16,9],  floor:'#d8f0ea', shelves:true,
+    items:[['🩹','Plåster',25],['🪥','Tandborste',20],['🧴','Solkräm',60],['💊','Vitaminer',50],['🧼','Tvål',18]] },
+  { name:'Leksaksaffären', sign:'🧸', x0:20, y0:0, x1:28, y1:9, door:[24,9], floor:'#f5d9ef', shelves:true,
+    items:[['🧸','Nalle',80],['🎲','Tärningar',15],['🪀','Jojo',25],['🧩','Pussel',70],['🎈','Ballonger',20]] },
+  { name:'Elektronik', sign:'🔌', x0:28, y0:0,  x1:35, y1:9,  door:[31,9],  floor:'#d9dcf5', shelves:true,
+    items:[['🔋','Batterier',40],['💡','Glödlampa',30],['🎧','Hörlurar',150],['🔌','Sladd',50]] },
+  { name:'Klädaffären', sign:'👕', x0:0,  y0:16, x1:10, y1:25, door:[5,16],  floor:'#f5e3cf', shelves:true,
+    items:[['🧦','Strumpor',30],['🧢','Keps',90],['🧤','Vantar',60],['👕','T-shirt',100],['🧣','Halsduk',70]] },
+  { name:'Kiosken', sign:'🌭', x0:10, y0:16, x1:20, y1:25, door:[14,16], floor:'#fff1c2', shelves:false, items:[] },
+  { name:'Toaletten', sign:'🚽', x0:20, y0:16, x1:25, y1:25, door:[22,16], floor:'#dff3ff', shelves:false, items:[] },
+  { name:'Sportaffären', sign:'⚽', x0:25, y0:16, x1:35, y1:25, door:[30,16], floor:'#e1f5d0', shelves:true,
+    items:[['⚽','Fotboll',120],['🎾','Tennisbollar',40],['🏓','Pingisbollar',25],['🪁','Drake',90],['🕶️','Solglasögon',55]] },
+];
+const KIOSK = 5, TOILET = 6;
+const FOODS = [
+  { e:'🌭', name:'Korv', price:25, calm:25, kiss:5 },
+  { e:'🍦', name:'Tröstglass', price:20, calm:40, kiss:10 },
+  { e:'🥤', name:'Läsk', price:15, calm:15, kiss:35 },
+];
+const BOO_LINES = ['BÖÖ!', 'Vill du prova kläder?!', 'Stanna och lek...', 'Du får aldrig gå hem!', 'Jag ser dig...'];
+
+let grid, room, slots, foods, toilets, charger;
+function buildMap() {
+  grid = []; room = [];
+  for (let y = 0; y < MH; y++) { grid.push(new Array(MW).fill(0)); room.push(new Array(MW).fill(-1)); }
+  SHOPS.forEach((s, id) => {
+    for (let y = s.y0; y <= s.y1; y++) for (let x = s.x0; x <= s.x1; x++) {
+      if (x === s.x0 || x === s.x1 || y === s.y0 || y === s.y1) grid[y][x] = 1; else room[y][x] = id;
+    }
+  });
+  for (let y = 10; y <= 15; y++) { grid[y][0] = 1; grid[y][MW - 1] = 1; }
+  grid[12][0] = 3; grid[13][0] = 3; // utgången
+  SHOPS.forEach(s => { grid[s.door[1]][s.door[0]] = 0; grid[s.door[1]][s.door[0] + 1] = 0; });
+
+  slots = [];
+  SHOPS.forEach((s, id) => {
+    if (!s.shelves) return;
+    const rows = [s.y0 + 3, s.y0 + 6];
+    const free = [];
+    rows.forEach(sy => {
+      for (let x = s.x0 + 2; x <= s.x1 - 2; x++) grid[sy][x] = 2;
+      for (let x = s.x0 + 2; x <= s.x1 - 2; x += 2) { free.push([x, sy - 1]); free.push([x, sy + 1]); }
+    });
+    shuffle(free);
+    s.items.forEach((it, i) => slots.push({ tx:free[i][0], ty:free[i][1], e:it[0], name:it[1], price:it[2], shop:id, taken:false, hintT:0 }));
+  });
+  // Kiosk: disk + bord
+  for (let x = 12; x <= 18; x++) grid[20][x] = 2;
+  grid[23][13] = 2; grid[23][17] = 2;
+  foods = FOODS.map((f, i) => ({ ...f, tx:12 + i * 3, ty:19, ready:true }));
+  toilets = [[21, 21], [24, 21], [21, 24], [24, 24]];
+  toilets.forEach(([x, y]) => grid[y][x] = 4);
+  charger = { tx:34, ty:8 }; // laddstation i Elektronik
+}
+
+// ===== Hjälpfunktioner =====
+function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; }
+const rand = (a, b) => a + Math.random() * (b - a);
+const dist = (a, b, c, d) => Math.hypot(a - c, b - d);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+function load() { try { return JSON.parse(localStorage.getItem('nils_kopcentret_v1')) || {}; } catch (e) { return {}; } }
+function save(d) { try { localStorage.setItem('nils_kopcentret_v1', JSON.stringify(d)); } catch (e) {} }
+
+// ===== Ljud =====
+let AC = null;
+function beep(f, dur = .12, type = 'square', vol = .08, slide = 0) {
+  try {
+    AC = AC || new (window.AudioContext || window.webkitAudioContext)();
+    const o = AC.createOscillator(), g = AC.createGain();
+    o.type = type; o.frequency.value = f;
+    if (slide) o.frequency.linearRampToValueAtTime(f + slide, AC.currentTime + dur);
+    g.gain.setValueAtTime(vol, AC.currentTime); g.gain.exponentialRampToValueAtTime(.001, AC.currentTime + dur);
+    o.connect(g); g.connect(AC.destination); o.start(); o.stop(AC.currentTime + dur);
+  } catch (e) {}
+}
+const sfx = {
+  pick() { beep(660, .08); setTimeout(() => beep(990, .12), 70); },
+  eat() { beep(300, .1, 'triangle', .1); setTimeout(() => beep(450, .15, 'triangle', .1), 90); },
+  hit() { beep(180, .25, 'sawtooth', .1, -120); },
+  no() { beep(200, .15, 'square', .06); },
+  flush() { beep(500, .5, 'sine', .08, -400); },
+  win() { [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => beep(f, .2, 'triangle', .1), i * 130)); },
+  creak() { beep(90, .9, 'sawtooth', .05, -40); },
+  heart() { beep(55, .12, 'sine', .25); setTimeout(() => beep(50, .12, 'sine', .2), 160); },
+  scream() { beep(900, .4, 'sawtooth', .12, -600); beep(1200, .3, 'square', .06, -800); },
+  lose() { [400, 300, 200].forEach((f, i) => setTimeout(() => beep(f, .25, 'sawtooth', .08), i * 180)); },
+};
+
+// ===== Spelets tillstånd =====
+let save0 = load();
+let level = 1, state = 'menu';
+let p, money, time, dayLen, battery, fear, kiss, list, carts, robots, sellers, puddles, floats, shake, frozen, stun, blackout, nextBlackout, heartT, scareT;
+
+function setupLevel() {
+  buildMap();
+  const pool = shuffle(slots.slice());
+  const n = Math.min(3 + level, 12);
+  list = pool.slice(0, n).map((s, i) => ({ slot:s, who:i % 2 ? 'pappa' : 'mamma', got:false }));
+  const total = list.reduce((a, l) => a + l.slot.price, 0);
+  money = total + 45;
+  dayLen = Math.max(100, 170 - level * 10);
+  time = 0; battery = 100; fear = 0; kiss = 10; shake = 0; frozen = 0; stun = 0;
+  blackout = 0; nextBlackout = rand(6, 10); heartT = 0; scareT = 0;
+  p = { x:2.5 * TS, y:13 * TS, vx:0, vy:0, r:15 };
+  puddles = []; floats = [];
+  carts = [];
+  for (let i = 0; i < Math.min(level, 6); i++) {
+    carts.push({ x:rand(6, 32) * TS, y:(10.5 + (i * 2 + 1) % 6) * TS, vx:(Math.random() < .5 ? -1 : 1) * (130 + level * 15), cd:0 });
+  }
+  robots = [];
+  for (let i = 0; i < Math.min(Math.ceil(level / 2), 3); i++) robots.push({ x:rand(8, 30) * TS, y:12.5 * TS, tx:0, ty:0, drop:2, cd:0, pickT:0 });
+  robots.forEach(newRobotTarget);
+  const posts = [[9, 11], [21, 14], [28, 11], [13, 14], [33, 12], [4, 3]];
+  sellers = posts.slice(0, Math.min(level + 1, 6)).map(([x, y]) => ({ x:(x + .5) * TS, y:(y + .5) * TS, px:(x + .5) * TS, py:(y + .5) * TS, cd:0, say:'', sayT:0 }));
+  renderList();
+}
+function newRobotTarget(r) { r.tx = rand(2, 33) * TS; r.ty = rand(10.4, 15.6) * TS; }
+const allDone = () => list && list.every(l => l.got);
+
+// ===== Kollision =====
+function solidAt(px, py) {
+  const tx = Math.floor(px / TS), ty = Math.floor(py / TS);
+  if (tx < 0 || ty < 0 || tx >= MW || ty >= MH) return true;
+  const g = grid[ty][tx];
+  return g === 1 || g === 2 || (g === 3 && !allDone());
+}
+function hits(x, y, r) { return solidAt(x - r, y - r) || solidAt(x + r, y - r) || solidAt(x - r, y + r) || solidAt(x + r, y + r); }
+function moveBody(o, dx, dy, r) {
+  let bx = false, by = false;
+  const steps = Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)) / 8) || 1;
+  for (let i = 0; i < steps; i++) {
+    if (!bx) { if (!hits(o.x + dx / steps, o.y, r)) o.x += dx / steps; else bx = true; }
+    if (!by) { if (!hits(o.x, o.y + dy / steps, r)) o.y += dy / steps; else by = true; }
+  }
+  return { bx, by };
+}
+
+// ===== Styrning =====
+const keys = {};
+addEventListener('keydown', e => {
+  keys[e.key.toLowerCase()] = true;
+  if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(e.key.toLowerCase())) e.preventDefault();
+  if ((e.key === 'Enter' || e.key === ' ') && state !== 'play') { const b = document.querySelector('#screen .btn'); if (b) b.click(); }
+});
+addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+const joy = { on:false, ox:0, oy:0, x:0, y:0, id:null };
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+cv.addEventListener('touchstart', e => { const t = e.changedTouches[0]; joy.on = true; joy.id = t.identifier; joy.ox = joy.x = t.clientX; joy.oy = joy.y = t.clientY; e.preventDefault(); }, { passive:false });
+cv.addEventListener('touchmove', e => { for (const t of e.changedTouches) if (t.identifier === joy.id) { joy.x = t.clientX; joy.y = t.clientY; } e.preventDefault(); }, { passive:false });
+cv.addEventListener('touchend', e => { for (const t of e.changedTouches) if (t.identifier === joy.id) joy.on = false; });
+document.getElementById('list').addEventListener('click', e => e.currentTarget.classList.toggle('small'));
+
+function input() {
+  let ix = 0, iy = 0;
+  if (keys['arrowleft'] || keys['a']) ix--;
+  if (keys['arrowright'] || keys['d']) ix++;
+  if (keys['arrowup'] || keys['w']) iy--;
+  if (keys['arrowdown'] || keys['s']) iy++;
+  if (joy.on) {
+    const dx = joy.x - joy.ox, dy = joy.y - joy.oy, l = Math.hypot(dx, dy);
+    if (l > 8) { ix = dx / Math.max(l, 50); iy = dy / Math.max(l, 50); }
+  }
+  const l = Math.hypot(ix, iy);
+  if (l > 1) { ix /= l; iy /= l; }
+  return [ix, iy];
+}
+
+// ===== Flytande text =====
+function say(x, y, text, color = '#fff') { floats.push({ x, y, text, color, t:1.6 }); }
+
+// ===== Uppdatering =====
+function update(dt) {
+  if (state !== 'play') return;
+  time += dt;
+  battery = Math.max(0, battery - dt * 100 / 75);
+  kiss += dt * 100 / 110;
+  fear = Math.max(0, fear - dt * 2.5);
+  if (time >= dayLen) return lose('clock');
+  if (fear >= 100) return lose('fear');
+  if (kiss >= 100) return lose('kiss');
+  // Lamporna slocknar ibland...
+  blackout -= dt; nextBlackout -= dt;
+  if (nextBlackout <= 0) { blackout = rand(.7, 1.2); nextBlackout = rand(5, 11) - Math.min(level, 3); sfx.creak(); }
+  scareT -= dt;
+  if (fear > 55) { heartT -= dt; if (heartT <= 0) { heartT = fear > 80 ? .55 : .9; sfx.heart(); } }
+  const need = list.filter(l => !l.got).reduce((a, l) => a + l.slot.price, 0);
+  if (need > money) return lose('money');
+
+  // Spelaren
+  let [ix, iy] = input();
+  if (frozen > 0) { frozen -= dt; ix = iy = 0; }
+  if (stun > 0) { stun -= dt; ix = iy = 0; }
+  const slippery = puddles.some(pd => dist(pd.x, pd.y, p.x, p.y) < 30);
+  const k = stun > 0 ? 3 : slippery ? 1.3 : 12;
+  const SPEED = 220;
+  p.vx += (ix * SPEED - p.vx) * Math.min(1, k * dt);
+  p.vy += (iy * SPEED - p.vy) * Math.min(1, k * dt);
+  const b = moveBody(p, p.vx * dt, p.vy * dt, p.r);
+  if (b.bx) p.vx *= -.3; if (b.by) p.vy *= -.3;
+
+  if (allDone() && p.x < TS * 0.9) return win();
+
+  // Varor på hyllorna
+  for (const s of slots) {
+    if (s.taken) continue;
+    s.hintT -= dt;
+    const cx = (s.tx + .5) * TS, cy = (s.ty + .5) * TS;
+    if (dist(cx, cy, p.x, p.y) > 32) continue;
+    const want = list.find(l => l.slot === s && !l.got);
+    if (want) {
+      if (money >= s.price) {
+        money -= s.price; want.got = true; s.taken = true; sfx.pick();
+        say(cx, cy - 20, `${s.e} ${s.name} ✔  -${s.price} kr`, '#45ff8a');
+        renderList();
+        if (allDone()) say(p.x, p.y - 50, 'Allt klart! Spring till utgången! 🚗', '#ffd23f');
+      } else if (s.hintT <= 0) { s.hintT = 2; sfx.no(); say(cx, cy - 20, 'Du har inte råd! 😱', '#ff4d6d'); }
+    } else if (s.hintT <= 0) { s.hintT = 2.5; say(cx, cy - 20, 'Inte på listan', '#ccc'); }
+  }
+  // Kiosken
+  for (const f of foods) {
+    const cx = (f.tx + .5) * TS, cy = (f.ty + .5) * TS, d = dist(cx, cy, p.x, p.y);
+    if (d > 45) f.ready = true;
+    if (d < 30 && f.ready) {
+      f.ready = false;
+      if (money - f.price < need) { sfx.no(); say(cx, cy - 20, 'Pengarna behövs till listan!', '#ff4d6d'); continue; }
+      money -= f.price; fear = Math.max(0, fear - f.calm); kiss = Math.min(99, kiss + f.kiss);
+      sfx.eat(); say(cx, cy - 20, `Mums! ${f.e} Nu känns det bättre`, '#ffd23f');
+      if (f.kiss >= 30) say(cx, cy - 45, 'Nu blir du kissnödig... 💦', '#7fd7ff');
+    }
+  }
+  // Toaletten
+  for (const [tx, ty] of toilets) {
+    if (dist((tx + .5) * TS, (ty + .5) * TS, p.x, p.y) < 26 && kiss > 0) {
+      const before = kiss;
+      kiss = Math.max(0, kiss - 70 * dt);
+      if (before > 5 && kiss <= 5) { sfx.flush(); say(p.x, p.y - 30, 'Aaah! Skönt! 😌', '#7fd7ff'); }
+    }
+  }
+
+  // Laddstationen
+  if (dist((charger.tx + .5) * TS, (charger.ty + .5) * TS, p.x, p.y) < 30 && battery < 100) {
+    const before = battery;
+    battery = Math.min(100, battery + 60 * dt);
+    if (before < 95 && battery >= 95) { beep(880, .15, 'triangle'); say(p.x, p.y - 30, 'Full ficklampa! 🔦', '#ffd23f'); }
+  }
+  // Rädslan växer när monster är nära
+  for (const m of [...carts, ...robots, ...sellers]) {
+    const d = dist(m.x, m.y, p.x, p.y);
+    if (d < 160) fear += dt * (160 - d) / 160 * 6;
+  }
+
+  // Spökkundvagnar
+  for (const c of carts) {
+    c.cd -= dt;
+    c.x += c.vx * dt;
+    if (solidAt(c.x + Math.sign(c.vx) * 20, c.y)) c.vx *= -1;
+    if (c.cd <= 0 && dist(c.x, c.y, p.x, p.y) < 34) {
+      c.cd = 1.5; fear += 10; stun = .5; shake = .3; sfx.hit();
+      p.vx = Math.sign(c.vx) * 420; p.vy = (p.y < c.y ? -1 : 1) * 220;
+      say(p.x, p.y - 30, 'Hihihi! 👻', '#c9b8ff');
+    }
+  }
+  // Städrobotar
+  for (const r of robots) {
+    r.cd -= dt; r.drop -= dt;
+    const d = dist(r.x, r.y, r.tx, r.ty);
+    if (d < 10) newRobotTarget(r);
+    else {
+      const m = moveBody(r, (r.tx - r.x) / d * 70 * dt, (r.ty - r.y) / d * 70 * dt, 14);
+      if (m.bx || m.by) newRobotTarget(r);
+    }
+    if (r.drop <= 0) { r.drop = rand(2.5, 4.5); if (puddles.length < 14) puddles.push({ x:r.x, y:r.y, t:14 }); }
+    if (r.cd <= 0 && dist(r.x, r.y, p.x, p.y) < 30) {
+      r.cd = 1.5; fear += 8; stun = .3; sfx.hit();
+      p.vx = (p.x - r.x) * 8; p.vy = (p.y - r.y) * 8;
+      say(p.x, p.y - 30, 'STÄÄÄDA... DIG... 🤖', '#ff4d6d');
+    }
+  }
+  puddles.forEach(pd => pd.t -= dt);
+  puddles = puddles.filter(pd => pd.t > 0);
+  // Skyltdockor: står helt still när du lyser på dem, men rör sig i mörkret!
+  const R = lightRadius();
+  for (const s of sellers) {
+    s.cd -= dt; s.sayT -= dt;
+    const d = dist(s.x, s.y, p.x, p.y);
+    s.lit = d < R * .85;
+    if (s.lit || s.cd > 0 || d > 600) continue;
+    const sp = (blackout > 0 ? 150 : 65) + level * 6;
+    moveBody(s, (p.x - s.x) / d * sp * dt, (p.y - s.y) / d * sp * dt, 14);
+    if (d < 30) {
+      s.cd = 7; frozen = 1.2; fear += 15 + level * 3; shake = .5; scareT = .45; sfx.scream();
+      s.say = BOO_LINES[Math.random() * BOO_LINES.length | 0]; s.sayT = 2;
+      say(p.x, p.y - 40, 'AAAAH! 😱', '#ff4d6d');
+      s.x = s.px; s.y = s.py; // dockan försvinner tillbaka till sin plats
+    }
+  }
+  floats.forEach(f => { f.t -= dt; f.y -= 30 * dt; });
+  floats = floats.filter(f => f.t > 0);
+  shake = Math.max(0, shake - dt);
+}
+
+// ===== Ljus =====
+function lightRadius() {
+  if (blackout > 0) return 28;
+  const flick = battery < 20 && Math.random() < .15 ? .6 : 1;
+  return (70 + battery * 1.5) * flick;
+}
+const dark = document.createElement('canvas'), dctx = dark.getContext('2d');
+
+// ===== Rita =====
+let W, H, SC;
+function resize() {
+  const dpr = window.devicePixelRatio || 1;
+  W = innerWidth; H = innerHeight;
+  cv.width = W * dpr; cv.height = H * dpr; dark.width = W; dark.height = H; cv.style.width = W + 'px'; cv.style.height = H + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  SC = clamp(Math.min(W / 1000, H / 700), .55, 1.15);
+}
+addEventListener('resize', resize); resize();
+
+const EMOJI = '"Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif';
+function emoji(e, x, y, size) { ctx.font = `${size}px ${EMOJI}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(e, x, y); }
+function label(t, x, y, size, color, bg) {
+  ctx.font = `bold ${size}px 'Trebuchet MS', sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  if (bg) { const w = ctx.measureText(t).width + 14; ctx.fillStyle = bg; roundRect(x - w / 2, y - size * .8, w, size * 1.6, 8); ctx.fill(); }
+  ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,.6)'; if (!bg) ctx.strokeText(t, x, y);
+  ctx.fillStyle = color; ctx.fillText(t, x, y);
+}
+function roundRect(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+
+function draw(now) {
+  ctx.fillStyle = '#0b0820'; ctx.fillRect(0, 0, W, H);
+  if (!grid) return;
+  const vw = W / SC, vh = H / SC, ww = MW * TS, wh = MH * TS;
+  let cx = vw >= ww ? (ww - vw) / 2 : clamp(p.x - vw / 2, 0, ww - vw);
+  let cy = vh >= wh ? (wh - vh) / 2 : clamp(p.y - vh / 2, -50, wh - vh);
+  if (shake > 0) { cx += rand(-6, 6); cy += rand(-6, 6); }
+  ctx.save(); ctx.scale(SC, SC); ctx.translate(-cx, -cy);
+
+  const t0x = Math.max(0, Math.floor(cx / TS)), t1x = Math.min(MW - 1, Math.ceil((cx + vw) / TS));
+  const t0y = Math.max(0, Math.floor(cy / TS)), t1y = Math.min(MH - 1, Math.ceil((cy + vh) / TS));
+  const done = allDone();
+  for (let ty = t0y; ty <= t1y; ty++) for (let tx = t0x; tx <= t1x; tx++) {
+    const g = grid[ty][tx], x = tx * TS, y = ty * TS, rid = room[ty][tx];
+    if (g === 1) {
+      ctx.fillStyle = '#2a2250'; ctx.fillRect(x, y, TS, TS);
+      ctx.fillStyle = '#3b3170'; ctx.fillRect(x, y, TS, 8);
+      continue;
+    }
+    if (g === 3) {
+      ctx.fillStyle = done ? '#1fdc6a' : '#8a2b3c'; ctx.fillRect(x, y, TS, TS);
+      continue;
+    }
+    ctx.fillStyle = rid >= 0 ? SHOPS[rid].floor : ((tx + ty) % 2 ? '#9d978a' : '#8f897c');
+    ctx.fillRect(x, y, TS, TS);
+    if (rid >= 0) { ctx.strokeStyle = 'rgba(0,0,0,.05)'; ctx.strokeRect(x, y, TS, TS); }
+    if (g === 2) {
+      const kiosk = rid === KIOSK;
+      ctx.fillStyle = kiosk ? '#b5773c' : '#6b4a2e'; ctx.fillRect(x + 2, y + 6, TS - 4, TS - 12);
+      ctx.fillStyle = kiosk ? '#d99a5b' : '#8d6644'; ctx.fillRect(x + 2, y + 6, TS - 4, 8);
+    }
+    if (g === 4) emoji('🚽', x + TS / 2, y + TS / 2, 34);
+  }
+  // Skyltar vid dörrarna
+  SHOPS.forEach(s => {
+    const x = (s.door[0] + 1) * TS, top = s.door[1] === 9;
+    label(`${s.sign} ${s.name}`, x, top ? 10 * TS + 14 : 16 * TS - 14, 15, '#fff', 'rgba(40,20,90,.85)');
+  });
+  // Utgången och föräldrarna
+  emoji('👩', TS * .5, 11.5 * TS, 34); emoji('👨', TS * .5, 14.5 * TS, 34);
+  label(done ? 'HIT! 🚗' : 'UTGÅNG', TS * 1.1, 12.9 * TS, 14, done ? '#1fdc6a' : '#ffb3c0', 'rgba(0,0,0,.6)');
+  if (done) label('Här är vi! 👋', TS * 1.6, 10.9 * TS, 14, '#ffd23f', 'rgba(0,0,0,.6)');
+
+  // Pölar
+  puddles.forEach(pd => {
+    ctx.globalAlpha = Math.min(1, pd.t / 3) * .7;
+    ctx.fillStyle = '#6ec6ff'; ctx.beginPath(); ctx.ellipse(pd.x, pd.y, 26, 15, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1;
+  });
+  // Varor
+  const pulse = (Math.sin(now / 200) + 1) / 2;
+  for (const s of slots) {
+    if (s.taken) continue;
+    const x = (s.tx + .5) * TS, y = (s.ty + .5) * TS;
+    if (list.some(l => l.slot === s && !l.got)) {
+      ctx.strokeStyle = `rgba(255,190,0,${.5 + pulse * .5})`; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.arc(x, y, 19 + pulse * 4, 0, Math.PI * 2); ctx.stroke();
+    }
+    emoji(s.e, x, y, 28);
+  }
+  foods.forEach(f => {
+    const x = (f.tx + .5) * TS, y = (f.ty + .5) * TS;
+    emoji(f.e, x, y, 30);
+    label(`${f.price} kr`, x, y + 22, 11, '#333', 'rgba(255,255,255,.85)');
+  });
+  emoji('🔋', (charger.tx + .5) * TS, (charger.ty + .5) * TS, 30);
+  label('Laddstation', (charger.tx + .5) * TS - 10, (charger.ty + .5) * TS + 22, 11, '#333', 'rgba(255,255,255,.85)');
+  // Faror
+  sellers.forEach(s => emoji('🧍', s.x, s.y, 36));
+  robots.forEach(r => emoji('🤖', r.x, r.y, 30));
+  carts.forEach(c => { ctx.save(); ctx.translate(c.x, c.y); if (c.vx > 0) ctx.scale(-1, 1); emoji('🛒', 0, 0, 34); ctx.restore(); });
+
+  // Spelaren
+  emoji('🧒', p.x, p.y, 36);
+  if (list.some(l => l.got)) emoji('🧺', p.x + 16, p.y + 12, 18);
+  if (frozen > 0) emoji('💬', p.x + 18, p.y - 24, 22);
+  if (stun > 0) emoji('💫', p.x, p.y - 26, 22);
+  if (kiss > 75) emoji('💦', p.x - 18, p.y - 20, 16 + pulse * 6);
+
+  ctx.restore();
+
+  // Mörkret med ficklampans ljuscirkel
+  const sx = (p.x - cx) * SC, sy = (p.y - cy) * SC, lr = lightRadius() * SC;
+  dctx.globalCompositeOperation = 'source-over';
+  dctx.clearRect(0, 0, W, H);
+  dctx.fillStyle = blackout > 0 ? 'rgba(0,0,0,.985)' : 'rgba(3,0,12,.94)';
+  dctx.fillRect(0, 0, W, H);
+  dctx.globalCompositeOperation = 'destination-out';
+  const holes = [[sx, sy, lr]];
+  if (blackout <= 0) holes.push([(TS * .6 - cx) * SC, (13 * TS - cy) * SC, 90 * SC], [((charger.tx + .5) * TS - cx) * SC, ((charger.ty + .5) * TS - cy) * SC, 45 * SC]);
+  for (const [hx, hy, hr] of holes) {
+    const gr = dctx.createRadialGradient(hx, hy, hr * .35, hx, hy, hr);
+    gr.addColorStop(0, 'rgba(0,0,0,1)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+    dctx.fillStyle = gr; dctx.beginPath(); dctx.arc(hx, hy, hr, 0, Math.PI * 2); dctx.fill();
+  }
+  ctx.drawImage(dark, 0, 0, W, H);
+
+  // Röda ögon i mörkret + pratbubblor + flytande text ovanpå mörkret
+  ctx.save(); ctx.scale(SC, SC); ctx.translate(-cx, -cy);
+  const glowEyes = (x, y, col) => { ctx.fillStyle = col; ctx.shadowColor = col; ctx.shadowBlur = 12;
+    ctx.beginPath(); ctx.arc(x - 6, y - 8, 3, 0, 7); ctx.arc(x + 6, y - 8, 3, 0, 7); ctx.fill(); ctx.shadowBlur = 0; };
+  sellers.forEach(s => { if (!s.lit && Math.sin(now / 300 + s.px) > -.7) glowEyes(s.x, s.y, '#ff2040');
+    if (s.sayT > 0) label(s.say, s.x, s.y - 40, 16, '#fff', 'rgba(150,0,20,.9)'); });
+  robots.forEach(r => glowEyes(r.x, r.y + 2, '#ff2040'));
+  carts.forEach(c => { ctx.globalAlpha = .35 + Math.sin(now / 200) * .15; emoji('👻', c.x, c.y - 20, 26); ctx.globalAlpha = 1; });
+  if (blackout <= 0) list.forEach(l => { if (!l.got) { ctx.fillStyle = 'rgba(255,190,0,.35)'; ctx.beginPath(); ctx.arc((l.slot.tx + .5) * TS, (l.slot.ty + .5) * TS, 5, 0, 7); ctx.fill(); } });
+  floats.forEach(f => { ctx.globalAlpha = Math.min(1, f.t); label(f.text, f.x, f.y, 16, f.color); ctx.globalAlpha = 1; });
+  ctx.restore();
+  document.getElementById('scare').style.display = scareT > 0 ? 'flex' : 'none';
+
+  drawMinimap();
+  if (joy.on) {
+    ctx.strokeStyle = 'rgba(255,255,255,.4)'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(joy.ox, joy.oy, 50, 0, Math.PI * 2); ctx.stroke();
+    const dx = joy.x - joy.ox, dy = joy.y - joy.oy, l = Math.hypot(dx, dy), m = Math.min(l, 50) / (l || 1);
+    ctx.fillStyle = 'rgba(0,229,255,.6)'; ctx.beginPath(); ctx.arc(joy.ox + dx * m, joy.oy + dy * m, 22, 0, Math.PI * 2); ctx.fill();
+  }
+}
+
+function drawMinimap() {
+  const m = W < 600 ? 3 : 4, ox = 10, oy = 58;
+  ctx.fillStyle = 'rgba(11,8,32,.8)'; ctx.fillRect(ox - 4, oy - 4, MW * m + 8, MH * m + 8);
+  for (let y = 0; y < MH; y++) for (let x = 0; x < MW; x++) {
+    const g = grid[y][x], rid = room[y][x];
+    ctx.fillStyle = g === 1 ? '#3b3170' : g === 2 ? '#6b4a2e' : g === 3 ? (allDone() ? '#1fdc6a' : '#8a2b3c') : rid >= 0 ? SHOPS[rid].floor : '#aaa';
+    ctx.fillRect(ox + x * m, oy + y * m, m, m);
+  }
+  const blink = Math.sin(performance.now() / 150) > 0;
+  ctx.fillStyle = '#ff9d00';
+  list.forEach(l => { if (!l.got && blink) ctx.fillRect(ox + l.slot.tx * m - 1, oy + l.slot.ty * m - 1, m + 2, m + 2); });
+  ctx.fillStyle = '#ff3df0';
+  ctx.beginPath(); ctx.arc(ox + p.x / TS * m, oy + p.y / TS * m, m + 1, 0, Math.PI * 2); ctx.fill();
+}
+
+// ===== HUD och listor =====
+const $ = id => document.getElementById(id);
+function renderList() {
+  const part = who => list.filter(l => l.who === who).map(l =>
+    `<div class="it ${l.got ? 'got' : ''}">${l.slot.e} ${l.slot.name} <small>${l.slot.price} kr</small></div>`).join('');
+  const left = list.filter(l => !l.got).length;
+  $('list').innerHTML = `<b>📝 Inköpslistan (${list.length - left}/${list.length})</b><div class="items">
+    <h3>👩 Mamma</h3>${part('mamma')}<h3>👨 Pappa</h3>${part('pappa')}</div>
+    ${left ? '' : '<div style="color:#45ff8a;margin-top:6px"><b>Klart! Spring till utgången 🚗</b></div>'}`;
+}
+function updateHud() {
+  $('lvl').textContent = level;
+  $('money').textContent = Math.round(money);
+  const mins = 20 * 60 + Math.floor(time / dayLen * 240);
+  $('clock').textContent = `🕛 ${String(Math.floor(mins / 60) % 24).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
+  $('clock').className = dayLen - time < 25 ? 'warn' : '';
+  const e = clamp(battery, 0, 100), k = clamp(kiss, 0, 100), fr = clamp(fear, 0, 100);
+  $('eBar').style.width = e + '%'; $('eBar').style.background = e < 25 ? '#ff4d6d' : '#ffd23f';
+  $('fBar').style.width = fr + '%'; $('fBar').style.background = fr > 70 ? '#ff2040' : '#b07bff';
+  $('kBar').style.width = k + '%'; $('kBar').style.background = k > 75 ? '#ff4d6d' : '#6ec6ff';
+}
+
+// ===== Skärmar =====
+function show(html) { $('screen').innerHTML = `<div class="box">${html}</div>`; $('screen').classList.remove('hidden'); }
+function hide() { $('screen').classList.add('hidden'); }
+function notes() {
+  const n = who => list.filter(l => l.who === who).map(l => `${l.slot.e} ${l.slot.name}`).join('<br>');
+  return `<div class="notes"><div class="note"><b>👩 Mammas lista</b>${n('mamma')}</div><div class="note"><b>👨 Pappas lista</b>${n('pappa')}</div></div>`;
+}
+function menu() {
+  state = 'menu'; setupLevel();
+  const best = save0.best ? `<p>🏆 Ditt rekord: nivå ${save0.best}</p>` : '';
+  show(`<h1>🔦 Mörka köpcentret</h1>
+    <p>Mamma och pappa glömde handla! Klockan är 20:00 och köpcentret har nattöppet... men alla lampor är släckta och något är MYCKET konstigt. Mamma och pappa väntar vid bilen. Köp allt på listorna och spring ut innan klockan slår tolv!</p>
+    <p><b>Nivå ${level}</b> · Du har <b>${money} kr</b></p>
+    ${notes()}${best}
+    <button class="btn" onclick="start()">Kör! 🏃</button>
+    <div class="tips">
+      🎮 Gå med piltangenterna eller WASD. På mobil drar du med fingret.<br>
+      🧍 Skyltdockorna rör sig bara i mörkret. Lys på dem så står de still... men ibland slocknar lampan!<br>
+      🔦 Ficklampan blir svagare. Ladda den vid 🔋 laddstationen i Elektronik.<br>
+      😱 Blir du för rädd? En tröstglass 🍦 i kiosken hjälper.<br>
+      🚽 Kissnödig? Spring till toaletten!<br>
+      👻 Akta dig för spökkundvagnarna och 🤖 städroboten med röda ögon.
+    </div>`);
+}
+function start() { hide(); state = 'play'; beep(440, .05); }
+function lose(why) {
+  state = 'over'; sfx.lose();
+  const txt = {
+    clock:['🕛 Klockan slog tolv!', 'Alla skyltdockor vaknade på riktigt och började dansa runt dig. Du fick springa ut tomhänt!'],
+    fear:['😱 Du blev för rädd!', 'Du skrek AAAAH och sprang hela vägen hem. Nästa gång: ät en tröstglass och håll ficklampan laddad!'],
+    kiss:['💦 Oj oj oj!', 'Du hann inte till toaletten! Nästa gång springer du till 🚽 i tid.'],
+    money:['💸 Pengarna tog slut!', 'Du har inte råd med resten av listan. Handla inte för mycket i kiosken!'],
+  }[why];
+  show(`<h1>${txt[0]}</h1><p>${txt[1]}</p><p>Du hann köpa ${list.filter(l => l.got).length} av ${list.length} saker.</p>
+    <button class="btn" onclick="menu()">Försök igen 🔁</button>`);
+}
+function win() {
+  state = 'over'; sfx.win();
+  const stars = 1 + (dayLen - time > dayLen * .3 ? 1 : 0) + (fear < 50 && kiss < 60 ? 1 : 0);
+  save0.best = Math.max(save0.best || 0, level + 1); save(save0);
+  const cheer = ['Puh! Mamma och pappa kramar dig i bilen! 🚗', 'Du är modigare än ett spöke!', 'Wow! Inte ens skyltdockorna kunde stoppa dig!'][stars - 1];
+  show(`<h1>🎉 Du överlevde!</h1><div class="stars">${'⭐'.repeat(stars)}${'☆'.repeat(3 - stars)}</div>
+    <p>${cheer}<br>Du hade ${Math.round(money)} kr kvar i växel.</p>
+    <p>Nästa nivå: längre listor, fler skyltdockor och spöken!</p>
+    <button class="btn" onclick="level++; menu()">Nästa nivå ➡</button>
+    <button class="btn alt" onclick="menu()">Samma nivå igen</button>`);
+}
+
+// ===== Spel-loop =====
+let last = performance.now();
+function loop(now) {
+  const dt = Math.min(.05, (now - last) / 1000); last = now;
+  update(dt);
+  draw(now);
+  if (state === 'play') updateHud();
+  requestAnimationFrame(loop);
+}
+level = 1;
+menu(); updateHud();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

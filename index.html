@@ -89,6 +89,8 @@
   .c-voice:hover  { border-color: #b07bff; box-shadow: 0 0 28px rgba(176,123,255,.55); }
   .c-monster{ color: #7bff4d; }
   .c-monster:hover{ border-color: #7bff4d; box-shadow: 0 0 28px rgba(123,255,77,.55); }
+  .c-dark   { color: #ff4d6d; }
+  .c-dark:hover   { border-color: #ff4d6d; box-shadow: 0 0 28px rgba(255,77,109,.55); }
   .badge { display:inline-block; background:var(--gold); color:#3a2410; font-size:.7rem;
            font-weight:bold; padding:1px 7px; border-radius:8px; margin-left:6px; vertical-align:middle; }
   @keyframes pop { 0%{transform:scale(.6);opacity:0} 70%{transform:scale(1.08)} 100%{transform:scale(1);opacity:1} }
@@ -103,9 +105,15 @@
     <p class="sub">Välj ett äventyr!</p>
 
     <div class="cards">
+      <a class="card c-dark" href="kopcentret.html">
+        <span class="emoji">🔦</span>
+        <span class="txt"><b>Mörka köpcentret<span class="badge">NYTT!</span></b><span>Handla åt mamma och pappa i det läskiga nattköpcentret. Akta dig för skyltdockorna!</span></span>
+        <span class="go">▶</span>
+      </a>
+
       <a class="card c-monster" href="monsterfabriken.html">
         <span class="emoji">👹</span>
-        <span class="txt"><b>Monsterfabriken<span class="badge">NYTT!</span></b><span>Bygg monster med superkrafter – slåss online mot kompisar!</span></span>
+        <span class="txt"><b>Monsterfabriken</b><span>Bygg monster med superkrafter – slåss online mot kompisar!</span></span>
         <span class="go">▶</span>
       </a>
 
