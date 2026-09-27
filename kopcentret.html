@@ -69,10 +69,8 @@
   <a href="index.html">⬅</a>
   <span>🌙 Natt <span id="lvl">1</span></span>
   <span id="clock">🕛 20:00</span>
-  <span>🔦<span class="bar"><i id="eBar"></i></span></span>
   <span id="lives">❤️❤️❤️</span>
   <span id="ammo"></span>
-  <span id="wood">🪵 0</span>
 </div>
 <canvas id="mini"></canvas>
 <div id="list" title="Tryck för att visa/dölja"></div>
@@ -81,10 +79,10 @@
 <div id="shootBtn">💥</div>
 <div id="toast"></div>
 <div id="buildbar">
-  <button data-b="0"><b>1</b>🪜 Stege <small>2🪵</small></button>
-  <button data-b="1"><b>2</b>🧱 Barrikad <small>2🪵</small></button>
-  <button data-b="2"><b>3</b>🔥 Lägereld <small>3🪵</small></button>
-  <button data-b="3"><b>4</b>⛺ Tält <small>4🪵</small></button>
+  <button data-b="0"><b>1</b>🪜 Stege</button>
+  <button data-b="1"><b>2</b>🧱 Barrikad</button>
+  <button data-b="2"><b>3</b>🔥 Lägereld</button>
+  <button data-b="3"><b>4</b>⛺ Tält</button>
   <button id="useBtn"><b>E</b>✋ Använd</button>
 </div>
 <div id="sleep">💤 Zzz...<small>Natten går fortare medan du sover. Tryck E för att vakna.</small></div>
@@ -130,7 +128,6 @@ const SHOPS = [
 const BOO_LINES = ['Hehehe... jag är ingen riktig vakt!', 'BÖÖ! Lurade dig!', 'Du får aldrig gå hem!', 'Jag ser dig...'];
 const GUARD_HELLO = ['Hej! Allt lugnt?', 'Akta dig för de konstiga vakterna!', 'Konstigt ställe på natten, va?', 'Jag håller utkik!'];
 const ANOMALIES = ['ögon', 'baklänges', 'lång', 'ansikte', 'armar', 'svävar', 'lampa'];
-const CHARGER = { x:34, y:8 };
 const TOILETS = [[21, 21], [24, 21], [21, 24], [24, 24]];
 
 const grid = [], room = [], slotPos = [];
@@ -339,8 +336,6 @@ function signMesh(text) {
   door.position.set(1.9, WALL_H / 2, 13 * T); scene.add(door);
   TOILETS.forEach(([x, y]) => { const s = sprite('🚽', .9); s.position.set((x + .5) * T, .5, (y + .5) * T); scene.add(s); });
   [['🌭', 12], ['🍦', 15], ['🥤', 18]].forEach(([e, x]) => { const s = sprite(e, .6); s.position.set((x + .5) * T, 1.45, 20.5 * T); scene.add(s); });
-  const ch = sprite('🔋', 1); ch.position.set((CHARGER.x + .5) * T, 1.1, (CHARGER.y + .5) * T); scene.add(ch);
-  const chl = new THREE.PointLight(0x44ff88, 3, 5, 1); chl.position.set((CHARGER.x + .5) * T, 1.5, (CHARGER.y + .5) * T); scene.add(chl);
 })();
 
 // ===== Modeller =====
@@ -441,26 +436,26 @@ function makeTent() {
   return g;
 }
 const BUILDS = [
-  { name:'Stege', e:'🪜', cost:2, msg:'Du byggde en stege! Gå mot hyllan för att klättra upp.' },
-  { name:'Barrikad', e:'🧱', cost:2, msg:'Du byggde en barrikad! Den stoppar anomalierna en stund.' },
-  { name:'Lägereld', e:'🔥', cost:3, msg:'Du byggde en lägereld! Anomalierna vågar inte gå nära elden.' },
-  { name:'Tält', e:'⛺', cost:4, msg:'Du byggde ett tält! Gå in och tryck E för att sova.' },
+  { name:'Stege', e:'🪜', msg:'Du byggde en stege! Gå mot hyllan för att klättra upp.' },
+  { name:'Barrikad', e:'🧱', msg:'Du byggde en barrikad! Den stoppar anomalierna en stund.' },
+  { name:'Lägereld', e:'🔥', msg:'Du byggde en lägereld! Anomalierna vågar inte gå nära elden.' },
+  { name:'Tält', e:'⛺', msg:'Du byggde ett tält! Gå in och tryck E för att sova.' },
 ];
 const FIRE_R = 2.6;
 
 // ===== Spelets tillstånd =====
 let save0 = loadSave();
 let night = 1, state = 'menu';
-let p, yaw, pitch, bob, camY = EYE, time, nightLen, battery, lives, list, slots, carts, robots, guards, chests, poofs, puddles, shake, stun;
-let blackout, nextBlackout, heartT, flow0, flow1, flowT, hintT, chestT, chestSpots, hasGun, ammo, shootCd, kick, anomaliesStopped, listDoneShown;
-let wood = 0, woodPiles = [], barricades = [], fires = [], tents = [], ladders = new Map(), sleeping = false, sleepHealT = 0, climbT = 0, climbedOnce = false;
+let p, yaw, pitch, bob, camY = EYE, time, nightLen, lives, list, slots, carts, robots, guards, chests, poofs, puddles, shake, stun;
+let blackout, nextBlackout, heartT, flow0, flow1, flowT, hintT, chestT, chestSpots, hasGun, shootCd, kick, anomaliesStopped, listDoneShown;
+let barricades = [], fires = [], tents = [], ladders = new Map(), sleeping = false, sleepHealT = 0, climbT = 0, climbedOnce = false;
 const dyn = new THREE.Group(); scene.add(dyn);
 
 function setupNight() {
   while (dyn.children.length) dyn.remove(dyn.children[0]);
   [...barricades, ...fires].forEach(b => grid[b.y][b.x] = 0);
-  barricades = []; fires = []; tents = []; ladders = new Map(); woodPiles = [];
-  wood = 3; sleeping = false; climbT = 0;
+  barricades = []; fires = []; tents = []; ladders = new Map();
+  sleeping = false; climbT = 0;
   p = { x:2.5, y:13, vx:0, vy:0, level:0 }; yaw = -Math.PI / 2; pitch = 0; camY = EYE;
   slots = [];
   SHOPS.forEach((s, id) => {
@@ -476,9 +471,9 @@ function setupNight() {
   list = shuffle(slots.slice()).slice(0, n).map((s, i) => ({ slot:s, who:i % 2 ? 'pappa' : 'mamma', got:false }));
   slots.forEach(s => { if (!list.some(l => l.slot === s)) s.sprite.material.color.set(0x555555); });
   nightLen = Math.min(270, 180 + (night - 1) * 15);
-  time = 0; battery = 100; lives = 3; shake = 0; stun = 0; bob = 0; hintT = 0; kick = 0;
+  time = 0; lives = 3; shake = 0; stun = 0; bob = 0; hintT = 0; kick = 0;
   blackout = 0; nextBlackout = rand(8, 12); heartT = 0; flowT = 0;
-  hasGun = false; ammo = 0; shootCd = 0; anomaliesStopped = 0; listDoneShown = false;
+  hasGun = false; shootCd = 0; anomaliesStopped = 0; listDoneShown = false;
   puddles = []; poofs = [];
   carts = [];
   for (let i = 0; i < Math.min(night, 5); i++) {
@@ -505,16 +500,11 @@ function setupNight() {
   const spots = [];
   for (let y = 1; y < MH - 1; y++) for (let x = 1; x < MW - 1; x++) {
     const r = room[y][x];
-    if (r >= 0 && grid[y][x] === 0 && !slots.some(s => s.tx === x && s.ty === y) && !(x === CHARGER.x && y === CHARGER.y)) spots.push([x, y]);
+    if (r >= 0 && grid[y][x] === 0 && !slots.some(s => s.tx === x && s.ty === y)) spots.push([x, y]);
   }
   chestSpots = shuffle(spots);
-  for (let i = 0; i < 5 + Math.min(night, 4); i++) addChest();
+  for (let i = 0; i < 4 + Math.min(night, 3); i++) addChest();
   chestT = 35;
-  // Vedhögar att bygga med
-  chestSpots.filter(([x, y]) => !chests.some(c => Math.floor(c.x) === x && Math.floor(c.y) === y)).slice(0, 8).forEach(([x, y]) => {
-    const s = sprite('🪵', .8); s.position.set((x + .5) * T, .35, (y + .5) * T); dyn.add(s);
-    woodPiles.push({ x, y, s });
-  });
   computeFlow();
   renderList();
 }
@@ -529,7 +519,7 @@ function newWanderTarget(o) { o.tx = rand(2, 34); o.ty = rand(10.5, 15.5); }
 
 // Stegar: golvruta -> hyllruta som stegen står mot
 const ladderTo = (fx, fy, sx, sy) => { const L = ladders.get(fx + ',' + fy); return !!L && L.sx === sx && L.sy === sy; };
-const burning = () => fires.filter(f => f.fuel > 0);
+const burning = () => fires;
 // Hindrar anomalier från att gå närmare en brinnande eld
 function fireBlocks(ox, oy, nx, ny) {
   return burning().some(f => { const d1 = dist(nx, ny, f.x + .5, f.y + .5); return d1 < FIRE_R && d1 < dist(ox, oy, f.x + .5, f.y + .5); });
@@ -645,7 +635,7 @@ function frontTile() {
   return Math.abs(fx) > Math.abs(fy) ? [tx + Math.sign(fx), ty, Math.sign(fx), 0] : [tx, ty + Math.sign(fy), 0, Math.sign(fy)];
 }
 function tileBusy(x, y) {
-  return tents.some(t => t.x === x && t.y === y) || ladders.has(x + ',' + y) || (x === CHARGER.x && y === CHARGER.y)
+  return tents.some(t => t.x === x && t.y === y) || ladders.has(x + ',' + y)
     || chests.some(c => Math.floor(c.x) === x && Math.floor(c.y) === y)
     || [...guards, ...robots].some(o => !o.dead && Math.floor(o.x) === x && Math.floor(o.y) === y);
 }
@@ -653,7 +643,6 @@ function build(i) {
   if (state !== 'play' || sleeping) return;
   const b = BUILDS[i];
   if (p.level) return toast('Du kan inte bygga uppe på hyllan. Hoppa ner först!', '#ccc');
-  if (wood < b.cost) return toast(`${b.e} ${b.name} kostar ${b.cost} 🪵. Du har bara ${wood}. Leta ved!`, '#ffd23f');
   const [x, y, dx, dy] = frontTile(), tx = Math.floor(p.x), ty = Math.floor(p.y);
   if (i === 0) {
     if (!isShelf(x, y)) return toast('🪜 Ställ dig vid en hylla och titta på den för att bygga en stege.', '#ccc');
@@ -672,13 +661,13 @@ function build(i) {
     } else if (i === 2) {
       if (fires.length >= 3) return toast('Du kan bara ha 3 lägereldar.', '#ccc');
       const mesh = makeFire(); mesh.position.set((x + .5) * T, 0, (y + .5) * T); dyn.add(mesh);
-      grid[y][x] = 6; fires.push({ x, y, fuel:90, mesh, out:false });
+      grid[y][x] = 6; fires.push({ x, y, mesh });
     } else {
       const mesh = makeTent(); mesh.position.set((x + .5) * T, 0, (y + .5) * T); dyn.add(mesh);
       tents.push({ x, y, mesh });
     }
   }
-  wood -= b.cost; sfx.build(); toast(`${b.e} ${b.msg}`, '#45ff8a', 3);
+  sfx.build(); toast(`${b.e} ${b.msg}`, '#45ff8a', 3);
   computeFlow();
 }
 function interact() {
@@ -692,13 +681,7 @@ function interact() {
     toast(safe ? '💤 Du somnar tryggt vid elden...' : '💤 Du somnar... men det finns ingen eld i närheten!', safe ? '#9fd0ff' : '#ffd23f', 3);
     return;
   }
-  const f = fires.find(f => dist(f.x + .5, f.y + .5, p.x, p.y) < 1.7);
-  if (f) {
-    if (wood < 1) return toast('Du har ingen ved 🪵', '#ffd23f');
-    wood--; f.fuel = Math.min(f.fuel + 60, 240); f.out = false; sfx.pick();
-    return toast('🔥 Du la på ved! Elden brinner längre.', '#ffb35c');
-  }
-  toast('Här finns inget att använda. Gå in i ett ⛺ tält eller fram till en 🔥 eld.', '#ccc');
+  toast('Här finns inget att använda. Gå in i ett ⛺ tält och tryck E för att sova.', '#ccc');
 }
 
 // ===== Pistolen =====
@@ -707,8 +690,7 @@ function shoot() {
   if (state !== 'play' || sleeping) return;
   if (!hasGun) { toast('Du har ingen pistol. Leta i kistor 🧰', '#ccc'); return; }
   if (shootCd > 0) return;
-  if (ammo <= 0) { sfx.empty(); toast('Slut på skott! Leta i kistor 🧰', '#ffd23f'); return; }
-  shootCd = .35; ammo--; kick = 1; muzzle.intensity = 25; sfx.bang();
+  shootCd = .35; kick = 1; muzzle.intensity = 25; sfx.bang();
   const fx = -Math.sin(yaw), fy = -Math.cos(yaw);
   let wall = 16;
   for (let t = 0; t < 16; t += .1) {
@@ -733,14 +715,14 @@ function shoot() {
     poof(o.x, o.y); o.dead = true; o.respawnT = 30; o.mesh.visible = false; anomaliesStopped++;
     toast('Rätt! Det var en ANOMALI! ✔', '#45ff8a', 2.5);
   } else {
-    hasGun = false; ammo = 0; sfx.hit();
+    hasGun = false; sfx.hit();
     toast('AJ! Hallå! Jag är en RIKTIG vakt! Nu tar jag din pistol! 😠', '#ff4d6d', 3);
     o.cd = 20;
   }
 }
 
 // ===== Ficklampan =====
-function lightRange() { return 3 + battery * .07; } // i rutor
+const lightRange = () => 10; // i rutor
 
 // ===== Uppdatering =====
 const SPEED = 3.3;
@@ -748,12 +730,6 @@ function update(dt) {
   if (state !== 'play') return;
   time += sleeping ? dt * 4 : dt;
   if (time >= nightLen) return dawn();
-  if (!sleeping) battery = Math.max(0, battery - dt * 100 / 90);
-  // Lägereldar brinner ut
-  for (const f of fires) {
-    f.fuel -= sleeping ? dt * 4 : dt;
-    if (f.fuel <= 0 && !f.out) { f.out = true; f.fuel = 0; toast('🔥 En lägereld slocknade! Lägg på ved med E.', '#ffb35c', 2.5); }
-  }
   // Sova i tältet: natten går fortare och man får tillbaka hjärtan
   if (sleeping) {
     sleepHealT += dt * 4;
@@ -798,11 +774,6 @@ function update(dt) {
       if (!climbedOnce) { climbedOnce = true; toast('🪜 Du är uppe på hyllan! Gå av kanten för att hoppa ner.', '#45ff8a', 3); }
     }
   } else climbT = 0;
-  // Ved
-  if (!p.level) for (const w of woodPiles) {
-    if (w.taken || dist(w.x + .5, w.y + .5, p.x, p.y) > .8) continue;
-    w.taken = true; dyn.remove(w.s); wood += 2; sfx.pick(); toast('🪵 Ved! +2', '#e6c28f');
-  }
 
   // Plocka varor
   for (const s of slots) {
@@ -819,26 +790,15 @@ function update(dt) {
   for (const c of chests) {
     if (p.level || c.open || dist(c.x, c.y, p.x, p.y) > .95) continue;
     c.open = true; c.mesh.userData.lid.rotation.x = -1.9; c.mesh.userData.sparkle.visible = false; sfx.chest();
-    wood += 2;
-    if (!hasGun) { hasGun = true; ammo += 8; toast('🧰 En PISTOL! 🔫 och 2 🪵. Skjut med musklick eller mellanslag', '#ffd23f', 3.5); }
-    else {
-      const r = Math.random();
-      if (r < .45) { ammo += 6; toast('🧰 Skott! +6 🔫 och 2 🪵', '#ffd23f'); }
-      else if (r < .65) { battery = 100; toast('🧰 Nya batterier! 🔦 och 2 🪵', '#ffd23f'); }
-      else if (r < .8 && lives < 3) { lives++; toast('🧰 Ett extra hjärta! ❤️ och 2 🪵', '#ff6b8a'); }
-      else { wood += 3; toast('🧰 Massor av ved! +5 🪵', '#e6c28f'); }
-    }
+    if (!hasGun) { hasGun = true; toast('🧰 En PISTOL! 🔫 Den tar aldrig slut. Skjut med musklick eller mellanslag', '#ffd23f', 3.5); }
+    else if (lives < 3) { lives++; toast('🧰 Ett extra hjärta! ❤️', '#ff6b8a'); }
+    else toast('🧰 Kistan var tom... du har redan allt!', '#ccc');
   }
   // Nya kistor dyker upp under natten
   chestT -= dt;
   if (chestT <= 0) {
     chestT = 35;
     if (chests.filter(c => !c.open).length < 3) { addChest(); toast('✨ En ny kista har dykt upp någonstans!', '#ffd23f', 2.5); }
-  }
-  // Laddstationen
-  if (!p.level && dist(CHARGER.x + .5, CHARGER.y + .5, p.x, p.y) < .9 && battery < 100) {
-    const before = battery; battery = Math.min(100, battery + 60 * dt);
-    if (before < 95 && battery >= 95) { beep(880, .15, 'triangle'); toast('Full ficklampa! 🔦', '#ffd23f'); }
   }
   // Spökkundvagnar
   for (const c of carts) {
@@ -931,9 +891,7 @@ function update(dt) {
         let msg = pick(GUARD_HELLO);
         if (!g.gave) {
           g.gave = true;
-          if (hasGun) { ammo += 5; msg += ' Här, ta lite skott! +5 🔫'; }
-          else { battery = 100; msg += ' Här, ta nya batterier! 🔦'; }
-          sfx.pick();
+          if (lives < 3) { lives++; msg += ' Här, ta ett plåster! ❤️ +1'; sfx.pick(); }
         }
         toast('👮 ' + msg, '#9fd0ff', 2.5); g.cd = 15;
       }
@@ -960,8 +918,7 @@ function render(now, dt) {
   camY += (eyeTarget - camY) * Math.min(1, dt * 8);
   camera.position.set(p.x * T + sx, camY + Math.sin(bob) * .05 + sy, p.y * T);
   camera.rotation.set(pitch, yaw, 0);
-  const flick = battery < 20 && Math.random() < .15 ? .3 : 1;
-  flash.intensity = blackout > 0 ? 0 : 30 * flick;
+  flash.intensity = blackout > 0 ? 0 : 30;
   flash.distance = lightRange() * T * 1.4;
   amb.intensity = blackout > 0 ? .03 : .5;
   muzzle.intensity = Math.max(0, muzzle.intensity - dt * 300);
@@ -979,10 +936,9 @@ function render(now, dt) {
   }
   for (const c of chests) if (!c.open) c.mesh.userData.sparkle.position.y = 1 + Math.sin(now / 300 + c.x) * .1;
   for (const f of fires) {
-    const on = f.fuel > 0, { flame, light } = f.mesh.userData;
-    flame.visible = on;
-    light.intensity = on ? 5 + Math.sin(now / 90) * 1.2 + Math.random() * .8 : 0;
-    flame.scale.setScalar(on ? 1 + Math.sin(now / 120) * .1 : 1);
+    const { flame, light } = f.mesh.userData;
+    light.intensity = 5 + Math.sin(now / 90) * 1.2 + Math.random() * .8;
+    flame.scale.setScalar(1 + Math.sin(now / 120) * .1);
   }
   const pulse = 1 + Math.sin(now / 250) * .12;
   list.forEach(l => { if (!l.got) l.slot.sprite.scale.setScalar(.8 * pulse); });
@@ -996,7 +952,6 @@ function render(now, dt) {
   gun.style.transform = `translate(${-kick * 20}px, ${Math.sin(bob) * 8 + kick * 30}px) scaleX(-1) rotate(${-10 - kick * 25}deg)`;
   $('shootBtn').style.display = isTouch && state === 'play' && hasGun ? 'flex' : 'none';
   $('buildbar').style.display = state === 'play' ? 'flex' : 'none';
-  document.querySelectorAll('#buildbar [data-b]').forEach(b => b.classList.toggle('no', wood < BUILDS[+b.dataset.b].cost));
   $('sleep').style.display = state === 'play' && sleeping ? 'flex' : 'none';
 }
 
@@ -1012,11 +967,10 @@ function drawMinimap(now) {
     mctx.fillStyle = '#ff9d00';
     list.forEach(l => { if (!l.got) mctx.fillRect(l.slot.tx * m - 1, l.slot.ty * m - 1, m + 2, m + 2); });
   }
-  mctx.fillStyle = '#44ff88'; mctx.fillRect(CHARGER.x * m, CHARGER.y * m, m, m);
   mctx.fillStyle = '#c98b4a'; barricades.forEach(b => mctx.fillRect(b.x * m, b.y * m, m, m));
   mctx.fillStyle = '#ffe14d'; ladders.forEach(L => mctx.fillRect(L.x * m + m / 4, L.y * m + m / 4, m / 2, m / 2));
   mctx.fillStyle = '#2ecc71'; tents.forEach(t => mctx.fillRect(t.x * m, t.y * m, m, m));
-  fires.forEach(f => { mctx.fillStyle = f.fuel > 0 ? '#ff7a2a' : '#555'; mctx.fillRect(f.x * m, f.y * m, m, m); });
+  mctx.fillStyle = '#ff7a2a'; fires.forEach(f => mctx.fillRect(f.x * m, f.y * m, m, m));
   const px = p.x * m, py = p.y * m;
   mctx.strokeStyle = '#ff3df0'; mctx.lineWidth = 2;
   mctx.beginPath(); mctx.moveTo(px, py); mctx.lineTo(px - Math.sin(yaw) * m * 2.5, py - Math.cos(yaw) * m * 2.5); mctx.stroke();
@@ -1039,11 +993,8 @@ function updateHud() {
   $('lvl').textContent = night;
   $('clock').textContent = '🕛 ' + clockText();
   $('clock').className = nightLen - time < 25 ? 'warn' : '';
-  const e = clamp(battery, 0, 100);
-  $('eBar').style.width = e + '%'; $('eBar').style.background = e < 25 ? '#ff4d6d' : '#ffd23f';
   $('lives').textContent = '❤️'.repeat(Math.max(0, lives)) + '🖤'.repeat(Math.max(0, 3 - lives));
-  $('ammo').textContent = hasGun ? `🔫 ${ammo}` : '';
-  $('wood').textContent = `🪵 ${wood}`;
+  $('ammo').textContent = hasGun ? '🔫' : '';
 }
 
 // ===== Skärmar =====
@@ -1065,15 +1016,14 @@ function menu() {
     <button class="btn" id="goBtn">Starta natten 🔦</button>
     <div class="tips">
       ${ctrl}<br>
-      🧰 Leta efter kistor i affärerna! Där finns pistoler, skott, batterier, extra hjärtan och ved.<br>
-      🪵 Samla ved och <b>bygg</b> med tangenterna 1 till 4:
+      🧰 Leta efter kistor i affärerna! Där finns pistolen (den tar aldrig slut) och extra hjärtan.<br>
+      🔨 <b>Bygg</b> gratis med tangenterna 1 till 4:
       🪜 <b>Stege</b> (titta på en hylla) så kan du klättra upp. Anomalierna kan också klättra, men långsamt!
       🧱 <b>Barrikad</b> stoppar anomalierna en stund.
-      🔥 <b>Lägereld</b>: anomalierna vågar inte gå nära elden. Lägg på ved med E.
+      🔥 <b>Lägereld</b>: anomalierna vågar inte gå nära elden.
       ⛺ <b>Tält</b>: gå in och tryck E för att sova. Då går natten fortare och du får tillbaka hjärtan. Bygg ett camp med eld och tält!<br>
       💡 Ibland slocknar lampan... då springer anomalierna fortare. Hör du steg? Vänd dig om!<br>
-      👮 De riktiga säkerhetsvakterna är snälla och ger dig saker. Men vissa vakter är <b>ANOMALIER</b>! Titta noga: röda ögon, huvudet bak och fram, för lång, inget ansikte, jättelånga armar, svävar i luften eller röd ficklampa. Skjut anomalierna, men skjut INTE de riktiga vakterna!<br>
-      🔦 Ladda ficklampan vid 🔋 laddstationen i Elektronik.
+      👮 De riktiga säkerhetsvakterna är snälla och kan ge dig ett plåster. Men vissa vakter är <b>ANOMALIER</b>! Titta noga: röda ögon, huvudet bak och fram, för lång, inget ansikte, jättelånga armar, svävar i luften eller röd ficklampa. Skjut anomalierna, men skjut INTE de riktiga vakterna!
     </div>`);
   $('goBtn').onclick = start;
 }
@@ -1119,8 +1069,8 @@ requestAnimationFrame(loop);
 window.__game = { get state() { return state; }, get p() { return p; }, get list() { return list; },
   get guards() { return guards; }, get chests() { return chests; }, set yaw(v) { yaw = v; }, get yaw() { return yaw; },
   keys, grid, update, render, menu, start, shoot, set night(v) { night = v; }, get lives() { return lives; }, get time() { return time; },
-  get ammo() { return ammo; }, get hasGun() { return hasGun; }, get anomaliesStopped() { return anomaliesStopped; }, get nightLen() { return nightLen; },
-  build, interact, get wood() { return wood; }, set wood(v) { wood = v; }, get sleeping() { return sleeping; }, get fires() { return fires; },
+  get hasGun() { return hasGun; }, get anomaliesStopped() { return anomaliesStopped; }, get nightLen() { return nightLen; },
+  build, interact, get sleeping() { return sleeping; }, get fires() { return fires; },
   get barricades() { return barricades; }, get ladders() { return ladders; }, get tents() { return tents; }, computeFlow };
 </script>
 </body>
