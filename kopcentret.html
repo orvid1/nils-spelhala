@@ -157,9 +157,14 @@
 <div id="screen"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.5/dist/peerjs.min.js"></script>
-<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }</script>
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/" } }</script>
 <script type="module">
 import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
 // ===== Karta (i rutor) =====
 const MW = 36, MH = 26;
@@ -313,9 +318,12 @@ const cv = $('c');
 const TOUCH = matchMedia('(pointer:coarse)').matches || /[?&]touch=1/.test(location.search);
 const renderer = new THREE.WebGLRenderer({ canvas:cv, antialias:!TOUCH, powerPreference:'high-performance' });
 renderer.setPixelRatio(Math.min(TOUCH ? 1.5 : 2, devicePixelRatio));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x000000);
-scene.fog = new THREE.Fog(0x000000, 3, 24);
+scene.background = new THREE.Color(0x020204);
+scene.fog = new THREE.FogExp2(0x020204, .055);
 const camera = new THREE.PerspectiveCamera(72, 1, .05, 100);
 camera.rotation.order = 'YXZ';
 scene.add(camera);
@@ -325,11 +333,105 @@ const flash = new THREE.SpotLight(0xfff0cc, 30, 28, .5, .45, 1);
 flash.position.set(.25, -.25, 0);
 flash.target.position.set(0, -.3, -1);
 camera.add(flash); camera.add(flash.target);
+flash.shadow.mapSize.set(TOUCH ? 512 : 1024, TOUCH ? 512 : 1024);
+flash.shadow.camera.near = .3; flash.shadow.camera.far = 30; flash.shadow.bias = -.0006; flash.shadow.normalBias = .02;
 const muzzle = new THREE.PointLight(0xffaa44, 0, 10, 1);
 muzzle.position.set(.3, -.2, -.6); camera.add(muzzle);
 function lockMouse() { try { const r = cv.requestPointerLock(); if (r && r.catch) r.catch(() => {}); } catch (e) {} }
-function resize() { renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); }
+// Filmkänsla: glöd runt ljus, lite filmbrus och mörka hörn
+const FilmShader = {
+  uniforms:{ tDiffuse:{ value:null }, time:{ value:0 }, amount:{ value:.045 }, vig:{ value:1.15 } },
+  vertexShader:'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader:`uniform sampler2D tDiffuse; uniform float time, amount, vig; varying vec2 vUv;
+    float rnd(vec2 c){ return fract(sin(dot(c, vec2(12.9898, 78.233)) + time) * 43758.5453); }
+    void main(){
+      vec4 c = texture2D(tDiffuse, vUv);
+      c.rgb += (rnd(vUv * 1000.0) - 0.5) * amount;
+      float d = distance(vUv, vec2(0.5)) * vig;
+      c.rgb *= smoothstep(0.95, 0.3, d);
+      gl_FragColor = c;
+    }` };
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), .45, .4, .92);
+composer.addPass(bloom);
+const filmPass = new ShaderPass(FilmShader);
+composer.addPass(filmPass);
+composer.addPass(new OutputPass());
+// Grafikläge: 'real' = verklig (skuggor + filmeffekter), 'fast' = snabb för äldre telefoner
+let gfx = 'real';
+function setGfx(mode) {
+  gfx = mode === 'fast' ? 'fast' : 'real';
+  const real = gfx === 'real';
+  renderer.shadowMap.enabled = real;
+  flash.castShadow = real;
+  scene.traverse(o => { if (o.material) [].concat(o.material).forEach(m => m.needsUpdate = true); });
+}
+function resize() {
+  renderer.setSize(innerWidth, innerHeight, false); composer.setSize(innerWidth, innerHeight);
+  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+}
 addEventListener('resize', resize); resize();
+
+// ===== Verkliga ytor, ritade med kod (inga bildfiler behövs) =====
+function canvasTex(w, h, draw, rx = 1, ry = 1) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  draw(c.getContext('2d'), w, h);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rx, ry);
+  t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  return t;
+}
+function addNoise(x, w, h, amt) {
+  const img = x.getImageData(0, 0, w, h), d = img.data;
+  for (let i = 0; i < d.length; i += 4) { const n = (Math.random() - .5) * amt; d[i] += n; d[i + 1] += n; d[i + 2] += n; }
+  x.putImageData(img, 0, 0);
+}
+// Kakelgolv: 2x2 plattor per ruta med fogar och små prickar (terrazzo)
+const floorTex = canvasTex(512, 512, (x, w, h) => {
+  for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) {
+    const v = 225 + Math.random() * 20 | 0;
+    x.fillStyle = `rgb(${v},${v - 3},${v - 10})`; x.fillRect(i * 256, j * 256, 256, 256);
+  }
+  for (let k = 0; k < 900; k++) { const g = 140 + Math.random() * 90 | 0; x.fillStyle = `rgba(${g},${g - 10},${g - 20},.55)`; x.fillRect(Math.random() * w, Math.random() * h, 2 + Math.random() * 3, 2 + Math.random() * 3); }
+  addNoise(x, w, h, 16);
+  x.fillStyle = '#7d766a'; x.fillRect(0, 0, w, 4); x.fillRect(0, 254, w, 5); x.fillRect(0, 0, 4, h); x.fillRect(254, 0, 5, h);
+});
+// Målad vägg med golvlist
+const wallTex = canvasTex(256, 512, (x, w, h) => {
+  const g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#8f889e'); g.addColorStop(1, '#a39cb2');
+  x.fillStyle = g; x.fillRect(0, 0, w, h);
+  addNoise(x, w, h, 14);
+  x.fillStyle = 'rgba(0,0,0,.08)'; for (let k = 0; k < 40; k++) x.fillRect(Math.random() * w, h * .55 + Math.random() * h * .4, 1 + Math.random() * 2, 8 + Math.random() * 30);
+  x.fillStyle = '#2e2936'; x.fillRect(0, h - 34, w, 34);
+  x.fillStyle = '#4a4455'; x.fillRect(0, h - 36, w, 3);
+});
+// Hylla full med varor: metallbrädor och rader av färgglada förpackningar
+const shelfTex = canvasTex(512, 512, (x, w, h) => {
+  x.fillStyle = '#3b3d42'; x.fillRect(0, 0, w, h);
+  const rows = 4, rh = h / rows;
+  for (let r = 0; r < rows; r++) {
+    let px = 6;
+    while (px < w - 10) {
+      const bw = 18 + Math.random() * 34, bh = rh * (.45 + Math.random() * .42), hue = Math.random() * 360;
+      const top = r * rh + rh - 14 - bh;
+      x.fillStyle = `hsl(${hue},${25 + Math.random() * 35}%,${30 + Math.random() * 30}%)`; x.fillRect(px, top, bw, bh);
+      x.fillStyle = 'rgba(255,255,255,.55)'; x.fillRect(px + 3, top + bh * .3, bw - 6, bh * .18);
+      x.fillStyle = 'rgba(0,0,0,.25)'; x.fillRect(px + bw - 3, top, 3, bh);
+      px += bw + 2 + Math.random() * 4;
+    }
+    x.fillStyle = '#a9adb5'; x.fillRect(0, r * rh + rh - 14, w, 10);
+    x.fillStyle = '#6d7078'; x.fillRect(0, r * rh + rh - 4, w, 4);
+    x.fillStyle = '#ffe36b'; for (let k = 10; k < w; k += 64) x.fillRect(k, r * rh + rh - 13, 22, 7); // prislappar
+  }
+  addNoise(x, w, h, 10);
+});
+// Innertak med plattor
+const ceilTex = canvasTex(256, 256, (x, w, h) => {
+  x.fillStyle = '#b7b3bd'; x.fillRect(0, 0, w, h);
+  addNoise(x, w, h, 26);
+  x.fillStyle = '#6f6b76'; x.fillRect(0, 0, w, 5); x.fillRect(0, 0, 5, h);
+}, MW, MH);
 
 const texCache = {};
 function emojiTex(e) {
@@ -376,18 +478,21 @@ function signMesh(text) {
   }
   const m4 = new THREE.Matrix4();
   const wallMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(T, WALL_H, T),
-    new THREE.MeshStandardMaterial({ color:0x8a7fa3, roughness:.95 }), walls.length);
+    new THREE.MeshStandardMaterial({ map:wallTex, roughness:.92 }), walls.length);
+  wallMesh.castShadow = wallMesh.receiveShadow = true;
   walls.forEach(([x, y], i) => wallMesh.setMatrixAt(i, m4.makeTranslation((x + .5) * T, WALL_H / 2, (y + .5) * T)));
   scene.add(wallMesh);
   const shelfMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(T * .98, 1.8, T * .75),
-    new THREE.MeshStandardMaterial({ color:0x7a5535, roughness:.8 }), shelves.length);
+    new THREE.MeshStandardMaterial({ map:shelfTex, roughness:.7, metalness:.15 }), shelves.length);
+  shelfMesh.castShadow = shelfMesh.receiveShadow = true;
   shelves.forEach(([x, y], i) => {
     const h = shelfH(x, y);
     shelfMesh.setMatrixAt(i, m4.compose(new THREE.Vector3((x + .5) * T, h / 2, (y + .5) * T), new THREE.Quaternion(), new THREE.Vector3(1, h / 1.8, 1)));
   });
   scene.add(shelfMesh);
   const floorGeo = new THREE.PlaneGeometry(T, T); floorGeo.rotateX(-Math.PI / 2);
-  const floorMesh = new THREE.InstancedMesh(floorGeo, new THREE.MeshStandardMaterial({ color:0xffffff, roughness:.6 }), floors.length);
+  const floorMesh = new THREE.InstancedMesh(floorGeo, new THREE.MeshStandardMaterial({ map:floorTex, roughness:.28, metalness:.05 }), floors.length);
+  floorMesh.receiveShadow = true;
   const col = new THREE.Color();
   floors.forEach(([x, y], i) => {
     floorMesh.setMatrixAt(i, m4.makeTranslation((x + .5) * T, 0, (y + .5) * T));
@@ -396,7 +501,8 @@ function signMesh(text) {
     floorMesh.setColorAt(i, col);
   });
   scene.add(floorMesh);
-  const ceil = new THREE.Mesh(new THREE.PlaneGeometry(MW * T, MH * T), new THREE.MeshStandardMaterial({ color:0x1c1828 }));
+  const ceil = new THREE.Mesh(new THREE.PlaneGeometry(MW * T, MH * T), new THREE.MeshStandardMaterial({ map:ceilTex, roughness:.95 }));
+  ceil.receiveShadow = true;
   ceil.rotation.x = Math.PI / 2; ceil.position.set(MW * T / 2, WALL_H, MH * T / 2);
   scene.add(ceil);
   SHOPS.forEach(s => {
@@ -446,6 +552,7 @@ function makeGuard(anomaly) {
   const light = new THREE.SpotLight(anomaly === 'lampa' ? 0xff2030 : 0xfff4d0, 10, 9, .45, .5, 1);
   light.position.set(.3, 1.3, .3); light.target.position.set(0, 0, 4);
   g.add(light, light.target);
+  g.traverse(o => { if (o.isMesh) o.castShadow = true; });
   return g;
 }
 function makeRobot() {
@@ -580,6 +687,7 @@ function makeAvatar(name, color, char) {
   const light = new THREE.SpotLight(0xfff0cc, 14, 16, .5, .45, 1);
   light.position.set(.2, 1.4, .2); light.target.position.set(0, .6, 4);
   g.add(light, light.target);
+  body.traverse(o => { if (o.isMesh) o.castShadow = true; });
   g.userData = { body, ghost, light };
   return g;
 }
@@ -1278,7 +1386,8 @@ function render(now, dt) {
   poofs = poofs.filter(f => f.t > 0);
   const pulse = 1 + Math.sin(now / 250) * .12;
   list.forEach(l => { if (!l.got) l.slot.sprite.scale.setScalar(.8 * pulse); });
-  renderer.render(scene, camera);
+  if (gfx === 'real') { filmPass.uniforms.time.value = now / 1000 % 100; composer.render(dt); }
+  else renderer.render(scene, camera);
   drawMinimap(now);
   if (toastT > 0) { toastT -= dt; if (toastT <= 0) $('toast').style.opacity = 0; }
   const playing = state === 'play';
@@ -1602,6 +1711,9 @@ function renderMenu() {
     <div class="charpick"><b>🦸 Välj karaktär</b><div class="charrow"><div id="charPrev"></div><div class="charbtns">
       ${CHARS.map(c => `<button class="btn small ${p.char === c.id ? '' : 'off'}" data-char="${c.id}">${c.icon} ${c.name}</button>`).join('')}
     </div></div></div>
+    <div class="ctrlpick"><b>✨ Grafik</b>
+      <button class="btn small ${gfx === 'real' ? '' : 'off'}" id="gfxReal">🎬 Verklig</button>
+      <button class="btn small ${gfx === 'fast' ? '' : 'off'}" id="gfxFast">⚡ Snabb (för äldre telefoner)</button></div>
     <div class="ctrlpick"><b>🎮 Hur vill du styra?</b>
       <button class="btn small ${isTouch ? 'off' : ''}" id="ctlMouse">🖱️ Dator: mus + WASD</button>
       <button class="btn small ${isTouch ? '' : 'off'}" id="ctlTouch">📱 Spakar: telefon och iPad</button></div>
@@ -1628,6 +1740,8 @@ function renderMenu() {
   });
   charPreview();
   $('ctlTouch').onclick = () => { setControls('touch'); renderMenu(); };
+  $('gfxReal').onclick = () => { setGfx('real'); save0.gfx = 'real'; storeSave(save0); renderMenu(); };
+  $('gfxFast').onclick = () => { setGfx('fast'); save0.gfx = 'fast'; storeSave(save0); renderMenu(); };
   $('leaveBtn') && ($('leaveBtn').onclick = () => { leaveNet(); netMsg = ''; menu(); });
   if ($('nameIn')) $('nameIn').oninput = e => {
     myName = e.target.value.replace(/[<>]/g, '').trim().slice(0, 12) || 'Spelare';
@@ -1677,6 +1791,7 @@ function loop(now) {
   if (state === 'menu' && prev && prev.model && prev.r.domElement.isConnected) { prev.model.rotation.y += dt * 1.2; prev.r.render(prev.sc, prev.cam); }
   requestAnimationFrame(loop);
 }
+setGfx(save0.gfx === 'fast' ? 'fast' : 'real');
 menu();
 requestAnimationFrame(loop);
 // För testning
