@@ -14,9 +14,8 @@
     padding:8px 12px; background:rgba(11,8,32,.75); font-weight:bold; font-size:16px; pointer-events:none;
     border-bottom:2px solid rgba(255,77,109,.35); }
   #hud a { pointer-events:auto; color:var(--neon); text-decoration:none; }
-  .bar { width:90px; height:12px; background:#2b2650; border-radius:6px; overflow:hidden; display:inline-block; vertical-align:middle; margin-left:4px; }
-  .bar i { display:block; height:100%; }
   #clock.warn { color:var(--gold); }
+  #team span { margin-right:10px; }
   #mini { position:fixed; top:52px; left:10px; border:2px solid rgba(255,255,255,.2); border-radius:6px; opacity:.9; }
   #list { position:fixed; top:52px; right:10px; background:rgba(11,8,32,.85); border:2px solid var(--gold);
     border-radius:14px; padding:8px 12px; font-size:15px; min-width:170px; max-width:46vw; cursor:pointer; }
@@ -27,6 +26,8 @@
     text-shadow:0 0 6px #000, 0 0 12px #000; pointer-events:none; text-align:center; transition:opacity .3s; }
   #hint { position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); background:rgba(0,0,0,.7); padding:12px 20px;
     border-radius:12px; font-size:18px; pointer-events:none; display:none; }
+  #outOverlay { position:fixed; left:50%; top:26%; transform:translateX(-50%); background:rgba(0,0,0,.65); padding:10px 18px;
+    border-radius:12px; font-size:20px; display:none; pointer-events:none; text-align:center; }
   #cross { position:fixed; left:50%; top:50%; width:8px; height:8px; margin:-4px 0 0 -4px; border-radius:50%; border:2px solid rgba(255,255,255,.6); pointer-events:none; }
   #gun { position:fixed; right:4vw; bottom:-3vmin; font-size:26vmin; pointer-events:none; display:none;
     font-family:"Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif; filter:drop-shadow(0 0 8px #000); }
@@ -50,17 +51,24 @@
     background:var(--green); color:#0b0820; box-shadow:0 5px 0 #1b9c4e; }
   .btn:active { transform:translateY(3px); box-shadow:0 2px 0 #1b9c4e; }
   .btn.alt { background:var(--neon); box-shadow:0 5px 0 #0089a0; }
+  .btn.red { background:var(--red); box-shadow:0 5px 0 #a02040; }
+  .btn.small { font-size:16px; padding:8px 16px; }
   .tips { font-size:14px; color:#bbb; text-align:left; margin-top:10px; line-height:1.55; }
   .stars { font-size:44px; letter-spacing:6px; }
+  .online { margin-top:14px; padding:12px; border:2px dashed var(--neon); border-radius:14px; }
+  .online h3 { margin:0 0 8px; color:var(--neon); }
+  .online input { font:inherit; font-size:18px; padding:8px 10px; border-radius:10px; border:2px solid #555; background:#0b0820; color:#fff; width:150px; text-align:center; }
+  .online .code { font-size:44px; letter-spacing:10px; color:var(--gold); font-weight:bold; }
+  .players { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin:8px 0; }
+  .players span { padding:4px 10px; border-radius:10px; background:#2b2650; font-weight:bold; }
+  #netStatus { min-height:1.2em; color:#ffb3c0; margin-top:6px; }
   #buildbar { position:fixed; left:50%; bottom:8px; transform:translateX(-50%); display:none; gap:6px; flex-wrap:wrap; justify-content:center; width:max-content; max-width:96vw; }
   #buildbar button { font:inherit; font-size:14px; font-weight:bold; color:#fff; background:rgba(11,8,32,.85); border:2px solid #9c6b3c;
     border-radius:10px; padding:6px 10px; cursor:pointer; }
   #buildbar button b { color:var(--gold); margin-right:4px; }
-  #buildbar button small { color:#e6c28f; }
-  #buildbar button.no { opacity:.4; }
   #sleep { position:fixed; inset:0; display:none; align-items:center; justify-content:center; flex-direction:column;
     background:rgba(5,10,40,.78); font-size:40px; font-weight:bold; pointer-events:none; text-shadow:0 0 12px #000; }
-  #sleep small { font-size:18px; color:#9fd0ff; margin-top:8px; }
+  #sleep small { font-size:18px; color:#9fd0ff; margin-top:8px; max-width:90vw; text-align:center; }
 </style>
 </head>
 <body>
@@ -71,6 +79,7 @@
   <span id="clock">🕛 20:00</span>
   <span id="lives">❤️❤️❤️</span>
   <span id="ammo"></span>
+  <span id="team"></span>
 </div>
 <canvas id="mini"></canvas>
 <div id="list" title="Tryck för att visa/dölja"></div>
@@ -85,7 +94,8 @@
   <button data-b="3"><b>4</b>⛺ Tält</button>
   <button id="useBtn"><b>E</b>✋ Använd</button>
 </div>
-<div id="sleep">💤 Zzz...<small>Natten går fortare medan du sover. Tryck E för att vakna.</small></div>
+<div id="sleep">💤 Zzz...<small>Tryck E för att vakna.</small></div>
+<div id="outOverlay">👻 Du blev tagen!<br><small>Titta på medan kompisarna försöker överleva till 06:00.</small></div>
 <div id="hint">🖱️ Klicka för att styra med musen</div>
 <div id="scare">
   <svg viewBox="0 0 200 240">
@@ -103,6 +113,7 @@
 </div>
 <div id="screen"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.5/dist/peerjs.min.js"></script>
 <script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }</script>
 <script type="module">
 import * as THREE from 'three';
@@ -129,7 +140,11 @@ const BOO_LINES = ['Hehehe... jag är ingen riktig vakt!', 'BÖÖ! Lurade dig!',
 const GUARD_HELLO = ['Hej! Allt lugnt?', 'Akta dig för de konstiga vakterna!', 'Konstigt ställe på natten, va?', 'Jag håller utkik!'];
 const ANOMALIES = ['ögon', 'baklänges', 'lång', 'ansikte', 'armar', 'svävar', 'lampa'];
 const TOILETS = [[21, 21], [24, 21], [21, 24], [24, 24]];
+const SPAWNS = [[2.5, 13], [2.5, 11.8], [3.6, 13.9], [3.6, 11.2]];
+const COLORS = ['#ff3df0', '#00e5ff', '#45ff8a', '#ffd23f'];
 
+// Rutor i grid: 0 golv, 1 vägg, 2 hylla, 3 låst dörr, 4 toalett, 5 barrikad, 6 lägereld
+// Nivå 0 = golvet, nivå 1 = uppe på hyllorna
 const grid = [], room = [], slotPos = [];
 for (let y = 0; y < MH; y++) { grid.push(new Array(MW).fill(0)); room.push(new Array(MW).fill(-1)); }
 SHOPS.forEach((s, id) => {
@@ -158,12 +173,12 @@ const rand = (a, b) => a + Math.random() * (b - a);
 const pick = a => a[Math.random() * a.length | 0];
 const dist = (a, b, c, d) => Math.hypot(a - c, b - d);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const num = (v, a, b, d = 0) => typeof v === 'number' && isFinite(v) ? clamp(v, a, b) : d;
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
 const $ = id => document.getElementById(id);
+const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 function loadSave() { try { return JSON.parse(localStorage.getItem('nils_kopcentret_v1')) || {}; } catch (e) { return {}; } }
 function storeSave(d) { try { localStorage.setItem('nils_kopcentret_v1', JSON.stringify(d)); } catch (e) {} }
-// Rutor i grid: 0 golv, 1 vägg, 2 hylla, 3 låst dörr, 4 toalett, 5 barrikad, 6 lägereld
-// Nivå 0 = golvet, nivå 1 = uppe på hyllorna
-const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 function solid(x, y, l = 0) {
   const tx = Math.floor(x), ty = Math.floor(y);
   if (tx < 0 || ty < 0 || tx >= MW || ty >= MH) return true;
@@ -173,7 +188,7 @@ function solid(x, y, l = 0) {
 }
 const walkable = (x, y) => grid[y] && (grid[y][x] === 0 || grid[y][x] === 4);
 const isShelf = (x, y) => grid[y] && grid[y][x] === 2;
-const shelfH = (x, y) => room[y][x] === 5 ? 1.1 : 1.8;
+const shelfH = (x, y) => room[y] && room[y][x] === 5 ? 1.1 : 1.8;
 const hits = (x, y, r, l) => solid(x - r, y - r, l) || solid(x + r, y - r, l) || solid(x - r, y + r, l) || solid(x + r, y + r, l);
 function moveBody(o, dx, dy, r, l = o.level || 0) {
   let bx = false, by = false;
@@ -205,7 +220,7 @@ function lineOfSight(ax, ay, bx, by, high = false) {
 function farTile(minD) {
   for (let i = 0; i < 400; i++) {
     const x = rand(1, MW - 1) | 0, y = rand(1, MH - 1) | 0;
-    if (walkable(x, y) && dist(x + .5, y + .5, p.x, p.y) > minD) return [x + .5, y + .5];
+    if (walkable(x, y) && allPlayers().every(q => dist(x + .5, y + .5, q.x, q.y) > minD)) return [x + .5, y + .5];
   }
   return [33.5, 12.5];
 }
@@ -226,7 +241,6 @@ const sfx = {
   pick() { beep(660, .08); setTimeout(() => beep(990, .12), 70); },
   chest() { [392, 523, 659, 784].forEach((f, i) => setTimeout(() => beep(f, .12, 'triangle', .1), i * 70)); },
   bang() { beep(160, .18, 'sawtooth', .2, -130); beep(900, .05, 'square', .12, -700); },
-  empty() { beep(1300, .03, 'square', .06); },
   poof() { beep(600, .35, 'sine', .1, -500); },
   hit() { beep(180, .25, 'sawtooth', .1, -120); },
   creak() { beep(90, .9, 'sawtooth', .06, -40); },
@@ -237,6 +251,7 @@ const sfx = {
   climb() { [300, 360, 420].forEach((f, i) => setTimeout(() => beep(f, .07, 'triangle', .07), i * 120)); },
   thud() { beep(120, .15, 'sine', .15, -60); },
   smash() { beep(140, .12, 'square', .12, -80); },
+  join() { beep(700, .1); setTimeout(() => beep(1000, .12), 110); },
   win() { [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => beep(f, .2, 'triangle', .1), i * 130)); },
   lose() { [400, 300, 200].forEach((f, i) => setTimeout(() => beep(f, .25, 'sawtooth', .08), i * 180)); },
 };
@@ -254,7 +269,7 @@ camera.rotation.order = 'YXZ';
 scene.add(camera);
 const amb = new THREE.AmbientLight(0x6a5a99, .5);
 scene.add(amb);
-const flash = new THREE.SpotLight(0xfff0cc, 30, 20, .5, .45, 1);
+const flash = new THREE.SpotLight(0xfff0cc, 30, 28, .5, .45, 1);
 flash.position.set(.25, -.25, 0);
 flash.target.position.set(0, -.3, -1);
 camera.add(flash); camera.add(flash.target);
@@ -277,6 +292,16 @@ function emojiTex(e) {
 function sprite(e, s = 1) {
   const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map:emojiTex(e), transparent:true }));
   sp.scale.set(s, s, s); return sp;
+}
+function textSprite(text, color) {
+  const c = document.createElement('canvas'); c.width = 256; c.height = 64;
+  const x = c.getContext('2d');
+  x.font = 'bold 36px "Trebuchet MS",sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
+  x.lineWidth = 6; x.strokeStyle = 'rgba(0,0,0,.85)'; x.strokeText(text, 128, 34);
+  x.fillStyle = color; x.fillText(text, 128, 34);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map:t, transparent:true, fog:false, depthTest:false }));
+  s.scale.set(1.6, .4, 1); return s;
 }
 function signMesh(text) {
   const c = document.createElement('canvas'); c.width = 512; c.height = 128;
@@ -305,7 +330,7 @@ function signMesh(text) {
   const shelfMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(T * .98, 1.8, T * .75),
     new THREE.MeshStandardMaterial({ color:0x7a5535, roughness:.8 }), shelves.length);
   shelves.forEach(([x, y], i) => {
-    const h = room[y][x] === 5 ? 1.1 : 1.8;
+    const h = shelfH(x, y);
     shelfMesh.setMatrixAt(i, m4.compose(new THREE.Vector3((x + .5) * T, h / 2, (y + .5) * T), new THREE.Quaternion(), new THREE.Vector3(1, h / 1.8, 1)));
   });
   scene.add(shelfMesh);
@@ -366,7 +391,6 @@ function makeGuard(anomaly) {
   }
   if (anomaly === 'baklänges') head.rotation.y = Math.PI;
   if (anomaly === 'lång') body.scale.set(1, 1.4, 1);
-  if (anomaly === 'svävar') body.position.y = .45;
   const light = new THREE.SpotLight(anomaly === 'lampa' ? 0xff2030 : 0xfff4d0, 10, 9, .45, .5, 1);
   light.position.set(.3, 1.3, .3); light.target.position.set(0, 0, 4);
   g.add(light, light.target);
@@ -402,13 +426,11 @@ function makeChest() {
   g.userData = { lid, sparkle };
   return g;
 }
-
-// Byggen
 const woodMat = new THREE.MeshStandardMaterial({ color:0x9c6b3c, roughness:.85 });
 function makeLadder() {
   const g = new THREE.Group();
-  [-.28, .28].forEach(x => { const r = new THREE.Mesh(new THREE.BoxGeometry(.08, 2.2, .08), woodMat); r.position.set(x, 1.1, 0); g.add(r); });
-  for (let y = .3; y < 2.1; y += .3) { const s = new THREE.Mesh(new THREE.BoxGeometry(.56, .05, .06), woodMat); s.position.set(0, y, 0); g.add(s); }
+  [-.28, .28].forEach(x => { const r = new THREE.Mesh(new THREE.BoxGeometry(.08, 2.2, .08), woodMat); r.position.set(x, 1.1, -.15); g.add(r); });
+  for (let y = .3; y < 2.1; y += .3) { const s = new THREE.Mesh(new THREE.BoxGeometry(.56, .05, .06), woodMat); s.position.set(0, y, -.15); g.add(s); }
   return g;
 }
 function makeBarricade() {
@@ -432,7 +454,30 @@ function makeTent() {
   const g = new THREE.Group();
   const cone = new THREE.Mesh(new THREE.ConeGeometry(.95, 1.6, 4, 1, true), new THREE.MeshStandardMaterial({ color:0xd9822b, roughness:.9, side:THREE.DoubleSide }));
   cone.position.y = .8; cone.rotation.y = Math.PI / 4; g.add(cone);
-  const zz = sprite('⛺', .5); zz.position.y = 1.9; g.add(zz);
+  const icon = sprite('⛺', .5); icon.position.y = 1.9; g.add(icon);
+  return g;
+}
+// Kompisar som figurer med namn och egen ficklampa
+function makeAvatar(name, color) {
+  const g = new THREE.Group(), body = new THREE.Group(); g.add(body);
+  const cloth = new THREE.MeshStandardMaterial({ color:new THREE.Color(color), roughness:.7 });
+  const jeans = new THREE.MeshStandardMaterial({ color:0x2a3d6b, roughness:.8 });
+  const add = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); body.add(m); return m; };
+  add(new THREE.CylinderGeometry(.22, .25, .8, 12), cloth, 0, 1.05, 0);
+  add(new THREE.CylinderGeometry(.08, .07, .65, 8), jeans, -.1, .33, 0);
+  add(new THREE.CylinderGeometry(.08, .07, .65, 8), jeans, .1, .33, 0);
+  add(new THREE.CylinderGeometry(.06, .05, .7, 8), cloth, -.3, 1.05, 0);
+  add(new THREE.CylinderGeometry(.06, .05, .7, 8), cloth, .3, 1.05, 0);
+  add(new THREE.SphereGeometry(.2, 14, 12), skinMat, 0, 1.65, 0);
+  const hair = add(new THREE.SphereGeometry(.21, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color:0x4a2f1b }), 0, 1.67, -.01);
+  hair.rotation.x = -.2;
+  [-.07, .07].forEach(x => add(new THREE.SphereGeometry(.03, 8, 6), blackMat, x, 1.68, .18));
+  const label = textSprite(name, color); label.position.y = 2.3; g.add(label);
+  const ghost = sprite('👻', 1.2); ghost.position.y = 1.3; ghost.visible = false; ghost.material.opacity = .7; g.add(ghost);
+  const light = new THREE.SpotLight(0xfff0cc, 14, 16, .5, .45, 1);
+  light.position.set(.2, 1.4, .2); light.target.position.set(0, .6, 4);
+  g.add(light, light.target);
+  g.userData = { body, ghost, light };
   return g;
 }
 const BUILDS = [
@@ -445,95 +490,175 @@ const FIRE_R = 2.6;
 
 // ===== Spelets tillstånd =====
 let save0 = loadSave();
+let myName = String(save0.name || 'Spelare').slice(0, 12);
 let night = 1, state = 'menu';
-let p, yaw, pitch, bob, camY = EYE, time, nightLen, lives, list, slots, carts, robots, guards, chests, poofs, puddles, shake, stun;
-let blackout, nextBlackout, heartT, flow0, flow1, flowT, hintT, chestT, chestSpots, hasGun, shootCd, kick, anomaliesStopped, listDoneShown;
-let barricades = [], fires = [], tents = [], ladders = new Map(), sleeping = false, sleepHealT = 0, climbT = 0, climbedOnce = false;
+function newPlayer(id, name, color) {
+  return { id, name, color, x:2.5, y:13, rx:2.5, ry:13, vx:0, vy:0, level:0, yaw:0, lives:3, hasGun:false, sleeping:false, out:false, sleepHealT:0, hintT:0, flow0:null, flow1:null, mesh:null };
+}
+const p = newPlayer('host', myName, 0); // du själv
+let others = [];                         // kompisar (hos värden: riktiga spelare, hos gäst: kopior från värden)
+const allPlayers = () => [p, ...others];
+const alive = () => allPlayers().filter(q => !q.out);
+let yaw = -Math.PI / 2, pitch = 0, bob = 0, camY = EYE, time = 0, nightLen = 180;
+let list = [], slots = [], carts = [], robots = [], guards = [], chests = [], poofs = [], puddles = [];
+let shake = 0, stun = 0, blackout = 0, nextBlackout = 10, netBlackout = false, heartT = 0, stepT = 0, flowT = 0, chestT = 35, chestSpots = [];
+let shootCd = 0, kick = 0, anomaliesStopped = 0, listDoneShown = false, climbT = 0, climbedOnce = false, netT = 0;
+let barricades = [], fires = [], tents = [], ladders = new Map();
 const dyn = new THREE.Group(); scene.add(dyn);
+const avatarGroup = new THREE.Group(); scene.add(avatarGroup);
 
-function setupNight() {
+function clearWorld() {
   while (dyn.children.length) dyn.remove(dyn.children[0]);
   [...barricades, ...fires].forEach(b => grid[b.y][b.x] = 0);
   barricades = []; fires = []; tents = []; ladders = new Map();
-  sleeping = false; climbT = 0;
-  p = { x:2.5, y:13, vx:0, vy:0, level:0 }; yaw = -Math.PI / 2; pitch = 0; camY = EYE;
-  slots = [];
+  list = []; slots = []; carts = []; robots = []; guards = []; chests = []; poofs = []; puddles = [];
+  time = 0; shake = 0; stun = 0; bob = 0; kick = 0; blackout = 0; netBlackout = false; nextBlackout = rand(8, 12);
+  heartT = 0; stepT = 0; flowT = 0; shootCd = 0; anomaliesStopped = 0; listDoneShown = false; climbT = 0; chestT = 35;
+  yaw = -Math.PI / 2; pitch = 0; camY = EYE;
+}
+function resetPlayer(q, i) {
+  const [x, y] = SPAWNS[i % SPAWNS.length];
+  Object.assign(q, { x, y, rx:x, ry:y, vx:0, vy:0, level:0, lives:3, hasGun:false, sleeping:false, out:false, sleepHealT:0, hintT:0 });
+}
+function addSlot(tx, ty, dir, e, name) {
+  const sl = { tx, ty, dir, e, name, taken:false, sprite:sprite(e, .75) };
+  sl.sprite.position.set((tx + .5) * T, 1.15, (ty + .5 - dir * .3) * T);
+  dyn.add(sl.sprite); slots.push(sl);
+  return sl;
+}
+function greyOutOthers() { slots.forEach(s => { if (!list.some(l => l.slot === s)) s.sprite.material.color.set(0x555555); }); }
+
+// Ny natt (värden eller ensam)
+function setupNight() {
+  clearWorld();
+  resetPlayer(p, 0); others.forEach((q, i) => resetPlayer(q, i + 1));
   SHOPS.forEach((s, id) => {
     const pos = shuffle(slotPos[id].slice());
-    s.items.forEach((it, i) => {
-      const [tx, ty, dir] = pos[i];
-      const sl = { tx, ty, e:it[0], name:it[1], taken:false, sprite:sprite(it[0], .75) };
-      sl.sprite.position.set((tx + .5) * T, 1.15, (ty + .5 - dir * .3) * T);
-      dyn.add(sl.sprite); slots.push(sl);
-    });
+    s.items.forEach((it, i) => addSlot(pos[i][0], pos[i][1], pos[i][2], it[0], it[1]));
   });
-  const n = Math.min(3 + night, 12);
+  const n = Math.min(3 + night + others.length, 14);
   list = shuffle(slots.slice()).slice(0, n).map((s, i) => ({ slot:s, who:i % 2 ? 'pappa' : 'mamma', got:false }));
-  slots.forEach(s => { if (!list.some(l => l.slot === s)) s.sprite.material.color.set(0x555555); });
+  greyOutOthers();
   nightLen = Math.min(270, 180 + (night - 1) * 15);
-  time = 0; lives = 3; shake = 0; stun = 0; bob = 0; hintT = 0; kick = 0;
-  blackout = 0; nextBlackout = rand(8, 12); heartT = 0; flowT = 0;
-  hasGun = false; shootCd = 0; anomaliesStopped = 0; listDoneShown = false;
-  puddles = []; poofs = [];
-  carts = [];
   for (let i = 0; i < Math.min(night, 5); i++) {
     const c = { x:rand(8, 32), y:10.5 + (i * 2 + 1) % 6, vx:(Math.random() < .5 ? -1 : 1) * (2.6 + night * .3), cd:0, ghost:true, mesh:makeCart() };
     dyn.add(c.mesh); carts.push(c);
   }
-  robots = [];
   for (let i = 0; i < Math.min(Math.ceil(night / 2), 3); i++) {
     const r = { x:rand(10, 30), y:12.5, tx:0, ty:0, drop:3, cd:0, mesh:makeRobot() };
     newWanderTarget(r); dyn.add(r.mesh); robots.push(r);
   }
-  // Vakter: minst en riktig och minst en anomali varje natt
-  guards = [];
-  const nG = Math.min(2 + night, 6), nA = Math.min(1 + Math.floor(night / 2), nG - 1);
+  // Vakter: minst en riktig och minst en anomali. Fler anomalier när man är fler.
+  const nG = Math.min(2 + night + others.length, 7), nA = Math.min(1 + Math.floor(night / 2) + others.length, nG - 1);
   const kinds = shuffle(ANOMALIES.slice());
   for (let i = 0; i < nG; i++) {
     const anomaly = i < nA ? kinds[i % kinds.length] : null;
     const [x, y] = farTile(8);
-    const g = { x, y, level:0, climbT:0, tx:0, ty:0, face:0, cd:3, stepT:0, bangT:0, gave:false, dead:false, respawnT:0, anomaly, mesh:makeGuard(anomaly) };
+    const g = { x, y, level:0, climbT:0, tx:0, ty:0, face:0, cd:3, bangT:0, gave:false, dead:false, respawnT:0, anomaly, mesh:makeGuard(anomaly) };
     newWanderTarget(g); dyn.add(g.mesh); guards.push(g);
   }
-  // Kistor i affärerna
-  chests = [];
   const spots = [];
   for (let y = 1; y < MH - 1; y++) for (let x = 1; x < MW - 1; x++) {
-    const r = room[y][x];
-    if (r >= 0 && grid[y][x] === 0 && !slots.some(s => s.tx === x && s.ty === y)) spots.push([x, y]);
+    if (room[y][x] >= 0 && grid[y][x] === 0 && !slots.some(s => s.tx === x && s.ty === y)) spots.push([x, y]);
   }
   chestSpots = shuffle(spots);
-  for (let i = 0; i < 4 + Math.min(night, 3); i++) addChest();
-  chestT = 35;
-  computeFlow();
+  for (let i = 0; i < 4 + Math.min(night, 3) + others.length; i++) addChest();
+  computeFlows();
   renderList();
 }
-function addChest() {
-  const free = chestSpots.find(([x, y]) => !chests.some(c => Math.floor(c.x) === x && Math.floor(c.y) === y) && dist(x + .5, y + .5, p.x, p.y) > 6);
-  if (!free) return;
-  const c = { x:free[0] + .5, y:free[1] + .5, open:false, mesh:makeChest() };
-  c.mesh.position.set(c.x * T, 0, c.y * T); c.mesh.rotation.y = rand(0, 6);
+function addChest(x, y) {
+  if (x === undefined) {
+    const free = chestSpots.find(([cx, cy]) => !chests.some(c => Math.floor(c.x) === cx && Math.floor(c.y) === cy) && allPlayers().every(q => dist(cx + .5, cy + .5, q.x, q.y) > 6));
+    if (!free) return;
+    [x, y] = [free[0] + .5, free[1] + .5];
+  }
+  const c = { x, y, open:false, mesh:makeChest() };
+  c.mesh.position.set(x * T, 0, y * T); c.mesh.rotation.y = (x * 7 + y * 3) % 6;
   dyn.add(c.mesh); chests.push(c);
+}
+function openChestMesh(c) { c.open = true; c.mesh.userData.lid.rotation.x = -1.9; c.mesh.userData.sparkle.visible = false; }
+function addPuddle(x, y, t) {
+  const mesh = new THREE.Mesh(new THREE.CircleGeometry(.6, 20), new THREE.MeshStandardMaterial({ color:0x2a7fff, transparent:true, opacity:.6, metalness:.6, roughness:.1 }));
+  mesh.rotation.x = -Math.PI / 2; mesh.position.set(x * T, .02, y * T); dyn.add(mesh);
+  const pd = { x, y, t, mesh }; puddles.push(pd); return pd;
 }
 function newWanderTarget(o) { o.tx = rand(2, 34); o.ty = rand(10.5, 15.5); }
 
-// Stegar: golvruta -> hyllruta som stegen står mot
+// ===== Byggen (samma kod hos värd och gäst) =====
 const ladderTo = (fx, fy, sx, sy) => { const L = ladders.get(fx + ',' + fy); return !!L && L.sx === sx && L.sy === sy; };
-const burning = () => fires;
-// Hindrar anomalier från att gå närmare en brinnande eld
-function fireBlocks(ox, oy, nx, ny) {
-  return burning().some(f => { const d1 = dist(nx, ny, f.x + .5, f.y + .5); return d1 < FIRE_R && d1 < dist(ox, oy, f.x + .5, f.y + .5); });
+function placeLadder(tx, ty, sx, sy) {
+  const dx = sx - tx, dy = sy - ty, mesh = makeLadder();
+  mesh.position.set((tx + .5 + dx * .4) * T, 0, (ty + .5 + dy * .4) * T); mesh.rotation.y = Math.atan2(dx, dy);
+  dyn.add(mesh); ladders.set(tx + ',' + ty, { x:tx, y:ty, sx, sy, mesh });
+}
+function placeBarricade(x, y, rot) {
+  const mesh = makeBarricade(); mesh.position.set((x + .5) * T, 0, (y + .5) * T); mesh.rotation.y = rot ? Math.PI / 2 : 0; dyn.add(mesh);
+  grid[y][x] = 5; barricades.push({ x, y, rot, hp:6, mesh });
+}
+function placeFire(x, y) {
+  const mesh = makeFire(); mesh.position.set((x + .5) * T, 0, (y + .5) * T); dyn.add(mesh);
+  grid[y][x] = 6; fires.push({ x, y, mesh });
+}
+function placeTent(x, y) {
+  const mesh = makeTent(); mesh.position.set((x + .5) * T, 0, (y + .5) * T); dyn.add(mesh);
+  tents.push({ x, y, mesh });
+}
+function buildsMsg() {
+  return { t:'builds', L:[...ladders.values()].map(L => [L.x, L.y, L.sx, L.sy]), B:barricades.map(b => [b.x, b.y, b.rot ? 1 : 0]),
+    F:fires.map(f => [f.x, f.y]), T:tents.map(t => [t.x, t.y]) };
+}
+// Gästen bygger om sina byggen så de matchar värdens
+function applyBuilds(d) {
+  ladders.forEach(L => dyn.remove(L.mesh));
+  [...barricades, ...fires, ...tents].forEach(b => dyn.remove(b.mesh));
+  [...barricades, ...fires].forEach(b => grid[b.y][b.x] = 0);
+  barricades = []; fires = []; tents = []; ladders = new Map();
+  const ok = (x, y) => Number.isInteger(x) && Number.isInteger(y) && x > 0 && y > 0 && x < MW - 1 && y < MH - 1;
+  (d.L || []).slice(0, 80).forEach(([x, y, sx, sy]) => { if (ok(x, y) && ok(sx, sy) && isShelf(sx, sy)) placeLadder(x, y, sx, sy); });
+  (d.B || []).slice(0, 80).forEach(([x, y, r]) => { if (ok(x, y) && walkable(x, y)) placeBarricade(x, y, !!r); });
+  (d.F || []).slice(0, 3).forEach(([x, y]) => { if (ok(x, y) && walkable(x, y)) placeFire(x, y); });
+  (d.T || []).slice(0, 40).forEach(([x, y]) => { if (ok(x, y)) placeTent(x, y); });
+}
+function frontTileFor(q, qyaw) {
+  const fx = -Math.sin(qyaw), fy = -Math.cos(qyaw), tx = Math.floor(q.x), ty = Math.floor(q.y);
+  return Math.abs(fx) > Math.abs(fy) ? [tx + Math.sign(fx), ty, Math.sign(fx), 0] : [tx, ty + Math.sign(fy), 0, Math.sign(fy)];
+}
+function tileBusy(x, y) {
+  return tents.some(t => t.x === x && t.y === y) || ladders.has(x + ',' + y)
+    || chests.some(c => Math.floor(c.x) === x && Math.floor(c.y) === y)
+    || [...guards, ...robots].some(o => !o.dead && Math.floor(o.x) === x && Math.floor(o.y) === y)
+    || allPlayers().some(q => Math.floor(q.x) === x && Math.floor(q.y) === y);
+}
+// Värden bygger åt en spelare (sig själv eller en kompis)
+function doBuild(q, i, qyaw) {
+  const b = BUILDS[i];
+  if (!b || q.out || q.sleeping) return;
+  if (q.level) return tell(q, 'Du kan inte bygga uppe på hyllan. Hoppa ner först!', '#ccc');
+  const [x, y, dx, dy] = frontTileFor(q, qyaw), tx = Math.floor(q.x), ty = Math.floor(q.y);
+  if (i === 0) {
+    if (!isShelf(x, y)) return tell(q, '🪜 Ställ dig vid en hylla och titta på den för att bygga en stege.', '#ccc');
+    if (ladders.has(tx + ',' + ty)) return tell(q, 'Det står redan en stege här.', '#ccc');
+    placeLadder(tx, ty, x, y);
+  } else {
+    if (!walkable(x, y) || grid[y][x] === 4 || tileBusy(x, y)) return tell(q, 'Det går inte att bygga där. Titta mot en tom plats på golvet.', '#ccc');
+    if (i === 1) placeBarricade(x, y, !!dx);
+    else if (i === 2) { if (fires.length >= 3) return tell(q, 'Ni kan bara ha 3 lägereldar.', '#ccc'); placeFire(x, y); }
+    else placeTent(x, y);
+  }
+  sfx.build(); tell(q, `${b.e} ${b.msg}`, '#45ff8a', 3);
+  sendAll(buildsMsg());
+  computeFlows();
 }
 
-// Vägkarta i två våningar (golv och hyllor) så att monstren hittar runt hörn och uppför stegar
-function computeFlow() {
-  flow0 = Array.from({ length:MH }, () => new Array(MW).fill(1e9));
-  flow1 = Array.from({ length:MH }, () => new Array(MW).fill(1e9));
-  const sx = Math.floor(p.x), sy = Math.floor(p.y), sl = p.level || 0, q = [[sx, sy, sl]];
-  (sl ? flow1 : flow0)[sy][sx] = 0;
-  for (let i = 0; i < q.length; i++) {
-    const [x, y, l] = q[i], d = (l ? flow1 : flow0)[y][x] + 1;
-    const push = (nx, ny, nl) => { const F = nl ? flow1 : flow0; if (F[ny][nx] <= d) return; F[ny][nx] = d; q.push([nx, ny, nl]); };
+// ===== Vägkarta (golv + hyllor) så att monstren hittar fram, en per spelare =====
+function computeFlows() { alive().forEach(computeFlowFor); }
+function computeFlowFor(q) {
+  const f0 = Array.from({ length:MH }, () => new Array(MW).fill(1e9)), f1 = Array.from({ length:MH }, () => new Array(MW).fill(1e9));
+  const sx = clamp(Math.floor(q.x), 0, MW - 1), sy = clamp(Math.floor(q.y), 0, MH - 1), sl = q.level || 0, qu = [[sx, sy, sl]];
+  (sl ? f1 : f0)[sy][sx] = 0;
+  for (let i = 0; i < qu.length; i++) {
+    const [x, y, l] = qu[i], d = (l ? f1 : f0)[y][x] + 1;
+    const push = (nx, ny, nl) => { const F = nl ? f1 : f0; if (F[ny][nx] <= d) return; F[ny][nx] = d; qu.push([nx, ny, nl]); };
     for (const [dx, dy] of DIRS) {
       const nx = x + dx, ny = y + dy;
       if (nx < 0 || ny < 0 || nx >= MW || ny >= MH) continue;
@@ -541,20 +666,25 @@ function computeFlow() {
       else { if (isShelf(nx, ny)) push(nx, ny, 1); if (walkable(nx, ny) && ladderTo(nx, ny, x, y)) push(nx, ny, 0); }
     }
   }
+  q.flow0 = f0; q.flow1 = f1;
 }
-// Gå ett steg mot spelaren. Returnerar null om vägen är spärrad.
-function chase(o, sp, dt, r = .25, climb = true) {
+function fireBlocks(ox, oy, nx, ny) {
+  return fires.some(f => { const d1 = dist(nx, ny, f.x + .5, f.y + .5); return d1 < FIRE_R && d1 < dist(ox, oy, f.x + .5, f.y + .5); });
+}
+// Gå ett steg mot spelaren q. Returnerar null om vägen är spärrad.
+function chase(o, sp, dt, r, climb, q) {
   if (o.climbT > 0) { o.climbT -= dt; if (o.climbT <= 0) { o.level = 1; o.x = o.cx; o.y = o.cy; } return o.face; }
+  if (!q.flow0) return null;
   const l = o.level || 0, tx = Math.floor(o.x), ty = Math.floor(o.y);
-  let best = (l ? flow1 : flow0)[ty]?.[tx] ?? 1e9, nx = -1, ny = -1, nl = l;
+  let best = (l ? q.flow1 : q.flow0)[ty]?.[tx] ?? 1e9, nx = -1, ny = -1, nl = l;
   if (best >= 1e9) return null;
   if (best > 0) for (const [dx, dy] of DIRS) {
     const x = tx + dx, y = ty + dy;
     if (x < 0 || y < 0 || x >= MW || y >= MH) continue;
     const opts = l === 0 ? [[walkable(x, y), 0], [climb && isShelf(x, y) && ladderTo(tx, ty, x, y), 1]] : [[isShelf(x, y), 1], [walkable(x, y), 0]];
-    for (const [ok, lv] of opts) { if (!ok) continue; const v = (lv ? flow1 : flow0)[y][x]; if (v < best) { best = v; nx = x; ny = y; nl = lv; } }
+    for (const [ok, lv] of opts) { if (!ok) continue; const v = (lv ? q.flow1 : q.flow0)[y][x]; if (v < best) { best = v; nx = x; ny = y; nl = lv; } }
   }
-  let gx = p.x, gy = p.y;
+  let gx = q.x, gy = q.y;
   if (nx >= 0) {
     if (nl === l) { gx = nx + .5; gy = ny + .5; }
     else if (nl === 1) { // klättra uppför stegen
@@ -576,14 +706,23 @@ function wander(o, sp, dt) {
   checkDrop(o, .35);
   return Math.atan2(o.tx - o.x, o.ty - o.y);
 }
+function nearestPlayer(o) {
+  let best = null, bd = 1e9;
+  for (const q of alive()) { const d = dist(o.x, o.y, q.x, q.y); if (d < bd) { bd = d; best = q; } }
+  return best;
+}
 
 // ===== Styrning =====
 const keys = {};
 const isTouch = matchMedia('(pointer:coarse)').matches;
 addEventListener('keydown', e => {
+  if (e.target && e.target.tagName === 'INPUT') {
+    if (e.key === 'Enter' && e.target.id === 'codeIn') $('joinBtn')?.click();
+    return;
+  }
   const k = e.key.toLowerCase(); keys[k] = true;
   if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(k)) e.preventDefault();
-  if ((e.key === 'Enter' || e.key === ' ') && state !== 'play') { const b = document.querySelector('#screen .btn'); if (b) b.click(); return; }
+  if ((e.key === 'Enter' || e.key === ' ') && state !== 'play') { $('goBtn')?.click(); return; }
   if (e.repeat || state !== 'play') return;
   if (e.key === ' ') shoot();
   if (['1', '2', '3', '4'].includes(e.key)) build(+e.key - 1);
@@ -627,75 +766,47 @@ $('useBtn').addEventListener('click', () => interact());
 
 let toastT = 0;
 function toast(text, color = '#fff', dur = 1.8) { const el = $('toast'); el.textContent = text; el.style.color = color; el.style.opacity = 1; toastT = dur; }
+// Meddelande till en spelare (tell) eller till alla (say)
+function tell(q, text, color, dur) { if (q === p) toast(text, color, dur); else sendTo(q.id, { t:'toast', text, color, dur }); }
+function say(text, color, dur) { toast(text, color, dur); sendAll({ t:'toast', text, color, dur }); }
 
-// ===== Bygga =====
-// Rutan framför spelaren (rakt fram, i den riktning man tittar mest)
-function frontTile() {
-  const fx = -Math.sin(yaw), fy = -Math.cos(yaw), tx = Math.floor(p.x), ty = Math.floor(p.y);
-  return Math.abs(fx) > Math.abs(fy) ? [tx + Math.sign(fx), ty, Math.sign(fx), 0] : [tx, ty + Math.sign(fy), 0, Math.sign(fy)];
-}
-function tileBusy(x, y) {
-  return tents.some(t => t.x === x && t.y === y) || ladders.has(x + ',' + y)
-    || chests.some(c => Math.floor(c.x) === x && Math.floor(c.y) === y)
-    || [...guards, ...robots].some(o => !o.dead && Math.floor(o.x) === x && Math.floor(o.y) === y);
-}
+// ===== Det du gör själv =====
 function build(i) {
-  if (state !== 'play' || sleeping) return;
-  const b = BUILDS[i];
-  if (p.level) return toast('Du kan inte bygga uppe på hyllan. Hoppa ner först!', '#ccc');
-  const [x, y, dx, dy] = frontTile(), tx = Math.floor(p.x), ty = Math.floor(p.y);
-  if (i === 0) {
-    if (!isShelf(x, y)) return toast('🪜 Ställ dig vid en hylla och titta på den för att bygga en stege.', '#ccc');
-    if (ladders.has(tx + ',' + ty)) return toast('Det står redan en stege här.', '#ccc');
-    const mesh = makeLadder();
-    mesh.position.set((tx + .5 + dx * .4) * T, 0, (ty + .5 + dy * .4) * T);
-    mesh.rotation.y = Math.atan2(dx, dy); mesh.rotation.x = 0;
-    mesh.children.forEach(c => c.position.z -= .15);
-    dyn.add(mesh);
-    ladders.set(tx + ',' + ty, { x:tx, y:ty, sx:x, sy:y, mesh });
-  } else {
-    if (!walkable(x, y) || grid[y][x] === 4 || tileBusy(x, y)) return toast('Det går inte att bygga där. Titta mot en tom plats på golvet.', '#ccc');
-    if (i === 1) {
-      const mesh = makeBarricade(); mesh.position.set((x + .5) * T, 0, (y + .5) * T); mesh.rotation.y = dx ? Math.PI / 2 : 0; dyn.add(mesh);
-      grid[y][x] = 5; barricades.push({ x, y, hp:6, mesh });
-    } else if (i === 2) {
-      if (fires.length >= 3) return toast('Du kan bara ha 3 lägereldar.', '#ccc');
-      const mesh = makeFire(); mesh.position.set((x + .5) * T, 0, (y + .5) * T); dyn.add(mesh);
-      grid[y][x] = 6; fires.push({ x, y, mesh });
-    } else {
-      const mesh = makeTent(); mesh.position.set((x + .5) * T, 0, (y + .5) * T); dyn.add(mesh);
-      tents.push({ x, y, mesh });
-    }
-  }
-  sfx.build(); toast(`${b.e} ${b.msg}`, '#45ff8a', 3);
-  computeFlow();
+  if (state !== 'play' || p.sleeping || p.out) return;
+  if (mode === 'guest') { if (hostConn && hostConn.open) hostConn.send({ t:'build', i, yaw }); return; }
+  doBuild(p, i, yaw);
 }
 function interact() {
-  if (state !== 'play') return;
-  if (sleeping) { sleeping = false; toast('Du vaknade 🥱', '#9fd0ff'); return; }
+  if (state !== 'play' || p.out) return;
+  if (p.sleeping) { p.sleeping = false; toast('Du vaknade 🥱', '#9fd0ff'); return; }
   if (p.level) return toast('Hoppa ner från hyllan genom att gå av kanten.', '#ccc');
-  const t = tents.find(t => dist(t.x + .5, t.y + .5, p.x, p.y) < .8);
-  if (t) {
-    sleeping = true; sleepHealT = 0;
-    const safe = burning().some(f => dist(f.x + .5, f.y + .5, p.x, p.y) < FIRE_R);
-    toast(safe ? '💤 Du somnar tryggt vid elden...' : '💤 Du somnar... men det finns ingen eld i närheten!', safe ? '#9fd0ff' : '#ffd23f', 3);
+  if (tents.some(t => dist(t.x + .5, t.y + .5, p.x, p.y) < .8)) {
+    p.sleeping = true; p.sleepHealT = 0;
+    const safe = fires.some(f => dist(f.x + .5, f.y + .5, p.x, p.y) < FIRE_R);
+    const team = others.some(q => !q.out) ? ' Natten går fortare när alla sover.' : '';
+    toast((safe ? '💤 Du somnar tryggt vid elden...' : '💤 Du somnar... men det finns ingen eld i närheten!') + team, safe ? '#9fd0ff' : '#ffd23f', 3);
     return;
   }
   toast('Här finns inget att använda. Gå in i ett ⛺ tält och tryck E för att sova.', '#ccc');
 }
-
-// ===== Pistolen =====
-function poof(x, y, h = 1.2) { const s = sprite('💨', 1.4); s.position.set(x * T, h, y * T); dyn.add(s); poofs.push({ s, t:.8 }); sfx.poof(); }
 function shoot() {
-  if (state !== 'play' || sleeping) return;
-  if (!hasGun) { toast('Du har ingen pistol. Leta i kistor 🧰', '#ccc'); return; }
+  if (state !== 'play' || p.sleeping || p.out) return;
+  if (!p.hasGun) { toast('Du har ingen pistol. Leta i kistor 🧰', '#ccc'); return; }
   if (shootCd > 0) return;
   shootCd = .35; kick = 1; muzzle.intensity = 25; sfx.bang();
-  const fx = -Math.sin(yaw), fy = -Math.cos(yaw);
+  if (mode === 'guest') { if (hostConn && hostConn.open) hostConn.send({ t:'shoot', yaw }); }
+  else doShoot(p, yaw);
+}
+
+// ===== Pistolen (räknas ut hos värden) =====
+function poof(x, y, h = 1.2) { makePoof(x, y, h); sendAll({ t:'poof', x, y, h }); }
+function makePoof(x, y, h) { const s = sprite('💨', 1.4); s.position.set(x * T, h, y * T); dyn.add(s); poofs.push({ s, t:.8 }); sfx.poof(); }
+function doShoot(q, qyaw) {
+  const fx = -Math.sin(qyaw), fy = -Math.cos(qyaw);
   let wall = 16;
   for (let t = 0; t < 16; t += .1) {
-    const g = grid[Math.floor(p.y + fy * t)]?.[Math.floor(p.x + fx * t)];
-    if (g === undefined || g === 1 || g === 3 || (g === 2 && !p.level)) { wall = t; break; }
+    const g = grid[Math.floor(q.y + fy * t)]?.[Math.floor(q.x + fx * t)];
+    if (g === undefined || g === 1 || g === 3 || (g === 2 && !q.level)) { wall = t; break; }
   }
   let best = null, bt = wall;
   const cands = [
@@ -703,48 +814,69 @@ function shoot() {
     ...carts.filter(c => c.ghost).map(o => ({ o, kind:'spöke', r:.55 })),
   ];
   for (const c of cands) {
-    const dx = c.o.x - p.x, dy = c.o.y - p.y, t = dx * fx + dy * fy;
+    const dx = c.o.x - q.x, dy = c.o.y - q.y, t = dx * fx + dy * fy;
     if (t <= 0 || t >= bt) continue;
     if (Math.abs(dx * fy - dy * fx) < c.r) { bt = t; best = c; }
   }
   if (!best) return;
   const o = best.o;
   if (best.kind === 'spöke') {
-    poof(o.x, o.y, 1.6); o.ghost = false; o.vx = 0; o.mesh.userData.ghost.visible = false; toast('Spöket är borta! 👻💨', '#45ff8a');
+    poof(o.x, o.y, 1.6); o.ghost = false; o.vx = 0; o.mesh.userData.ghost.visible = false; tell(q, 'Spöket är borta! 👻💨', '#45ff8a');
   } else if (o.anomaly) {
     poof(o.x, o.y); o.dead = true; o.respawnT = 30; o.mesh.visible = false; anomaliesStopped++;
-    toast('Rätt! Det var en ANOMALI! ✔', '#45ff8a', 2.5);
+    tell(q, 'Rätt! Det var en ANOMALI! ✔', '#45ff8a', 2.5);
   } else {
-    hasGun = false; sfx.hit();
-    toast('AJ! Hallå! Jag är en RIKTIG vakt! Nu tar jag din pistol! 😠', '#ff4d6d', 3);
+    q.hasGun = false; sfx.hit();
+    tell(q, 'AJ! Hallå! Jag är en RIKTIG vakt! Nu tar jag din pistol! 😠', '#ff4d6d', 3);
     o.cd = 20;
   }
 }
 
-// ===== Ficklampan =====
-const lightRange = () => 10; // i rutor
+// ===== Saker som händer spelare (värden bestämmer) =====
+function hurt(q, line) {
+  q.lives--; q.sleeping = false;
+  if (q === p) localScare(line); else sendTo(q.id, { t:'scare', line });
+  guards.forEach(o => { if (o.anomaly) o.cd = Math.max(o.cd, 4); });
+  if (q.lives <= 0) {
+    q.out = true;
+    if (!alive().length) endNight(false);
+    else say(q === p ? '👻 Du blev tagen! Kompisarna kämpar vidare...' : `👻 ${q.name} blev tagen!`, '#c9b8ff', 3);
+  }
+}
+function localScare(line) {
+  sfx.scream(); shake = .6; p.sleeping = false;
+  $('scare').style.display = 'flex';
+  toast(line, '#ff4d6d', 2);
+  setTimeout(() => $('scare').style.display = 'none', 750);
+}
+function push(q, vx, vy, st, text, color) {
+  if (q === p) { p.vx = vx; p.vy = vy; stun = st; shake = .3; sfx.hit(); toast(text, color); }
+  else sendTo(q.id, { t:'push', vx, vy, st, text, color });
+}
+function wake(q, danger) {
+  q.sleeping = false;
+  if (q === p) { if (danger) { toast('Du vaknade! Något är nära! 😱', '#ff4d6d', 2.5); sfx.heart(); } }
+  else sendTo(q.id, { t:'wake', danger:!!danger });
+}
 
 // ===== Uppdatering =====
 const SPEED = 3.3;
 function update(dt) {
   if (state !== 'play') return;
-  time += sleeping ? dt * 4 : dt;
-  if (time >= nightLen) return dawn();
-  // Sova i tältet: natten går fortare och man får tillbaka hjärtan
-  if (sleeping) {
-    sleepHealT += dt * 4;
-    if (sleepHealT >= 25) { sleepHealT = 0; if (lives < 3) { lives++; toast('Du vilade dig ❤️ +1', '#ff6b8a'); } }
-    const safe = burning().some(f => dist(f.x + .5, f.y + .5, p.x, p.y) < FIRE_R);
-    const danger = guards.find(g => g.anomaly && !g.dead && dist(g.x, g.y, p.x, p.y) < (safe ? 1.5 : 5));
-    if (danger || !tents.some(t => dist(t.x + .5, t.y + .5, p.x, p.y) < .8)) {
-      sleeping = false; if (danger) { toast('Du vaknade! Något är nära! 😱', '#ff4d6d', 2.5); sfx.heart(); }
-    }
+  shootCd -= dt;
+  movePlayer(dt);
+  if (mode === 'guest') {
+    netT -= dt;
+    if (netT <= 0 && hostConn && hostConn.open) { netT = .05; hostConn.send({ t:'p', x:p.x, y:p.y, level:p.level, yaw, sleeping:p.sleeping }); }
+  } else {
+    simulate(dt);
+    if (mode === 'host' && state === 'play') { netT -= dt; if (netT <= 0) { netT = .066; sendAll(snapshot()); } }
   }
-  blackout -= dt; nextBlackout -= dt; shootCd -= dt;
-  if (nextBlackout <= 0) { blackout = rand(.9, 1.4); nextBlackout = rand(7, 13) - Math.min(night, 4); sfx.creak(); }
-  hintT -= dt;
+  localAudio(dt);
+}
 
-  // Gå och titta
+// Din egen spelare: gå, titta, klättra (samma för alla)
+function movePlayer(dt) {
   if (keys['arrowleft']) yaw += 2.4 * dt;
   if (keys['arrowright']) yaw -= 2.4 * dt;
   let mv = 0, st = 0;
@@ -755,184 +887,244 @@ function update(dt) {
   if (joy.on) { st = clamp((joy.x - joy.ox) / 50, -1, 1); mv = clamp(-(joy.y - joy.oy) / 50, -1, 1); }
   const l = Math.hypot(mv, st); if (l > 1) { mv /= l; st /= l; }
   if (stun > 0) { stun -= dt; mv = st = 0; }
-  if (sleeping) mv = st = 0;
+  if (p.sleeping) mv = st = 0;
   const fx = -Math.sin(yaw), fy = -Math.cos(yaw), rx = -fy, ry = fx;
   const slippery = !p.level && puddles.some(pd => dist(pd.x, pd.y, p.x, p.y) < .6);
   const k = stun > 0 ? 3 : slippery ? 1.2 : 12;
   p.vx += ((fx * mv + rx * st) * SPEED - p.vx) * Math.min(1, k * dt);
   p.vy += ((fy * mv + ry * st) * SPEED - p.vy) * Math.min(1, k * dt);
   moveBody(p, p.vx * dt, p.vy * dt, .3);
-  if (checkDrop(p, .3)) { sfx.thud(); shake = .15; computeFlow(); }
+  p.yaw = yaw;
+  if (checkDrop(p, .3)) { sfx.thud(); shake = .15; if (mode !== 'guest') computeFlowFor(p); }
   if (Math.hypot(p.vx, p.vy) > .5) bob += dt * 9;
   // Klättra upp: stå vid en stege och gå mot hyllan
   const L = !p.level && ladders.get(Math.floor(p.x) + ',' + Math.floor(p.y));
-  const [ftx, fty] = frontTile();
+  const [ftx, fty] = frontTileFor(p, yaw);
   if (L && mv > 0 && L.sx === ftx && L.sy === fty) {
     climbT += dt;
     if (climbT > .3) {
-      climbT = 0; p.level = 1; p.x = L.sx + .5; p.y = L.sy + .5; p.vx = p.vy = 0; sfx.climb(); computeFlow();
+      climbT = 0; p.level = 1; p.x = L.sx + .5; p.y = L.sy + .5; p.vx = p.vy = 0; sfx.climb();
+      if (mode !== 'guest') computeFlowFor(p);
       if (!climbedOnce) { climbedOnce = true; toast('🪜 Du är uppe på hyllan! Gå av kanten för att hoppa ner.', '#45ff8a', 3); }
     }
   } else climbT = 0;
+}
 
-  // Plocka varor
-  for (const s of slots) {
-    if (p.level || s.taken || dist(s.tx + .5, s.ty + .5, p.x, p.y) > .8) continue;
-    const want = list.find(l => l.slot === s && !l.got);
-    if (want) {
-      want.got = true; s.taken = true; dyn.remove(s.sprite); sfx.pick();
-      toast(`${s.e} ${s.name} ✔`, '#45ff8a');
-      renderList();
-      if (list.every(l => l.got) && !listDoneShown) { listDoneShown = true; setTimeout(() => toast('Listan är klar! ⭐ Nu gäller det att överleva till 06:00!', '#ffd23f', 3), 900); }
-    } else if (hintT <= 0) { hintT = 2.5; toast(`${s.e} Inte på listan`, '#bbb'); }
+// Hela världen (bara hos värden eller när man spelar ensam)
+function simulate(dt) {
+  const awake = alive();
+  const allSleep = awake.length > 0 && awake.every(q => q.sleeping);
+  time += allSleep ? dt * 4 : dt;
+  if (time >= nightLen) return endNight(true);
+  blackout -= dt; nextBlackout -= dt;
+  if (nextBlackout <= 0) { blackout = rand(.9, 1.4); nextBlackout = rand(7, 13) - Math.min(night, 4); sfx.creak(); }
+
+  // Sova i tältet: få tillbaka hjärtan, vakna om något är nära
+  for (const q of awake) {
+    q.hintT -= dt;
+    if (!q.sleeping) continue;
+    q.sleepHealT += dt * (allSleep ? 4 : 1);
+    if (q.sleepHealT >= 25) { q.sleepHealT = 0; if (q.lives < 3) { q.lives++; tell(q, 'Du vilade dig ❤️ +1', '#ff6b8a'); } }
+    const safe = fires.some(f => dist(f.x + .5, f.y + .5, q.x, q.y) < FIRE_R);
+    const danger = guards.some(g => g.anomaly && !g.dead && dist(g.x, g.y, q.x, q.y) < (safe ? 1.5 : 5));
+    if (danger || !tents.some(t => dist(t.x + .5, t.y + .5, q.x, q.y) < .8)) wake(q, danger);
   }
-  // Kistor
-  for (const c of chests) {
-    if (p.level || c.open || dist(c.x, c.y, p.x, p.y) > .95) continue;
-    c.open = true; c.mesh.userData.lid.rotation.x = -1.9; c.mesh.userData.sparkle.visible = false; sfx.chest();
-    if (!hasGun) { hasGun = true; toast('🧰 En PISTOL! 🔫 Den tar aldrig slut. Skjut med musklick eller mellanslag', '#ffd23f', 3.5); }
-    else if (lives < 3) { lives++; toast('🧰 Ett extra hjärta! ❤️', '#ff6b8a'); }
-    else toast('🧰 Kistan var tom... du har redan allt!', '#ccc');
+  // Varor och kistor, för varje spelare
+  for (const q of awake) {
+    if (q.level) continue;
+    for (const s of slots) {
+      if (s.taken || dist(s.tx + .5, s.ty + .5, q.x, q.y) > .8) continue;
+      const want = list.find(l => l.slot === s && !l.got);
+      if (want) {
+        want.got = true; s.taken = true; dyn.remove(s.sprite); sfx.pick();
+        say(q === p ? `${s.e} ${s.name} ✔` : `${q.name} hittade ${s.e} ${s.name} ✔`, '#45ff8a');
+        renderList();
+        if (list.every(l => l.got) && !listDoneShown) { listDoneShown = true; setTimeout(() => say('Listan är klar! ⭐ Nu gäller det att överleva till 06:00!', '#ffd23f', 3), 900); }
+      } else if (q.hintT <= 0) { q.hintT = 2.5; tell(q, `${s.e} Inte på listan`, '#bbb'); }
+    }
+    for (const c of chests) {
+      if (c.open || dist(c.x, c.y, q.x, q.y) > .95) continue;
+      openChestMesh(c); sfx.chest();
+      if (!q.hasGun) { q.hasGun = true; tell(q, '🧰 En PISTOL! 🔫 Den tar aldrig slut. Skjut med musklick eller mellanslag', '#ffd23f', 3.5); }
+      else if (q.lives < 3) { q.lives++; tell(q, '🧰 Ett extra hjärta! ❤️', '#ff6b8a'); }
+      else tell(q, '🧰 Kistan var tom... du har redan allt!', '#ccc');
+    }
   }
-  // Nya kistor dyker upp under natten
   chestT -= dt;
-  if (chestT <= 0) {
-    chestT = 35;
-    if (chests.filter(c => !c.open).length < 3) { addChest(); toast('✨ En ny kista har dykt upp någonstans!', '#ffd23f', 2.5); }
-  }
+  if (chestT <= 0) { chestT = 35; if (chests.filter(c => !c.open).length < 3) { addChest(); say('✨ En ny kista har dykt upp någonstans!', '#ffd23f', 2.5); } }
   // Spökkundvagnar
   for (const c of carts) {
     if (!c.ghost) continue;
     c.cd -= dt; c.x += c.vx * dt;
     if (solid(c.x + Math.sign(c.vx) * .6, c.y)) c.vx *= -1;
-    if (c.cd <= 0 && !p.level && dist(c.x, c.y, p.x, p.y) < .7) {
-      c.cd = 1.5; stun = .4; shake = .35; sfx.hit();
-      p.vx = Math.sign(c.vx) * 7; p.vy = (p.y < c.y ? -1 : 1) * 3;
-      toast('Hihihi! 👻', '#c9b8ff');
-    }
+    if (c.cd > 0) continue;
+    const q = awake.find(q => !q.level && dist(c.x, c.y, q.x, q.y) < .7);
+    if (q) { c.cd = 1.5; push(q, Math.sign(c.vx) * 7, (q.y < c.y ? -1 : 1) * 3, .4, 'Hihihi! 👻', '#c9b8ff'); }
   }
   // Städrobotar
   for (const r of robots) {
     r.cd -= dt; r.drop -= dt;
     r.face = wander(r, 1.4, dt);
-    if (r.drop <= 0) {
-      r.drop = rand(2.5, 4.5);
-      if (puddles.length < 14) {
-        const mesh = new THREE.Mesh(new THREE.CircleGeometry(.6, 20), new THREE.MeshStandardMaterial({ color:0x2a7fff, transparent:true, opacity:.6, metalness:.6, roughness:.1 }));
-        mesh.rotation.x = -Math.PI / 2; mesh.position.set(r.x * T, .02, r.y * T); dyn.add(mesh);
-        puddles.push({ x:r.x, y:r.y, t:14, mesh });
-      }
-    }
-    if (r.cd <= 0 && !p.level && dist(r.x, r.y, p.x, p.y) < .7) {
-      r.cd = 1.5; stun = .3; shake = .2; sfx.hit();
-      p.vx = (p.x - r.x) * 6; p.vy = (p.y - r.y) * 6;
-      toast('STÄÄÄDA... DIG... 🤖', '#ff4d6d');
-    }
+    if (r.drop <= 0) { r.drop = rand(2.5, 4.5); if (puddles.length < 14) addPuddle(r.x, r.y, 14); }
+    if (r.cd > 0) continue;
+    const q = awake.find(q => !q.level && dist(r.x, r.y, q.x, q.y) < .7);
+    if (q) { r.cd = 1.5; push(q, (q.x - r.x) * 6, (q.y - r.y) * 6, .3, 'STÄÄÄDA... DIG... 🤖', '#ff4d6d'); }
   }
   puddles.forEach(pd => { pd.t -= dt; pd.mesh.material.opacity = Math.min(.6, pd.t / 4); if (pd.t <= 0) dyn.remove(pd.mesh); });
   puddles = puddles.filter(pd => pd.t > 0);
-  poofs.forEach(f => { f.t -= dt; f.s.material.opacity = f.t / .8; f.s.position.y += dt; if (f.t <= 0) dyn.remove(f.s); });
-  poofs = poofs.filter(f => f.t > 0);
 
-  flowT -= dt; if (flowT <= 0) { flowT = .25; computeFlow(); }
+  flowT -= dt; if (flowT <= 0) { flowT = .25; computeFlows(); }
 
-  // Vakter: riktiga är snälla, anomalier anfaller
-  let nearest = 99;
+  // Vakter: riktiga är snälla, anomalier anfaller den som är närmast
   for (const g of guards) {
     if (g.dead) {
-      // En ny vakt kommer till jobbet... men är den riktig?
       g.respawnT -= dt;
-      if (g.respawnT <= 0) {
+      if (g.respawnT <= 0) { // en ny vakt kommer till jobbet... men är den riktig?
         dyn.remove(g.mesh);
         g.anomaly = pick(ANOMALIES); g.mesh = makeGuard(g.anomaly); dyn.add(g.mesh);
         [g.x, g.y] = farTile(12); g.level = 0; g.climbT = 0; g.dead = false; g.cd = 3; newWanderTarget(g);
-        toast('👮 En ny vakt har börjat jobba... är den riktig?', '#9fd0ff', 2.5);
+        say('👮 En ny vakt har börjat jobba... är den riktig?', '#9fd0ff', 2.5);
       }
       continue;
     }
     g.cd -= dt;
-    const d = dist(g.x, g.y, p.x, p.y);
-    // Anomalier ser längre och springer fortare när lampan slocknar
+    const q = nearestPlayer(g);
+    if (!q) { g.face = wander(g, 1.1, dt); continue; }
+    const d = dist(g.x, g.y, q.x, q.y);
     const range = g.anomaly ? (blackout > 0 ? 12 : 7) : 5;
     const hunting = g.anomaly && (g.climbT > 0 || g.level > 0);
-    const sameLevel = (g.level || 0) === (p.level || 0);
-    if (!g.anomaly && (p.level || g.level)) { g.face = wander(g, 1.1, dt); continue; }
-    if (g.cd <= 0 && (hunting || d < range && (blackout > 0 && g.anomaly || lineOfSight(g.x, g.y, p.x, p.y, !!(p.level || g.level))))) {
-      if (g.anomaly) {
-        nearest = Math.min(nearest, d);
-        if (d < 8) { g.stepT -= dt; if (g.stepT <= 0) { g.stepT = blackout > 0 ? .2 : .45; sfx.step((8 - d) / 8 * .07); } }
-      }
+    const sameLevel = (g.level || 0) === (q.level || 0);
+    if (!g.anomaly && (q.level || g.level)) { g.face = wander(g, 1.1, dt); continue; }
+    if (g.cd <= 0 && (hunting || d < range && (blackout > 0 && g.anomaly || lineOfSight(g.x, g.y, q.x, q.y, !!(q.level || g.level))))) {
       if (d > (g.anomaly ? .6 : 1.3) || !sameLevel) {
-        const f = chase(g, g.anomaly ? (blackout > 0 ? 2.6 : 1.8 + night * .08) : 1.5, dt, .3, !!g.anomaly);
+        const f = chase(g, g.anomaly ? (blackout > 0 ? 2.6 : 1.8 + night * .08) : 1.5, dt, .3, !!g.anomaly, q);
         if (f !== null) g.face = f;
-        else if (g.anomaly) {
-          // Vägen är spärrad: gå rakt mot spelaren och slå sönder barrikader
-          const ox = g.x, oy = g.y;
-          moveBody(g, (p.x - g.x) / (d || 1) * 1.2 * dt, (p.y - g.y) / (d || 1) * 1.2 * dt, .3);
-          if (fireBlocks(ox, oy, g.x, g.y)) { g.x = ox; g.y = oy; }
-          g.face = Math.atan2(p.x - g.x, p.y - g.y);
-          const b = barricades.find(b => dist(b.x + .5, b.y + .5, g.x, g.y) < 1.25);
-          if (b) {
-            b.hp -= dt; g.bangT -= dt;
-            if (g.bangT <= 0) { g.bangT = .5; sfx.smash(); b.mesh.rotation.z = rand(-.05, .05); }
-            if (b.hp <= 0) {
-              dyn.remove(b.mesh); grid[b.y][b.x] = 0; barricades = barricades.filter(o => o !== b);
-              poof(b.x + .5, b.y + .5); toast('💥 En anomali slog sönder en barrikad!', '#ff4d6d', 2.5); computeFlow();
-            }
-          }
-        } else g.face = wander(g, 1.1, dt);
-      }
-      else if (g.anomaly) {
-        attack(pick(BOO_LINES)); g.cd = 8; g.level = 0; g.climbT = 0; [g.x, g.y] = farTile(12);
+        else if (g.anomaly) smashTowards(g, q, d, dt);
+        else g.face = wander(g, 1.1, dt);
+      } else if (g.anomaly) {
+        hurt(q, pick(BOO_LINES)); g.cd = 8; g.level = 0; g.climbT = 0; [g.x, g.y] = farTile(12);
         if (state !== 'play') return;
-      }
-      else {
-        g.face = Math.atan2(p.x - g.x, p.y - g.y);
+      } else {
+        g.face = Math.atan2(q.x - g.x, q.y - g.y);
         let msg = pick(GUARD_HELLO);
-        if (!g.gave) {
-          g.gave = true;
-          if (lives < 3) { lives++; msg += ' Här, ta ett plåster! ❤️ +1'; sfx.pick(); }
-        }
-        toast('👮 ' + msg, '#9fd0ff', 2.5); g.cd = 15;
+        if (!g.gave && q.lives < 3) { g.gave = true; q.lives++; msg += ' Här, ta ett plåster! ❤️ +1'; sfx.pick(); }
+        tell(q, '👮 ' + msg, '#9fd0ff', 2.5); g.cd = 15;
       }
     } else g.face = wander(g, 1.1, dt);
   }
+}
+// Vägen är spärrad: gå rakt mot spelaren och slå sönder barrikader
+function smashTowards(g, q, d, dt) {
+  const ox = g.x, oy = g.y;
+  moveBody(g, (q.x - g.x) / (d || 1) * 1.2 * dt, (q.y - g.y) / (d || 1) * 1.2 * dt, .3);
+  if (fireBlocks(ox, oy, g.x, g.y)) { g.x = ox; g.y = oy; }
+  g.face = Math.atan2(q.x - g.x, q.y - g.y);
+  const b = barricades.find(b => dist(b.x + .5, b.y + .5, g.x, g.y) < 1.25);
+  if (!b) return;
+  b.hp -= dt; g.bangT -= dt;
+  if (g.bangT <= 0) { g.bangT = .5; sfx.smash(); b.mesh.rotation.z = rand(-.05, .05); }
+  if (b.hp <= 0) {
+    dyn.remove(b.mesh); grid[b.y][b.x] = 0; barricades = barricades.filter(o => o !== b);
+    poof(b.x + .5, b.y + .5); say('💥 En anomali slog sönder en barrikad!', '#ff4d6d', 2.5);
+    sendAll(buildsMsg()); computeFlows();
+  }
+}
+// Steg och hjärtslag när en anomali är nära dig
+function localAudio(dt) {
+  let nearest = 99, moving = false;
+  for (const g of guards) {
+    if (!g.anomaly || g.dead) continue;
+    const d = dist(g.x, g.y, p.x, p.y);
+    if (d < nearest) { nearest = d; moving = Math.hypot(g.x - (g.lx ?? g.x), g.y - (g.ly ?? g.y)) > .0005; }
+    g.lx = g.x; g.ly = g.y;
+  }
+  if (p.out) return;
+  if (nearest < 8 && moving) { stepT -= dt; if (stepT <= 0) { stepT = isBlackout() ? .2 : .45; sfx.step((8 - nearest) / 8 * .07); } }
   if (nearest < 4) { heartT -= dt; if (heartT <= 0) { heartT = nearest < 2 ? .5 : .85; sfx.heart(); } }
 }
+const isBlackout = () => mode === 'guest' ? netBlackout : blackout > 0;
 
-function attack(line) {
-  lives--; sfx.scream(); shake = .6; sleeping = false;
-  $('scare').style.display = 'flex';
-  toast(line, '#ff4d6d', 2);
-  guards.forEach(o => { if (o.anomaly) o.cd = Math.max(o.cd, 4); });
-  if (lives <= 0) { state = 'dying'; setTimeout(() => { $('scare').style.display = 'none'; lose(); }, 1100); }
-  else setTimeout(() => $('scare').style.display = 'none', 700);
+// ===== Natten är slut =====
+function endNight(win) {
+  if (state !== 'play') return;
+  const res = { t:'end', win, night, stopped:anomaliesStopped, got:list.filter(l => l.got).length, total:list.length, clock:clockText(), team:others.length > 0,
+    stars:win ? 1 + (list.every(l => l.got) ? 1 : 0) + (allPlayers().every(q => q.lives === 3) ? 1 : 0) : 0 };
+  sendAll(res);
+  if (win) showResult(res); else { state = 'dying'; setTimeout(() => showResult(res), 1100); }
+}
+function showResult(r) {
+  state = 'over'; $('scare').style.display = 'none';
+  const n = num(r.night, 1, 999, night), stars = num(r.stars, 0, 3) | 0, stopped = num(r.stopped, 0, 999) | 0;
+  const team = !!r.team, ni = team ? 'Ni' : 'Du';
+  const got = num(r.got, 0, 99) | 0, total = num(r.total, 0, 99) | 0;
+  let html;
+  if (r.win) {
+    sfx.win();
+    save0.best = Math.max(save0.best || 0, n + 1); storeSave(save0);
+    html = `<h1>☀️ Klockan är 06:00!</h1><h2 style="margin:0;color:#45ff8a">${ni} överlevde natt ${n}!</h2>
+      <div class="stars">${'⭐'.repeat(stars)}${'☆'.repeat(3 - stars)}</div>
+      <p>Lamporna tänds och mamma och pappa låser upp dörren. Puh! ${got === total && total ? `Och ${team ? 'ni' : 'du'} handlade ALLT på listan! 🛒` : ''}</p>
+      <p>🎯 Anomalier stoppade: ${stopped}</p><p>Nästa natt blir längre och läskigare...</p>`;
+  } else {
+    sfx.lose();
+    html = `<h1>👾 ${ni} klarade inte natten!</h1><p>Klockan var ${esc(String(r.clock || '').slice(0, 5))} när anomalierna tog ${team ? 'er' : 'dig'}. Nu måste ${team ? 'ni' : 'du'} jobba som nattvakt${team ? 'er' : ''} för alltid... Försök igen!</p>
+      <p>${ni} stoppade ${stopped} anomali${stopped === 1 ? '' : 'er'} och hittade ${got} av ${total} saker.</p>`;
+  }
+  if (mode === 'guest') {
+    html += `<p>⏳ Väntar på att värden startar nästa natt...</p><button class="btn red small" id="leaveBtn">Lämna rummet</button>`;
+    show(html); $('leaveBtn').onclick = () => { leaveNet(); menu(); };
+  } else if (r.win) {
+    html += `<button class="btn" id="goBtn">Nästa natt 🌙</button><button class="btn alt" id="againBtn">Samma natt igen</button>`;
+    show(html); $('goBtn').onclick = () => { night++; menu(); }; $('againBtn').onclick = menu;
+  } else {
+    html += `<button class="btn" id="goBtn">Försök igen 🔁</button>`;
+    show(html); $('goBtn').onclick = menu;
+  }
 }
 
 // ===== Rita =====
 const mini = $('mini'), mctx = mini.getContext('2d');
+// Hos gästen glider saker mjukt mot värdens position
+function vis(o, dt, always = false) {
+  if (mode !== 'guest' && !always) return [o.x, o.y];
+  if (o.rx === undefined || Math.hypot(o.x - o.rx, o.y - o.ry) > 3) { o.rx = o.x; o.ry = o.y; }
+  const k = Math.min(1, dt * 12);
+  o.rx += (o.x - o.rx) * k; o.ry += (o.y - o.ry) * k;
+  return [o.rx, o.ry];
+}
 function render(now, dt) {
   const sx = shake > 0 ? rand(-.08, .08) : 0, sy = shake > 0 ? rand(-.08, .08) : 0;
   shake = Math.max(0, shake - dt);
-  const eyeTarget = p.level ? shelfH(Math.floor(p.x), Math.floor(p.y)) + EYE * .85 : sleeping ? .5 : EYE;
+  const eyeTarget = p.level ? shelfH(Math.floor(p.x), Math.floor(p.y)) + EYE * .85 : p.sleeping ? .5 : EYE;
   camY += (eyeTarget - camY) * Math.min(1, dt * 8);
   camera.position.set(p.x * T + sx, camY + Math.sin(bob) * .05 + sy, p.y * T);
   camera.rotation.set(pitch, yaw, 0);
-  flash.intensity = blackout > 0 ? 0 : 30;
-  flash.distance = lightRange() * T * 1.4;
-  amb.intensity = blackout > 0 ? .03 : .5;
+  const bo = isBlackout();
+  flash.intensity = bo || p.out ? 0 : 30;
+  amb.intensity = bo ? .03 : p.out ? .8 : .5;
   muzzle.intensity = Math.max(0, muzzle.intensity - dt * 300);
   for (const g of guards) {
-    const tx = Math.floor(g.x), ty = Math.floor(g.y);
-    const gy = g.climbT > 0 ? (1 - g.climbT / 1.6) * 1.8 : g.level ? shelfH(tx, ty) : 0;
-    g.mesh.position.set(g.x * T, gy, g.y * T);
-    g.mesh.rotation.y = g.face;
+    const [gx, gz] = vis(g, dt), tx = Math.floor(gx), ty = Math.floor(gz);
+    const climb = mode === 'guest' ? (g.climb || 0) : g.climbT > 0 ? 1 - g.climbT / 1.6 : 0;
+    const gy = climb > 0 ? climb * 1.8 : g.level ? shelfH(tx, ty) : 0;
+    g.mesh.position.set(gx * T, gy, gz * T);
+    g.mesh.rotation.y = g.face || 0;
     g.mesh.children[0].position.y = (g.anomaly === 'svävar' ? .45 + Math.sin(now / 400) * .1 : 0);
   }
-  for (const r of robots) { r.mesh.position.set(r.x * T, 0, r.y * T); r.mesh.rotation.y = r.face || 0; }
+  for (const r of robots) { const [x, y] = vis(r, dt); r.mesh.position.set(x * T, 0, y * T); r.mesh.rotation.y = r.face || 0; }
   for (const c of carts) {
-    c.mesh.position.set(c.x * T, 0, c.y * T);
+    const [x, y] = vis(c, dt);
+    c.mesh.position.set(x * T, 0, y * T);
     c.mesh.userData.ghost.position.y = 1.6 + Math.sin(now / 200 + c.y) * .12;
+  }
+  for (const q of others) {
+    if (!q.mesh) { q.mesh = makeAvatar(q.name, COLORS[q.color] || '#fff'); avatarGroup.add(q.mesh); }
+    const [x, y] = vis(q, dt, true);
+    q.mesh.position.set(x * T, q.level ? shelfH(Math.floor(x), Math.floor(y)) : 0, y * T);
+    q.mesh.rotation.y = (q.yaw || 0) + Math.PI;
+    const { body, ghost, light } = q.mesh.userData;
+    body.visible = !q.out; ghost.visible = q.out; light.intensity = q.out || q.sleeping ? 0 : 14;
+    body.rotation.x = q.sleeping ? -Math.PI / 2 : 0; body.position.y = q.sleeping ? .3 : 0;
   }
   for (const c of chests) if (!c.open) c.mesh.userData.sparkle.position.y = 1 + Math.sin(now / 300 + c.x) * .1;
   for (const f of fires) {
@@ -940,19 +1132,23 @@ function render(now, dt) {
     light.intensity = 5 + Math.sin(now / 90) * 1.2 + Math.random() * .8;
     flame.scale.setScalar(1 + Math.sin(now / 120) * .1);
   }
+  poofs.forEach(f => { f.t -= dt; f.s.material.opacity = Math.max(0, f.t / .8); f.s.position.y += dt; if (f.t <= 0) dyn.remove(f.s); });
+  poofs = poofs.filter(f => f.t > 0);
   const pulse = 1 + Math.sin(now / 250) * .12;
   list.forEach(l => { if (!l.got) l.slot.sprite.scale.setScalar(.8 * pulse); });
   renderer.render(scene, camera);
   drawMinimap(now);
   if (toastT > 0) { toastT -= dt; if (toastT <= 0) $('toast').style.opacity = 0; }
-  $('hint').style.display = state === 'play' && !isTouch && document.pointerLockElement !== cv ? 'block' : 'none';
+  const playing = state === 'play';
+  $('hint').style.display = playing && !isTouch && document.pointerLockElement !== cv ? 'block' : 'none';
   kick = Math.max(0, kick - dt * 6);
   const gun = $('gun');
-  gun.style.display = state === 'play' && hasGun && !sleeping ? 'block' : 'none';
+  gun.style.display = playing && p.hasGun && !p.sleeping && !p.out ? 'block' : 'none';
   gun.style.transform = `translate(${-kick * 20}px, ${Math.sin(bob) * 8 + kick * 30}px) scaleX(-1) rotate(${-10 - kick * 25}deg)`;
-  $('shootBtn').style.display = isTouch && state === 'play' && hasGun ? 'flex' : 'none';
-  $('buildbar').style.display = state === 'play' ? 'flex' : 'none';
-  $('sleep').style.display = state === 'play' && sleeping ? 'flex' : 'none';
+  $('shootBtn').style.display = isTouch && playing && p.hasGun && !p.out ? 'flex' : 'none';
+  $('buildbar').style.display = playing && !p.out ? 'flex' : 'none';
+  $('sleep').style.display = playing && p.sleeping ? 'flex' : 'none';
+  $('outOverlay').style.display = playing && p.out ? 'block' : 'none';
 }
 
 function drawMinimap(now) {
@@ -960,30 +1156,29 @@ function drawMinimap(now) {
   if (mini.width !== MW * m) { mini.width = MW * m; mini.height = MH * m; }
   for (let y = 0; y < MH; y++) for (let x = 0; x < MW; x++) {
     const g = grid[y][x], r = room[y][x];
-    mctx.fillStyle = g === 1 ? '#2a2250' : g === 2 ? '#6b4a2e' : g === 3 ? '#8a2b3c' : r >= 0 ? SHOPS[r].floor : '#888';
+    mctx.fillStyle = g === 1 ? '#2a2250' : g === 2 ? '#6b4a2e' : g === 3 ? '#8a2b3c' : g === 5 ? '#c98b4a' : g === 6 ? '#ff7a2a' : r >= 0 ? SHOPS[r].floor : '#888';
     mctx.fillRect(x * m, y * m, m, m);
   }
   if (Math.sin(now / 150) > 0) {
     mctx.fillStyle = '#ff9d00';
     list.forEach(l => { if (!l.got) mctx.fillRect(l.slot.tx * m - 1, l.slot.ty * m - 1, m + 2, m + 2); });
   }
-  mctx.fillStyle = '#c98b4a'; barricades.forEach(b => mctx.fillRect(b.x * m, b.y * m, m, m));
   mctx.fillStyle = '#ffe14d'; ladders.forEach(L => mctx.fillRect(L.x * m + m / 4, L.y * m + m / 4, m / 2, m / 2));
   mctx.fillStyle = '#2ecc71'; tents.forEach(t => mctx.fillRect(t.x * m, t.y * m, m, m));
-  mctx.fillStyle = '#ff7a2a'; fires.forEach(f => mctx.fillRect(f.x * m, f.y * m, m, m));
+  for (const q of others) { mctx.fillStyle = COLORS[q.color] || '#fff'; mctx.beginPath(); mctx.arc((q.rx ?? q.x) * m, (q.ry ?? q.y) * m, m * .8, 0, 7); mctx.fill(); }
   const px = p.x * m, py = p.y * m;
-  mctx.strokeStyle = '#ff3df0'; mctx.lineWidth = 2;
+  mctx.strokeStyle = COLORS[p.color] || '#ff3df0'; mctx.lineWidth = 2;
   mctx.beginPath(); mctx.moveTo(px, py); mctx.lineTo(px - Math.sin(yaw) * m * 2.5, py - Math.cos(yaw) * m * 2.5); mctx.stroke();
-  mctx.fillStyle = '#ff3df0'; mctx.beginPath(); mctx.arc(px, py, m * .9, 0, 7); mctx.fill();
+  mctx.fillStyle = COLORS[p.color] || '#ff3df0'; mctx.beginPath(); mctx.arc(px, py, m * .9, 0, 7); mctx.fill();
 }
 
 // ===== HUD och listor =====
 function renderList() {
-  const part = who => list.filter(l => l.who === who).map(l => `<div class="it ${l.got ? 'got' : ''}">${l.slot.e} ${l.slot.name}</div>`).join('');
+  const part = who => list.filter(l => l.who === who).map(l => `<div class="it ${l.got ? 'got' : ''}">${esc(l.slot.e)} ${esc(l.slot.name)}</div>`).join('');
   const left = list.filter(l => !l.got).length;
   $('list').innerHTML = `<b>📝 Inköpslistan (${list.length - left}/${list.length})</b><div class="items">
     <h3>👩 Mamma</h3>${part('mamma')}<h3>👨 Pappa</h3>${part('pappa')}</div>
-    ${left ? '' : '<div style="color:#45ff8a;margin-top:6px"><b>Klart! ⭐</b></div>'}`;
+    ${left || !list.length ? '' : '<div style="color:#45ff8a;margin-top:6px"><b>Klart! ⭐</b></div>'}`;
 }
 function clockText() {
   const mins = (20 * 60 + Math.floor(time / nightLen * 600)) % (24 * 60);
@@ -993,27 +1188,266 @@ function updateHud() {
   $('lvl').textContent = night;
   $('clock').textContent = '🕛 ' + clockText();
   $('clock').className = nightLen - time < 25 ? 'warn' : '';
-  $('lives').textContent = '❤️'.repeat(Math.max(0, lives)) + '🖤'.repeat(Math.max(0, 3 - lives));
-  $('ammo').textContent = hasGun ? '🔫' : '';
+  $('lives').textContent = p.out ? '👻' : '❤️'.repeat(Math.max(0, p.lives)) + '🖤'.repeat(Math.max(0, 3 - p.lives));
+  $('ammo').textContent = p.hasGun ? '🔫' : '';
+  $('team').innerHTML = others.map(q => `<span style="color:${COLORS[q.color] || '#fff'}">${esc(q.name)} ${q.out ? '👻' : '❤️'.repeat(Math.max(0, q.lives))}</span>`).join('');
+}
+
+// ===== Nätverk (PeerJS, samma sätt som Monsterfabriken) =====
+let mode = 'solo', peer = null, hostConn = null, roomCode = '', netMsg = '', lobbyNames = [];
+const conns = new Map();
+const PREFIX = 'nils-kc-';
+const KODTECKEN = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const nyKod = () => Array.from({ length:4 }, () => KODTECKEN[Math.random() * KODTECKEN.length | 0]).join('');
+function netStatus(t) { netMsg = t; const el = $('netStatus'); if (el) el.textContent = t; }
+function sendAll(m) { if (mode !== 'host') return; conns.forEach(c => { if (c.open) c.send(m); }); }
+function sendTo(id, m) { const c = conns.get(id); if (c && c.open) c.send(m); }
+function sendLobby() { sendAll({ t:'lobby', code:roomCode, night, names:allPlayers().map(q => [q.name, q.color]) }); }
+function worldFor(q) {
+  return { t:'world', night, nightLen, spawn:[q.x, q.y], slots:slots.map(s => [s.tx, s.ty, s.dir, s.e, s.name]),
+    list:list.map(l => [slots.indexOf(l.slot), l.who]) };
+}
+function leaveNet() {
+  if (mode === 'host') sendAll({ t:'bye' });
+  conns.forEach(c => { try { c.close(); } catch (e) {} }); conns.clear();
+  if (hostConn) { try { hostConn.close(); } catch (e) {} hostConn = null; }
+  if (peer) { try { peer.destroy(); } catch (e) {} peer = null; }
+  mode = 'solo'; roomCode = ''; lobbyNames = [];
+  others.forEach(q => q.mesh && avatarGroup.remove(q.mesh)); others = [];
+  p.id = 'host'; p.color = 0;
+}
+function hostRoom() {
+  if (typeof Peer === 'undefined') return netStatus('Online-delen kunde inte laddas. Kolla internet och ladda om sidan.');
+  leaveNet(); mode = 'host'; roomCode = nyKod(); netMsg = 'Skapar rum...';
+  renderMenu();
+  peer = new Peer(PREFIX + roomCode);
+  peer.on('open', () => { netMsg = 'Väntar på kompisar...'; renderMenu(); sfx.join(); });
+  peer.on('connection', c => {
+    c.on('open', () => {
+      if (state === 'play' || conns.size >= 3) { c.send({ t:'full', play:state === 'play' }); setTimeout(() => c.close(), 500); return; }
+      conns.set(c.peer, c);
+    });
+    c.on('data', d => onHostData(c.peer, d));
+    c.on('close', () => dropPlayer(c.peer));
+  });
+  peer.on('error', e => {
+    if (e.type === 'unavailable-id') return hostRoom();
+    netStatus('Hoppsan, något gick fel: ' + e.type);
+  });
+}
+function joinRoom(code) {
+  if (typeof Peer === 'undefined') return netStatus('Online-delen kunde inte laddas. Kolla internet och ladda om sidan.');
+  if (!/^[A-Z0-9]{4}$/.test(code)) return netStatus('Skriv in kompisens kod med 4 tecken först!');
+  leaveNet(); mode = 'guest'; roomCode = code; netMsg = 'Letar efter rummet ' + code + '...';
+  renderMenu();
+  peer = new Peer();
+  peer.on('open', id => {
+    p.id = id;
+    hostConn = peer.connect(PREFIX + code, { reliable:true });
+    hostConn.on('open', () => { hostConn.send({ t:'hello', name:myName }); netMsg = 'Ansluten! 🎉'; renderMenu(); sfx.join(); });
+    hostConn.on('data', onGuestData);
+    hostConn.on('close', () => {
+      if (mode !== 'guest') return;
+      leaveNet(); netMsg = 'Värden lämnade rummet.'; menu();
+    });
+  });
+  peer.on('error', e => {
+    netMsg = e.type === 'peer-unavailable' ? `Hittade inget rum med koden ${code}. Stämmer den?` : 'Hoppsan, något gick fel: ' + e.type;
+    leaveNet(); renderMenu();
+  });
+}
+function dropPlayer(id) {
+  conns.delete(id);
+  const q = others.find(o => o.id === id);
+  if (!q) return;
+  if (q.mesh) avatarGroup.remove(q.mesh);
+  others = others.filter(o => o !== q);
+  if (state === 'menu') { renderMenu(); sendLobby(); }
+  else if (state === 'play') say(`👋 ${q.name} lämnade spelet.`, '#9fd0ff', 2.5);
+}
+// Värden tar emot från en kompis
+function onHostData(id, d) {
+  if (!d || typeof d !== 'object') return;
+  let q = others.find(o => o.id === id);
+  if (d.t === 'hello') {
+    if (q || others.length >= 3) return;
+    const used = allPlayers().map(o => o.color);
+    const color = [1, 2, 3].find(c => !used.includes(c)) ?? 1;
+    q = newPlayer(id, String(d.name || 'Kompis').replace(/[<>]/g, '').slice(0, 12) || 'Kompis', color);
+    others.push(q);
+    if (state === 'menu') setupNight(); // listan och vakterna anpassas till antal spelare
+    renderMenu(); sendLobby(); sfx.join();
+    return;
+  }
+  if (!q) return;
+  if (d.t === 'p') {
+    q.x = num(d.x, .3, MW - .3, q.x); q.y = num(d.y, .3, MH - .3, q.y);
+    const lv = d.level ? 1 : 0;
+    if (lv !== q.level) { q.level = lv; computeFlowFor(q); }
+    q.yaw = num(d.yaw, -1e4, 1e4, 0);
+    if (!q.out) q.sleeping = !!d.sleeping && tents.some(t => dist(t.x + .5, t.y + .5, q.x, q.y) < .9);
+  } else if (d.t === 'shoot' && state === 'play' && q.hasGun && !q.out) doShoot(q, num(d.yaw, -1e4, 1e4, 0));
+  else if (d.t === 'build' && state === 'play') doBuild(q, num(d.i, 0, 3, 0) | 0, num(d.yaw, -1e4, 1e4, 0));
+}
+// Gästen tar emot från värden
+function onGuestData(d) {
+  if (!d || typeof d !== 'object') return;
+  switch (d.t) {
+    case 'lobby':
+      lobbyNames = (Array.isArray(d.names) ? d.names : []).slice(0, 4).map(([n, c]) => [String(n).slice(0, 12), num(c, 0, 3) | 0]);
+      night = num(d.night, 1, 999, night) | 0;
+      if (state === 'menu') renderMenu();
+      break;
+    case 'full':
+      netMsg = d.play ? 'De spelar redan en natt. Försök igen när natten är slut!' : 'Rummet är fullt (max 4 spelare).';
+      leaveNet(); renderMenu(); break;
+    case 'bye': leaveNet(); netMsg = 'Värden lämnade rummet.'; menu(); break;
+    case 'world': setupGuestNight(d); break;
+    case 'start': hide(); state = 'play'; beep(440, .05); if (!isTouch) lockMouse(); break;
+    case 's': if (state === 'play') applySnapshot(d); break;
+    case 'builds': applyBuilds(d); break;
+    case 'toast': toast(String(d.text || '').slice(0, 140), /^#[0-9a-fA-F]{3,6}$/.test(d.color) ? d.color : '#fff', num(d.dur, .5, 5, 1.8)); break;
+    case 'poof': makePoof(num(d.x, 0, MW), num(d.y, 0, MH), num(d.h, 0, 4, 1.2)); break;
+    case 'scare': localScare(String(d.line || 'BÖÖ!').slice(0, 60)); break;
+    case 'push': p.vx = num(d.vx, -10, 10); p.vy = num(d.vy, -10, 10); stun = num(d.st, 0, 1); shake = .3; sfx.hit(); toast(String(d.text || '').slice(0, 60), /^#[0-9a-fA-F]{3,6}$/.test(d.color) ? d.color : '#fff'); break;
+    case 'wake': p.sleeping = false; if (d.danger) { toast('Du vaknade! Något är nära! 😱', '#ff4d6d', 2.5); sfx.heart(); } break;
+    case 'end': if (state === 'play') showResult(d); break;
+  }
+}
+function setupGuestNight(w) {
+  clearWorld();
+  night = num(w.night, 1, 999, 1) | 0; nightLen = num(w.nightLen, 60, 999, 180);
+  (Array.isArray(w.slots) ? w.slots : []).slice(0, 80).forEach(([tx, ty, dir, e, name]) => {
+    if (!Number.isInteger(tx) || !Number.isInteger(ty) || tx < 0 || ty < 0 || tx >= MW || ty >= MH) return;
+    addSlot(tx, ty, dir === -1 ? -1 : 1, String(e).slice(0, 8), String(name).slice(0, 20));
+  });
+  list = (Array.isArray(w.list) ? w.list : []).slice(0, 20).map(([i, who]) => slots[i] ? { slot:slots[i], who:who === 'pappa' ? 'pappa' : 'mamma', got:false } : null).filter(Boolean);
+  greyOutOthers();
+  resetPlayer(p, 0);
+  const sp = Array.isArray(w.spawn) ? w.spawn : [];
+  p.x = p.rx = num(sp[0], 1, MW - 1, 2.5); p.y = p.ry = num(sp[1], 1, MH - 1, 13);
+  others.forEach(q => q.mesh && avatarGroup.remove(q.mesh)); others = [];
+  renderList();
+}
+// Värdens bild av världen, 15 gånger i sekunden
+function snapshot() {
+  const r2 = v => Math.round(v * 100) / 100;
+  return { t:'s', time:r2(time), bl:blackout > 0 ? 1 : 0, st:anomaliesStopped,
+    g:guards.map(g => [r2(g.x), r2(g.y), g.level || 0, r2(g.face || 0), g.dead ? 1 : 0, g.anomaly ? ANOMALIES.indexOf(g.anomaly) : -1, g.climbT > 0 ? r2(1 - g.climbT / 1.6) : 0]),
+    c:carts.map(c => [r2(c.x), r2(c.y), c.ghost ? 1 : 0]),
+    r:robots.map(r => [r2(r.x), r2(r.y), r2(r.face || 0)]),
+    pd:puddles.map(pd => [r2(pd.x), r2(pd.y), r2(pd.t)]),
+    ch:chests.map(c => [r2(c.x), r2(c.y), c.open ? 1 : 0]),
+    got:list.map(l => l.got ? 1 : 0),
+    pl:allPlayers().map(q => [q.id, q.name, r2(q.x), r2(q.y), q.level || 0, r2(q === p ? yaw : q.yaw), q.lives, q.hasGun ? 1 : 0, q.sleeping ? 1 : 0, q.out ? 1 : 0, q.color]) };
+}
+function applySnapshot(s) {
+  const arr = (a, n) => Array.isArray(a) ? a.slice(0, n) : [];
+  time = num(s.time, 0, 9999, time);
+  const bl = !!s.bl; if (bl && !netBlackout) sfx.creak(); netBlackout = bl;
+  anomaliesStopped = num(s.st, 0, 999) | 0;
+  // Vakter
+  const G = arr(s.g, 12);
+  G.forEach((a, i) => {
+    const k = num(a[5], -1, ANOMALIES.length - 1, -1) | 0, anomaly = k >= 0 ? ANOMALIES[k] : null;
+    let g = guards[i];
+    if (!g || g.anomaly !== anomaly) { if (g) dyn.remove(g.mesh); g = guards[i] = { anomaly, mesh:makeGuard(anomaly) }; dyn.add(g.mesh); }
+    g.x = num(a[0], 0, MW); g.y = num(a[1], 0, MH); g.level = a[2] ? 1 : 0; g.face = num(a[3], -1e4, 1e4); g.dead = !!a[4]; g.climb = num(a[6], 0, 1);
+    g.mesh.visible = !g.dead;
+  });
+  guards.splice(G.length).forEach(g => dyn.remove(g.mesh));
+  // Kundvagnar och robotar
+  const C = arr(s.c, 8);
+  C.forEach((a, i) => {
+    let c = carts[i]; if (!c) { c = carts[i] = { mesh:makeCart() }; dyn.add(c.mesh); }
+    c.x = num(a[0], 0, MW); c.y = num(a[1], 0, MH); c.ghost = !!a[2]; c.mesh.userData.ghost.visible = c.ghost;
+  });
+  carts.splice(C.length).forEach(c => dyn.remove(c.mesh));
+  const R = arr(s.r, 5);
+  R.forEach((a, i) => {
+    let r = robots[i]; if (!r) { r = robots[i] = { mesh:makeRobot() }; dyn.add(r.mesh); }
+    r.x = num(a[0], 0, MW); r.y = num(a[1], 0, MH); r.face = num(a[2], -1e4, 1e4);
+  });
+  robots.splice(R.length).forEach(r => dyn.remove(r.mesh));
+  // Pölar
+  const P = arr(s.pd, 20);
+  while (puddles.length > P.length) dyn.remove(puddles.pop().mesh);
+  P.forEach((a, i) => {
+    const x = num(a[0], 0, MW), y = num(a[1], 0, MH);
+    const pd = puddles[i] || addPuddle(x, y, 14);
+    pd.x = x; pd.y = y; pd.t = num(a[2], 0, 20); pd.mesh.position.set(x * T, .02, y * T); pd.mesh.material.opacity = Math.min(.6, pd.t / 4);
+  });
+  // Kistor
+  arr(s.ch, 30).forEach((a, i) => {
+    if (!chests[i]) addChest(num(a[0], 0, MW), num(a[1], 0, MH));
+    if (a[2] && !chests[i].open) openChestMesh(chests[i]);
+  });
+  // Inköpslistan
+  let changed = false;
+  arr(s.got, 20).forEach((v, i) => { const l = list[i]; if (l && v && !l.got) { l.got = true; l.slot.taken = true; dyn.remove(l.slot.sprite); changed = true; } });
+  if (changed) renderList();
+  // Spelare
+  const seen = new Set();
+  arr(s.pl, 4).forEach(a => {
+    const id = String(a[0]).slice(0, 64);
+    if (id === p.id) {
+      p.lives = num(a[6], 0, 3) | 0; p.hasGun = !!a[7]; p.out = !!a[9]; p.color = num(a[10], 0, 3) | 0;
+      return;
+    }
+    seen.add(id);
+    let q = others.find(o => o.id === id);
+    if (!q) { q = newPlayer(id, String(a[1]).slice(0, 12), num(a[10], 0, 3) | 0); q.x = q.rx = num(a[2], 0, MW); q.y = q.ry = num(a[3], 0, MH); others.push(q); }
+    q.x = num(a[2], 0, MW); q.y = num(a[3], 0, MH); q.level = a[4] ? 1 : 0; q.yaw = num(a[5], -1e4, 1e4);
+    q.lives = num(a[6], 0, 3) | 0; q.hasGun = !!a[7]; q.sleeping = !!a[8]; q.out = !!a[9];
+  });
+  others = others.filter(q => { if (seen.has(q.id)) return true; if (q.mesh) avatarGroup.remove(q.mesh); return false; });
 }
 
 // ===== Skärmar =====
 function show(html) { $('screen').innerHTML = `<div class="box">${html}</div>`; $('screen').classList.remove('hidden'); if (document.pointerLockElement) document.exitPointerLock(); }
 function hide() { $('screen').classList.add('hidden'); }
 function notes() {
-  const n = who => list.filter(l => l.who === who).map(l => `${l.slot.e} ${l.slot.name}`).join('<br>');
+  const n = who => list.filter(l => l.who === who).map(l => `${esc(l.slot.e)} ${esc(l.slot.name)}`).join('<br>');
   return `<div class="notes"><div class="note"><b>👩 Mammas lista</b>${n('mamma')}</div><div class="note"><b>👨 Pappas lista</b>${n('pappa')}</div></div>`;
 }
 function menu() {
-  state = 'menu'; setupNight(); updateHud();
+  state = 'menu';
+  if (mode !== 'guest') setupNight();
+  renderMenu(); updateHud(); sendLobby();
+}
+function renderMenu() {
+  if (state !== 'menu') return;
   const best = save0.best ? `<p>🏆 Ditt rekord: natt ${save0.best}</p>` : '';
   const ctrl = isTouch
     ? '🎮 Dra med vänster tumme för att gå, dra med höger tumme för att titta. Skjut med 💥-knappen.'
     : '🎮 Gå med WASD, titta med musen (klicka först). Skjut med vänster musknapp eller mellanslag. Esc släpper musen.';
+  const chip = (name, color) => `<span style="color:${COLORS[color] || '#fff'}">${esc(name)}</span>`;
+  let online;
+  if (mode === 'solo') {
+    online = `<div class="online"><h3>👫 Spela med kompisar online</h3>
+      <p>Ditt namn: <input id="nameIn" maxlength="12" value="${esc(myName)}"></p>
+      <button class="btn alt small" id="hostBtn">Skapa rum</button>
+      <span style="margin:0 6px">eller skriv kompisens kod:</span>
+      <input id="codeIn" maxlength="4" placeholder="KOD" style="width:100px;text-transform:uppercase">
+      <button class="btn alt small" id="joinBtn">Gå med</button>
+      <div id="netStatus">${esc(netMsg)}</div></div>`;
+  } else if (mode === 'host') {
+    online = `<div class="online"><h3>👫 Ditt rum</h3>
+      ${peer && peer.open ? `<div>Ge koden till dina kompisar:</div><div class="code">${roomCode}</div>` : ''}
+      <div class="players">${allPlayers().map(q => chip(q.name, q.color)).join('')}</div>
+      <button class="btn red small" id="leaveBtn">Lämna rummet</button>
+      <div id="netStatus">${esc(netMsg)}</div></div>`;
+  } else {
+    online = `<div class="online"><h3>👫 Rum ${esc(roomCode)}</h3>
+      <div class="players">${lobbyNames.map(([n, c]) => chip(n, c)).join('')}</div>
+      <p>⏳ Väntar på att värden startar natten...</p>
+      <button class="btn red small" id="leaveBtn">Lämna rummet</button>
+      <div id="netStatus">${esc(netMsg)}</div></div>`;
+  }
+  const startBtn = mode === 'guest' ? '' : `<button class="btn" id="goBtn">${others.length ? 'Starta natten för alla 🔦' : 'Starta natten 🔦'}</button>`;
   show(`<h1>🌙 Natt ${night}</h1>
     <p>Oj nej! Du blev inlåst i köpcentret! Mamma och pappa kan hämta dig först klockan <b>06:00</b>. Överlev natten! Hinner du handla allt på listan får du en extra stjärna.</p>
-    ${notes()}${best}
-    <button class="btn" id="goBtn">Starta natten 🔦</button>
+    ${mode === 'guest' ? '' : notes()}${best}${startBtn}${online}
     <div class="tips">
       ${ctrl}<br>
       🧰 Leta efter kistor i affärerna! Där finns pistolen (den tar aldrig slut) och extra hjärtan.<br>
@@ -1023,35 +1457,26 @@ function menu() {
       🔥 <b>Lägereld</b>: anomalierna vågar inte gå nära elden.
       ⛺ <b>Tält</b>: gå in och tryck E för att sova. Då går natten fortare och du får tillbaka hjärtan. Bygg ett camp med eld och tält!<br>
       💡 Ibland slocknar lampan... då springer anomalierna fortare. Hör du steg? Vänd dig om!<br>
-      👮 De riktiga säkerhetsvakterna är snälla och kan ge dig ett plåster. Men vissa vakter är <b>ANOMALIER</b>! Titta noga: röda ögon, huvudet bak och fram, för lång, inget ansikte, jättelånga armar, svävar i luften eller röd ficklampa. Skjut anomalierna, men skjut INTE de riktiga vakterna!
+      👮 De riktiga säkerhetsvakterna är snälla och kan ge dig ett plåster. Men vissa vakter är <b>ANOMALIER</b>! Titta noga: röda ögon, huvudet bak och fram, för lång, inget ansikte, jättelånga armar, svävar i luften eller röd ficklampa. Skjut anomalierna, men skjut INTE de riktiga vakterna!<br>
+      👫 Spelar ni flera? Blir man tagen blir man ett spöke 👻. Ni vinner om minst en av er överlever till 06:00!
     </div>`);
-  $('goBtn').onclick = start;
+  $('goBtn') && ($('goBtn').onclick = start);
+  $('leaveBtn') && ($('leaveBtn').onclick = () => { leaveNet(); netMsg = ''; menu(); });
+  if ($('nameIn')) $('nameIn').oninput = e => {
+    myName = e.target.value.replace(/[<>]/g, '').trim().slice(0, 12) || 'Spelare';
+    p.name = myName; save0.name = myName; storeSave(save0);
+  };
+  if ($('hostBtn')) $('hostBtn').onclick = hostRoom;
+  if ($('joinBtn')) $('joinBtn').onclick = () => joinRoom(($('codeIn').value || '').trim().toUpperCase());
 }
 function start() {
+  if (mode === 'guest') return;
   hide(); state = 'play'; beep(440, .05);
   if (!isTouch) lockMouse();
-}
-function lose() {
-  state = 'over'; sfx.lose();
-  show(`<h1>👾 Du klarade inte natten!</h1><p>Klockan var ${clockText()} när anomalierna tog dig. Nu måste du jobba som nattvakt för alltid... Försök igen!</p>
-    <p>Du stoppade ${anomaliesStopped} anomali${anomaliesStopped === 1 ? '' : 'er'} och hittade ${list.filter(l => l.got).length} av ${list.length} saker.</p>
-    <button class="btn" id="goBtn">Försök igen 🔁</button>`);
-  $('goBtn').onclick = menu;
-}
-function dawn() {
-  state = 'over'; sfx.win();
-  const listDone = list.every(l => l.got);
-  const stars = 1 + (listDone ? 1 : 0) + (lives === 3 ? 1 : 0);
-  save0.best = Math.max(save0.best || 0, night + 1); storeSave(save0);
-  show(`<h1>☀️ Klockan är 06:00!</h1><h2 style="margin:0;color:#45ff8a">Du överlevde natt ${night}!</h2>
-    <div class="stars">${'⭐'.repeat(stars)}${'☆'.repeat(3 - stars)}</div>
-    <p>Lamporna tänds och mamma och pappa låser upp dörren. Puh! ${listDone ? 'Och du handlade ALLT på listan! 🛒' : ''}</p>
-    <p>🎯 Anomalier stoppade: ${anomaliesStopped}</p>
-    <p>Nästa natt blir längre och läskigare...</p>
-    <button class="btn" id="goBtn">Nästa natt 🌙</button>
-    <button class="btn alt" id="againBtn">Samma natt igen</button>`);
-  $('goBtn').onclick = () => { night++; menu(); };
-  $('againBtn').onclick = menu;
+  if (mode === 'host') {
+    others.forEach(q => sendTo(q.id, worldFor(q)));
+    sendAll(buildsMsg()); sendAll({ t:'start' }); sendAll(snapshot());
+  }
 }
 
 // ===== Spel-loop =====
@@ -1066,12 +1491,11 @@ function loop(now) {
 menu();
 requestAnimationFrame(loop);
 // För testning
-window.__game = { get state() { return state; }, get p() { return p; }, get list() { return list; },
-  get guards() { return guards; }, get chests() { return chests; }, set yaw(v) { yaw = v; }, get yaw() { return yaw; },
-  keys, grid, update, render, menu, start, shoot, set night(v) { night = v; }, get lives() { return lives; }, get time() { return time; },
-  get hasGun() { return hasGun; }, get anomaliesStopped() { return anomaliesStopped; }, get nightLen() { return nightLen; },
-  build, interact, get sleeping() { return sleeping; }, get fires() { return fires; },
-  get barricades() { return barricades; }, get ladders() { return ladders; }, get tents() { return tents; }, computeFlow };
+window.__game = { get state() { return state; }, get p() { return p; }, get list() { return list; }, get guards() { return guards; },
+  get chests() { return chests; }, set yaw(v) { yaw = v; }, get yaw() { return yaw; }, keys, grid, update, render, menu, start, shoot,
+  set night(v) { night = v; }, get time() { return time; }, get anomaliesStopped() { return anomaliesStopped; }, get nightLen() { return nightLen; },
+  build, interact, get fires() { return fires; }, get barricades() { return barricades; }, get ladders() { return ladders; }, get tents() { return tents; },
+  get mode() { return mode; }, get others() { return others; }, get roomCode() { return roomCode; }, hostRoom, joinRoom, leaveNet, hurt };
 </script>
 </body>
 </html>
