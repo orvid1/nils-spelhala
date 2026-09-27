@@ -2,15 +2,20 @@
 <html lang="sv">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <title>Mörka köpcentret</title>
 <style>
   :root { --bg:#0b0820; --neon:#00e5ff; --pink:#ff3df0; --gold:#ffd23f; --green:#45ff8a; --red:#ff4d6d; }
   * { box-sizing: border-box; }
   html, body { margin:0; height:100%; background:#000; color:#fff; overflow:hidden;
-    font-family:'Trebuchet MS', system-ui, sans-serif; touch-action:none; user-select:none; -webkit-user-select:none; }
-  canvas#c { display:block; width:100vw; height:100vh; }
-  #hud { position:fixed; top:0; left:0; right:0; display:flex; gap:16px; align-items:center; flex-wrap:wrap;
+    font-family:'Trebuchet MS', system-ui, sans-serif; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; overscroll-behavior:none; }
+  canvas#c { display:block; position:fixed; inset:0; width:100%; height:100%; touch-action:none; }
+  button { touch-action:manipulation; }
+  #screen { touch-action:pan-y; -webkit-overflow-scrolling:touch; }
+  #screen input { user-select:text; -webkit-user-select:text; }
+  #hud { position:fixed; top:0; left:0; right:0; padding-top:max(8px, env(safe-area-inset-top)) !important; padding-left:max(12px, env(safe-area-inset-left)) !important; display:flex; gap:16px; align-items:center; flex-wrap:wrap;
     padding:8px 12px; background:rgba(11,8,32,.75); font-weight:bold; font-size:16px; pointer-events:none;
     border-bottom:2px solid rgba(255,77,109,.35); }
   #hud a { pointer-events:auto; color:var(--neon); text-decoration:none; }
@@ -31,7 +36,7 @@
   #cross { position:fixed; left:50%; top:50%; width:8px; height:8px; margin:-4px 0 0 -4px; border-radius:50%; border:2px solid rgba(255,255,255,.6); pointer-events:none; }
   #gun { position:fixed; right:4vw; bottom:-3vmin; font-size:26vmin; pointer-events:none; display:none;
     font-family:"Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif; filter:drop-shadow(0 0 8px #000); }
-  #shootBtn { position:fixed; right:18px; bottom:30vmin; width:84px; height:84px; border-radius:50%; border:3px solid #fff;
+  #shootBtn { position:fixed; right:max(18px, env(safe-area-inset-right)); bottom:32vmin; width:92px; height:92px; touch-action:none; -webkit-tap-highlight-color:transparent; border-radius:50%; border:3px solid #fff;
     background:rgba(255,77,109,.55); font-size:36px; display:none; align-items:center; justify-content:center; }
   #scare { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(90,0,0,.6); pointer-events:none; }
   #scare svg { width:80vmin; height:80vmin; animation:zoom .35s ease-out; }
@@ -62,10 +67,31 @@
   .players { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin:8px 0; }
   .players span { padding:4px 10px; border-radius:10px; background:#2b2650; font-weight:bold; }
   #netStatus { min-height:1.2em; color:#ffb3c0; margin-top:6px; }
-  #buildbar { position:fixed; left:50%; bottom:8px; transform:translateX(-50%); display:none; gap:6px; flex-wrap:wrap; justify-content:center; width:max-content; max-width:96vw; }
+  #buildbar { position:fixed; left:50%; bottom:max(8px, env(safe-area-inset-bottom)); transform:translateX(-50%); display:none; gap:6px; flex-wrap:wrap; justify-content:center; width:max-content; max-width:96vw; }
   #buildbar button { font:inherit; font-size:14px; font-weight:bold; color:#fff; background:rgba(11,8,32,.85); border:2px solid #9c6b3c;
     border-radius:10px; padding:6px 10px; cursor:pointer; }
   #buildbar button b { color:var(--gold); margin-right:4px; }
+  #joy { position:fixed; width:110px; height:110px; margin:-55px 0 0 -55px; border-radius:50%; border:3px solid rgba(255,255,255,.45);
+    background:rgba(255,255,255,.08); pointer-events:none; display:none; }
+  #joy i { position:absolute; left:50%; top:50%; width:48px; height:48px; margin:-24px 0 0 -24px; border-radius:50%; background:rgba(0,229,255,.6); }
+  #joyHint { position:fixed; left:12px; bottom:70px; font-size:13px; color:rgba(255,255,255,.55); pointer-events:none; display:none; max-width:40vw; }
+  #fsBtn { pointer-events:auto; background:none; border:none; color:#fff; font-size:18px; cursor:pointer; padding:0 4px; display:none; }
+  #rotate { display:none; }
+  body.touch #buildbar button { font-size:15px; padding:10px 12px; }
+  body.touch #list { font-size:13px; min-width:0; }
+  body.touch #shootBtn { font-size:40px; bottom:max(64px, calc(env(safe-area-inset-bottom) + 64px)); right:max(24px, env(safe-area-inset-right)); }
+  body.touch #buildbar button b { display:none; }
+  body.touch #gun { right:130px; bottom:56px; font-size:17vmin; }
+  @media (max-height:500px), (max-width:600px) {
+    #hud { font-size:13px; gap:10px; padding:4px 8px; }
+    #mini, #list { top:40px; }
+    #toast { font-size:17px; bottom:22%; }
+    .box { padding:14px; } .box h1 { font-size:24px; } .box p { font-size:15px; }
+    .btn { font-size:17px; padding:10px 18px; }
+    #buildbar button { font-size:13px !important; padding:8px 9px !important; }
+    #gun { font-size:20vmin; }
+  }
+  @media (orientation:portrait) { body.touch #rotate { display:block; background:#2b2650; border-radius:12px; padding:8px; margin-bottom:10px; font-size:15px; } }
   #sleep { position:fixed; inset:0; display:none; align-items:center; justify-content:center; flex-direction:column;
     background:rgba(5,10,40,.78); font-size:40px; font-weight:bold; pointer-events:none; text-shadow:0 0 12px #000; }
   #sleep small { font-size:18px; color:#9fd0ff; margin-top:8px; max-width:90vw; text-align:center; }
@@ -80,6 +106,7 @@
   <span id="lives">❤️❤️❤️</span>
   <span id="ammo"></span>
   <span id="team"></span>
+  <button id="fsBtn" title="Helskärm">⛶</button>
 </div>
 <canvas id="mini"></canvas>
 <div id="list" title="Tryck för att visa/dölja"></div>
@@ -94,7 +121,9 @@
   <button data-b="3"><b>4</b>⛺ Tält</button>
   <button id="useBtn"><b>E</b>✋ Använd</button>
 </div>
-<div id="sleep">💤 Zzz...<small>Tryck E för att vakna.</small></div>
+<div id="joy"><i></i></div>
+<div id="joyHint">👈 Dra här för att gå · dra till höger för att titta 👉</div>
+<div id="sleep">💤 Zzz...<small>Tryck E eller ✋ Använd för att vakna.</small></div>
 <div id="outOverlay">👻 Du blev tagen!<br><small>Titta på medan kompisarna försöker överleva till 06:00.</small></div>
 <div id="hint">🖱️ Klicka för att styra med musen</div>
 <div id="scare">
@@ -237,6 +266,14 @@ function beep(f, dur = .12, type = 'square', vol = .08, slide = 0) {
     o.connect(g); g.connect(AC.destination); o.start(); o.stop(AC.currentTime + dur);
   } catch (e) {}
 }
+// iPhone/iPad: ljudet måste låsas upp av en tryckning
+function unlockAudio() {
+  try {
+    AC = AC || new (window.AudioContext || window.webkitAudioContext)();
+    if (AC.state === 'suspended') AC.resume();
+  } catch (e) {}
+}
+['touchstart', 'pointerdown', 'keydown'].forEach(ev => addEventListener(ev, unlockAudio, { passive:true }));
 const sfx = {
   pick() { beep(660, .08); setTimeout(() => beep(990, .12), 70); },
   chest() { [392, 523, 659, 784].forEach((f, i) => setTimeout(() => beep(f, .12, 'triangle', .1), i * 70)); },
@@ -259,8 +296,9 @@ const sfx = {
 // ===== 3D-värld =====
 const T = 2, WALL_H = 4, EYE = 1.55;
 const cv = $('c');
-const renderer = new THREE.WebGLRenderer({ canvas:cv, antialias:true });
-renderer.setPixelRatio(Math.min(2, devicePixelRatio));
+const TOUCH = matchMedia('(pointer:coarse)').matches || /[?&]touch=1/.test(location.search);
+const renderer = new THREE.WebGLRenderer({ canvas:cv, antialias:!TOUCH, powerPreference:'high-performance' });
+renderer.setPixelRatio(Math.min(TOUCH ? 1.5 : 2, devicePixelRatio));
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000000);
 scene.fog = new THREE.Fog(0x000000, 3, 24);
@@ -484,7 +522,7 @@ const BUILDS = [
   { name:'Stege', e:'🪜', msg:'Du byggde en stege! Gå mot hyllan för att klättra upp.' },
   { name:'Barrikad', e:'🧱', msg:'Du byggde en barrikad! Den stoppar anomalierna en stund.' },
   { name:'Lägereld', e:'🔥', msg:'Du byggde en lägereld! Anomalierna vågar inte gå nära elden.' },
-  { name:'Tält', e:'⛺', msg:'Du byggde ett tält! Gå in och tryck E för att sova.' },
+  { name:'Tält', e:'⛺', msg:'Du byggde ett tält! Gå in och tryck E eller ✋ Använd för att sova.' },
 ];
 const FIRE_R = 2.6;
 
@@ -714,7 +752,8 @@ function nearestPlayer(o) {
 
 // ===== Styrning =====
 const keys = {};
-const isTouch = matchMedia('(pointer:coarse)').matches;
+const isTouch = TOUCH;
+if (isTouch) document.body.classList.add('touch');
 addEventListener('keydown', e => {
   if (e.target && e.target.tagName === 'INPUT') {
     if (e.key === 'Enter' && e.target.id === 'codeIn') $('joinBtn')?.click();
@@ -741,14 +780,14 @@ cv.addEventListener('mousedown', () => {
 const joy = { on:false, id:null, ox:0, oy:0, x:0, y:0 }, look = { id:null, x:0, y:0 };
 cv.addEventListener('touchstart', e => {
   for (const t of e.changedTouches) {
-    if (t.clientX < innerWidth / 2 && !joy.on) { joy.on = true; joy.id = t.identifier; joy.ox = joy.x = t.clientX; joy.oy = joy.y = t.clientY; }
+    if (t.clientX < innerWidth / 2 && !joy.on) { joy.on = true; joy.id = t.identifier; joy.ox = joy.x = t.clientX; joy.oy = joy.y = t.clientY; drawJoy(); }
     else if (look.id === null) { look.id = t.identifier; look.x = t.clientX; look.y = t.clientY; }
   }
   e.preventDefault();
 }, { passive:false });
 cv.addEventListener('touchmove', e => {
   for (const t of e.changedTouches) {
-    if (t.identifier === joy.id) { joy.x = t.clientX; joy.y = t.clientY; }
+    if (t.identifier === joy.id) { joy.x = t.clientX; joy.y = t.clientY; drawJoy(); }
     if (t.identifier === look.id) {
       yaw -= (t.clientX - look.x) * .006; pitch = clamp(pitch - (t.clientY - look.y) * .006, -1.1, 1.1);
       look.x = t.clientX; look.y = t.clientY;
@@ -757,8 +796,29 @@ cv.addEventListener('touchmove', e => {
   e.preventDefault();
 }, { passive:false });
 cv.addEventListener('touchend', e => {
-  for (const t of e.changedTouches) { if (t.identifier === joy.id) { joy.on = false; joy.id = null; } if (t.identifier === look.id) look.id = null; }
+  for (const t of e.changedTouches) { if (t.identifier === joy.id) { joy.on = false; joy.id = null; drawJoy(); } if (t.identifier === look.id) look.id = null; }
 });
+cv.addEventListener('touchcancel', () => { joy.on = false; joy.id = null; look.id = null; drawJoy(); });
+// Styrspaken syns där tummen är
+function drawJoy() {
+  const el = $('joy');
+  el.style.display = joy.on ? 'block' : 'none';
+  if (!joy.on) return;
+  el.style.left = joy.ox + 'px'; el.style.top = joy.oy + 'px';
+  const dx = joy.x - joy.ox, dy = joy.y - joy.oy, l = Math.hypot(dx, dy), m = Math.min(l, 50) / (l || 1);
+  el.firstElementChild.style.transform = `translate(${dx * m}px, ${dy * m}px)`;
+}
+// Helskärm (fungerar på iPad och Android, inte på iPhone)
+const fsEl = document.documentElement;
+if (isTouch && (fsEl.requestFullscreen || fsEl.webkitRequestFullscreen)) {
+  $('fsBtn').style.display = 'inline';
+  $('fsBtn').onclick = () => {
+    const doc = document;
+    if (doc.fullscreenElement || doc.webkitFullscreenElement) (doc.exitFullscreen || doc.webkitExitFullscreen).call(doc);
+    else { const r = (fsEl.requestFullscreen || fsEl.webkitRequestFullscreen).call(fsEl); if (r && r.catch) r.catch(() => {}); }
+  };
+}
+if (isTouch && (innerWidth < 700 || innerHeight < 560)) $('list').classList.add('small');
 $('shootBtn').addEventListener('touchstart', e => { shoot(); e.preventDefault(); }, { passive:false });
 $('list').addEventListener('click', e => e.currentTarget.classList.toggle('small'));
 document.querySelectorAll('#buildbar [data-b]').forEach(b => b.addEventListener('click', () => build(+b.dataset.b)));
@@ -787,7 +847,7 @@ function interact() {
     toast((safe ? '💤 Du somnar tryggt vid elden...' : '💤 Du somnar... men det finns ingen eld i närheten!') + team, safe ? '#9fd0ff' : '#ffd23f', 3);
     return;
   }
-  toast('Här finns inget att använda. Gå in i ett ⛺ tält och tryck E för att sova.', '#ccc');
+  toast('Här finns inget att använda. Gå in i ett ⛺ tält och tryck E eller ✋ Använd för att sova.', '#ccc');
 }
 function shoot() {
   if (state !== 'play' || p.sleeping || p.out) return;
@@ -945,7 +1005,7 @@ function simulate(dt) {
     for (const c of chests) {
       if (c.open || dist(c.x, c.y, q.x, q.y) > .95) continue;
       openChestMesh(c); sfx.chest();
-      if (!q.hasGun) { q.hasGun = true; tell(q, '🧰 En PISTOL! 🔫 Den tar aldrig slut. Skjut med musklick eller mellanslag', '#ffd23f', 3.5); }
+      if (!q.hasGun) { q.hasGun = true; tell(q, '🧰 En PISTOL! 🔫 Den tar aldrig slut. Skjut med 💥-knappen, musklick eller mellanslag', '#ffd23f', 3.5); }
       else if (q.lives < 3) { q.lives++; tell(q, '🧰 Ett extra hjärta! ❤️', '#ff6b8a'); }
       else tell(q, '🧰 Kistan var tom... du har redan allt!', '#ccc');
     }
@@ -1141,6 +1201,8 @@ function render(now, dt) {
   if (toastT > 0) { toastT -= dt; if (toastT <= 0) $('toast').style.opacity = 0; }
   const playing = state === 'play';
   $('hint').style.display = playing && !isTouch && document.pointerLockElement !== cv ? 'block' : 'none';
+  $('joyHint').style.display = playing && isTouch && time < 15 && !joy.on ? 'block' : 'none';
+  if (!playing && joy.on) { joy.on = false; joy.id = null; drawJoy(); }
   kick = Math.max(0, kick - dt * 6);
   const gun = $('gun');
   gun.style.display = playing && p.hasGun && !p.sleeping && !p.out ? 'block' : 'none';
@@ -1419,7 +1481,7 @@ function renderMenu() {
   if (state !== 'menu') return;
   const best = save0.best ? `<p>🏆 Ditt rekord: natt ${save0.best}</p>` : '';
   const ctrl = isTouch
-    ? '🎮 Dra med vänster tumme för att gå, dra med höger tumme för att titta. Skjut med 💥-knappen.'
+    ? '🎮 Dra med vänster tumme för att gå, dra med höger tumme för att titta. Skjut med 💥-knappen. Bygg med knapparna längst ner.'
     : '🎮 Gå med WASD, titta med musen (klicka först). Skjut med vänster musknapp eller mellanslag. Esc släpper musen.';
   const chip = (name, color) => `<span style="color:${COLORS[color] || '#fff'}">${esc(name)}</span>`;
   let online;
@@ -1445,17 +1507,17 @@ function renderMenu() {
       <div id="netStatus">${esc(netMsg)}</div></div>`;
   }
   const startBtn = mode === 'guest' ? '' : `<button class="btn" id="goBtn">${others.length ? 'Starta natten för alla 🔦' : 'Starta natten 🔦'}</button>`;
-  show(`<h1>🌙 Natt ${night}</h1>
+  show(`<div id="rotate">📱 Vänd skärmen på längden, då ser du mer!</div><h1>🌙 Natt ${night}</h1>
     <p>Oj nej! Du blev inlåst i köpcentret! Mamma och pappa kan hämta dig först klockan <b>06:00</b>. Överlev natten! Hinner du handla allt på listan får du en extra stjärna.</p>
     ${mode === 'guest' ? '' : notes()}${best}${startBtn}${online}
     <div class="tips">
       ${ctrl}<br>
       🧰 Leta efter kistor i affärerna! Där finns pistolen (den tar aldrig slut) och extra hjärtan.<br>
-      🔨 <b>Bygg</b> gratis med tangenterna 1 till 4:
+      🔨 <b>Bygg</b> gratis med ${isTouch ? 'knapparna längst ner' : 'tangenterna 1 till 4'}:
       🪜 <b>Stege</b> (titta på en hylla) så kan du klättra upp. Anomalierna kan också klättra, men långsamt!
       🧱 <b>Barrikad</b> stoppar anomalierna en stund.
       🔥 <b>Lägereld</b>: anomalierna vågar inte gå nära elden.
-      ⛺ <b>Tält</b>: gå in och tryck E för att sova. Då går natten fortare och du får tillbaka hjärtan. Bygg ett camp med eld och tält!<br>
+      ⛺ <b>Tält</b>: gå in och tryck ${isTouch ? '✋ Använd' : 'E'} för att sova. Då går natten fortare och du får tillbaka hjärtan. Bygg ett camp med eld och tält!<br>
       💡 Ibland slocknar lampan... då springer anomalierna fortare. Hör du steg? Vänd dig om!<br>
       👮 De riktiga säkerhetsvakterna är snälla och kan ge dig ett plåster. Men vissa vakter är <b>ANOMALIER</b>! Titta noga: röda ögon, huvudet bak och fram, för lång, inget ansikte, jättelånga armar, svävar i luften eller röd ficklampa. Skjut anomalierna, men skjut INTE de riktiga vakterna!<br>
       👫 Spelar ni flera? Blir man tagen blir man ett spöke 👻. Ni vinner om minst en av er överlever till 06:00!
