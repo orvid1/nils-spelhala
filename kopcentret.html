@@ -80,6 +80,9 @@
     <circle cx="68" cy="108" r="6" fill="#ff1a3a"/>
     <circle cx="132" cy="108" r="6" fill="#ff1a3a"/>
     <path d="M70 180 Q100 165 130 180" stroke="#8a7a66" stroke-width="5" fill="none"/>
+    <path d="M22 62 Q100 -10 178 62 L178 72 L22 72 Z" fill="#1f2e5c"/>
+    <rect x="10" y="66" width="180" height="14" rx="6" fill="#111"/>
+    <rect x="88" y="34" width="24" height="18" rx="3" fill="#ffd23f"/>
   </svg>
 </div>
 <div id="screen"></div>
@@ -106,8 +109,8 @@ const SHOPS = [
   { name:'Sport', sign:'⚽', x0:25, y0:16, x1:35, y1:25, door:[30,16], floor:'#e1f5d0', shelves:true,
     items:[['⚽','Fotboll'],['🎾','Tennisbollar'],['🏓','Pingisbollar'],['🪁','Drake'],['🕶️','Solglasögon']] },
 ];
-const BOO_LINES = ['BÖÖ!', 'Stanna och lek...', 'Du får aldrig gå hem!', 'Jag ser dig...', 'Vill du prova kläder?!'];
-const GUARD_HELLO = ['Hej! Allt lugnt?', 'Akta dig för skyltdockorna!', 'Konstigt ställe på natten, va?', 'Jag håller utkik!'];
+const BOO_LINES = ['Hehehe... jag är ingen riktig vakt!', 'BÖÖ! Lurade dig!', 'Du får aldrig gå hem!', 'Jag ser dig...'];
+const GUARD_HELLO = ['Hej! Allt lugnt?', 'Akta dig för de konstiga vakterna!', 'Konstigt ställe på natten, va?', 'Jag håller utkik!'];
 const ANOMALIES = ['ögon', 'baklänges', 'lång', 'ansikte', 'armar', 'svävar', 'lampa'];
 const CHARGER = { x:34, y:8 };
 const TOILETS = [[21, 21], [24, 21], [21, 24], [24, 24]];
@@ -303,21 +306,7 @@ function signMesh(text) {
 })();
 
 // ===== Modeller =====
-const mannequinMat = new THREE.MeshStandardMaterial({ color:0xeadfcd, roughness:.5 });
 const eyeMat = new THREE.MeshBasicMaterial({ color:0xff1a3a, fog:false });
-function makeMannequin() {
-  const g = new THREE.Group();
-  const add = (geo, x, y, z, rz = 0) => { const m = new THREE.Mesh(geo, mannequinMat); m.position.set(x, y, z); m.rotation.z = rz; g.add(m); return m; };
-  add(new THREE.CylinderGeometry(.2, .27, .95, 10), 0, 1.2, 0);
-  add(new THREE.CylinderGeometry(.08, .06, .8, 8), -.11, .4, 0);
-  add(new THREE.CylinderGeometry(.08, .06, .8, 8), .11, .4, 0);
-  add(new THREE.CylinderGeometry(.06, .045, .8, 8), -.34, 1.2, 0, -.18);
-  add(new THREE.CylinderGeometry(.06, .045, .8, 8), .34, 1.2, 0, .18);
-  add(new THREE.CylinderGeometry(.06, .07, .15, 8), 0, 1.72, 0);
-  const head = add(new THREE.SphereGeometry(.17, 14, 12), 0, 1.9, 0); head.scale.y = 1.25;
-  [-.06, .06].forEach(x => { const e = new THREE.Mesh(new THREE.SphereGeometry(.028, 8, 6), eyeMat); e.position.set(x, 1.93, .15); g.add(e); });
-  return g;
-}
 const uniformMat = new THREE.MeshStandardMaterial({ color:0x1f2e5c, roughness:.7 });
 const skinMat = new THREE.MeshStandardMaterial({ color:0xe0b48f, roughness:.6 });
 const blackMat = new THREE.MeshBasicMaterial({ color:0x111111 });
@@ -384,7 +373,7 @@ function makeChest() {
 // ===== Spelets tillstånd =====
 let save0 = loadSave();
 let night = 1, state = 'menu';
-let p, yaw, pitch, bob, time, nightLen, battery, lives, list, slots, carts, robots, mannequins, guards, chests, poofs, puddles, shake, stun;
+let p, yaw, pitch, bob, time, nightLen, battery, lives, list, slots, carts, robots, guards, chests, poofs, puddles, shake, stun;
 let blackout, nextBlackout, heartT, flow, flowT, hintT, chestT, chestSpots, hasGun, ammo, shootCd, kick, anomaliesStopped, listDoneShown;
 const dyn = new THREE.Group(); scene.add(dyn);
 
@@ -419,22 +408,16 @@ function setupNight() {
     const r = { x:rand(10, 30), y:12.5, tx:0, ty:0, drop:3, cd:0, mesh:makeRobot() };
     newWanderTarget(r); dyn.add(r.mesh); robots.push(r);
   }
-  mannequins = [];
-  for (let i = 0; i < Math.min(2 + Math.floor((night - 1) / 2), 6); i++) {
-    const [x, y] = farTile(12);
-    const m = { x, y, face:rand(0, 6), cd:2, stepT:0, seen:false, dead:0, mesh:makeMannequin() };
-    dyn.add(m.mesh); mannequins.push(m);
-  }
   // Vakter: minst en riktig och minst en anomali varje natt
   guards = [];
-  const nG = Math.min(1 + night, 5), nA = Math.min(Math.ceil(night / 2) + (night > 2 ? 1 : 0), nG - 1);
+  const nG = Math.min(2 + night, 6), nA = Math.min(1 + Math.floor(night / 2), nG - 1);
   const kinds = shuffle(ANOMALIES.slice());
   for (let i = 0; i < nG; i++) {
     const anomaly = i < nA ? kinds[i % kinds.length] : null;
-    const g = { x:rand(6, 32), y:rand(10.6, 15.4), tx:0, ty:0, face:0, cd:3, gave:false, dead:false, anomaly, mesh:makeGuard(anomaly) };
+    const [x, y] = farTile(8);
+    const g = { x, y, tx:0, ty:0, face:0, cd:3, stepT:0, gave:false, dead:false, respawnT:0, anomaly, mesh:makeGuard(anomaly) };
     newWanderTarget(g); dyn.add(g.mesh); guards.push(g);
   }
-  shuffle(guards);
   // Kistor i affärerna
   chests = [];
   const spots = [];
@@ -552,7 +535,6 @@ function shoot() {
   }
   let best = null, bt = wall;
   const cands = [
-    ...mannequins.filter(m => m.dead <= 0).map(o => ({ o, kind:'docka', r:.4 })),
     ...guards.filter(g => !g.dead).map(o => ({ o, kind:'vakt', r:.4 })),
     ...carts.filter(c => c.ghost).map(o => ({ o, kind:'spöke', r:.55 })),
   ];
@@ -563,12 +545,10 @@ function shoot() {
   }
   if (!best) return;
   const o = best.o;
-  if (best.kind === 'docka') {
-    poof(o.x, o.y); o.dead = 25; o.mesh.visible = false; toast('Pang! Skyltdockan försvann! 💨', '#45ff8a');
-  } else if (best.kind === 'spöke') {
+  if (best.kind === 'spöke') {
     poof(o.x, o.y, 1.6); o.ghost = false; o.vx = 0; o.mesh.userData.ghost.visible = false; toast('Spöket är borta! 👻💨', '#45ff8a');
   } else if (o.anomaly) {
-    poof(o.x, o.y); o.dead = true; o.mesh.visible = false; anomaliesStopped++;
+    poof(o.x, o.y); o.dead = true; o.respawnT = 30; o.mesh.visible = false; anomaliesStopped++;
     toast('Rätt! Det var en ANOMALI! ✔', '#45ff8a', 2.5);
   } else {
     hasGun = false; ammo = 0; sfx.hit();
@@ -579,15 +559,6 @@ function shoot() {
 
 // ===== Ficklampan =====
 function lightRange() { return 3 + battery * .07; } // i rutor
-function canSee(m) {
-  if (blackout > 0) return false;
-  const dx = m.x - p.x, dy = m.y - p.y, d = Math.hypot(dx, dy);
-  if (d > lightRange()) return false;
-  if (d < .9) return true;
-  const fx = -Math.sin(yaw), fy = -Math.cos(yaw);
-  if ((dx * fx + dy * fy) / d < Math.cos(.58)) return false;
-  return lineOfSight(p.x, p.y, m.x, m.y);
-}
 
 // ===== Uppdatering =====
 const SPEED = 3.3;
@@ -691,13 +662,33 @@ function update(dt) {
   flowT -= dt; if (flowT <= 0) { flowT = .25; computeFlow(); }
 
   // Vakter: riktiga är snälla, anomalier anfaller
+  let nearest = 99;
   for (const g of guards) {
-    if (g.dead) continue;
+    if (g.dead) {
+      // En ny vakt kommer till jobbet... men är den riktig?
+      g.respawnT -= dt;
+      if (g.respawnT <= 0) {
+        dyn.remove(g.mesh);
+        g.anomaly = pick(ANOMALIES); g.mesh = makeGuard(g.anomaly); dyn.add(g.mesh);
+        [g.x, g.y] = farTile(12); g.dead = false; g.cd = 3; newWanderTarget(g);
+        toast('👮 En ny vakt har börjat jobba... är den riktig?', '#9fd0ff', 2.5);
+      }
+      continue;
+    }
     g.cd -= dt;
     const d = dist(g.x, g.y, p.x, p.y);
-    if (g.cd <= 0 && d < 5 && lineOfSight(g.x, g.y, p.x, p.y)) {
-      if (d > (g.anomaly ? .6 : 1.3)) g.face = chase(g, g.anomaly ? 1.9 : 1.5, dt, .3);
-      else if (g.anomaly) { attack(g, 'Hehehe... jag är ingen riktig vakt!'); g.cd = 12; [g.x, g.y] = farTile(10); }
+    // Anomalier ser längre och springer fortare när lampan slocknar
+    const range = g.anomaly ? (blackout > 0 ? 12 : 7) : 5;
+    if (g.cd <= 0 && d < range && (blackout > 0 && g.anomaly || lineOfSight(g.x, g.y, p.x, p.y))) {
+      if (g.anomaly) {
+        nearest = Math.min(nearest, d);
+        if (d < 8) { g.stepT -= dt; if (g.stepT <= 0) { g.stepT = blackout > 0 ? .2 : .45; sfx.step((8 - d) / 8 * .07); } }
+      }
+      if (d > (g.anomaly ? .6 : 1.3)) g.face = chase(g, g.anomaly ? (blackout > 0 ? 2.6 : 1.8 + night * .08) : 1.5, dt, .3);
+      else if (g.anomaly) {
+        attack(pick(BOO_LINES)); g.cd = 8; [g.x, g.y] = farTile(12);
+        if (state !== 'play') return;
+      }
       else {
         g.face = Math.atan2(p.x - g.x, p.y - g.y);
         let msg = pick(GUARD_HELLO);
@@ -711,35 +702,14 @@ function update(dt) {
       }
     } else g.face = wander(g, 1.1, dt);
   }
-
-  // Skyltdockor: rör sig bara när du inte tittar!
-  let nearest = 99;
-  for (const m of mannequins) {
-    if (m.dead > 0) {
-      m.dead -= dt;
-      if (m.dead <= 0) { [m.x, m.y] = farTile(12); m.mesh.visible = true; m.cd = 2; }
-      continue;
-    }
-    m.cd -= dt;
-    m.seen = canSee(m);
-    const d = dist(m.x, m.y, p.x, p.y);
-    if (!m.seen) nearest = Math.min(nearest, d);
-    if (m.seen || m.cd > 0) continue;
-    const sp = blackout > 0 ? 2.5 : 1.2 + night * .12;
-    chase(m, sp, dt);
-    m.face = Math.atan2(p.x - m.x, p.y - m.y);
-    if (d < 8) { m.stepT -= dt; if (m.stepT <= 0) { m.stepT = blackout > 0 ? .2 : .5; sfx.step((8 - d) / 8 * .07); } }
-    if (d < .6) { attack(m, pick(BOO_LINES)); [m.x, m.y] = farTile(12); m.cd = 4; if (state !== 'play') return; }
-  }
   if (nearest < 4) { heartT -= dt; if (heartT <= 0) { heartT = nearest < 2 ? .5 : .85; sfx.heart(); } }
 }
 
-function attack(who, line) {
+function attack(line) {
   lives--; sfx.scream(); shake = .6;
   $('scare').style.display = 'flex';
   toast(line, '#ff4d6d', 2);
-  mannequins.forEach(o => o.cd = Math.max(o.cd, 4));
-  guards.forEach(o => { if (o.anomaly) o.cd = Math.max(o.cd, 3); });
+  guards.forEach(o => { if (o.anomaly) o.cd = Math.max(o.cd, 4); });
   if (lives <= 0) { state = 'dying'; setTimeout(() => { $('scare').style.display = 'none'; lose(); }, 1100); }
   else setTimeout(() => $('scare').style.display = 'none', 700);
 }
@@ -756,7 +726,6 @@ function render(now, dt) {
   flash.distance = lightRange() * T * 1.4;
   amb.intensity = blackout > 0 ? .03 : .5;
   muzzle.intensity = Math.max(0, muzzle.intensity - dt * 300);
-  for (const m of mannequins) { m.mesh.position.set(m.x * T, 0, m.y * T); m.mesh.rotation.y = m.face; }
   for (const g of guards) {
     g.mesh.position.set(g.x * T, 0, g.y * T);
     g.mesh.rotation.y = g.face;
@@ -842,7 +811,7 @@ function menu() {
     <div class="tips">
       ${ctrl}<br>
       🧰 Leta efter kistor i affärerna! Där finns pistoler, skott, batterier och extra hjärtan.<br>
-      🧍 Skyltdockorna rör sig bara när du INTE tittar på dem. Men ibland slocknar lampan...<br>
+      💡 Ibland slocknar lampan... då springer anomalierna fortare. Hör du steg? Vänd dig om!<br>
       👮 De riktiga säkerhetsvakterna är snälla och ger dig saker. Men vissa vakter är <b>ANOMALIER</b>! Titta noga: röda ögon, huvudet bak och fram, för lång, inget ansikte, jättelånga armar, svävar i luften eller röd ficklampa. Skjut anomalierna, men skjut INTE de riktiga vakterna!<br>
       🔦 Ladda ficklampan vid 🔋 laddstationen i Elektronik.
     </div>`);
@@ -854,7 +823,7 @@ function start() {
 }
 function lose() {
   state = 'over'; sfx.lose();
-  show(`<h1>🧍 Du klarade inte natten!</h1><p>Klockan var ${clockText()} när monstren tog dig. Nu står du i skyltfönstret och poserar i en jättefin kostym... Försök igen!</p>
+  show(`<h1>👾 Du klarade inte natten!</h1><p>Klockan var ${clockText()} när anomalierna tog dig. Nu måste du jobba som nattvakt för alltid... Försök igen!</p>
     <p>Du stoppade ${anomaliesStopped} anomali${anomaliesStopped === 1 ? '' : 'er'} och hittade ${list.filter(l => l.got).length} av ${list.length} saker.</p>
     <button class="btn" id="goBtn">Försök igen 🔁</button>`);
   $('goBtn').onclick = menu;
@@ -887,7 +856,7 @@ function loop(now) {
 menu();
 requestAnimationFrame(loop);
 // För testning
-window.__game = { get state() { return state; }, get p() { return p; }, get list() { return list; }, get mannequins() { return mannequins; },
+window.__game = { get state() { return state; }, get p() { return p; }, get list() { return list; },
   get guards() { return guards; }, get chests() { return chests; }, set yaw(v) { yaw = v; }, get yaw() { return yaw; },
   keys, grid, update, render, menu, start, shoot, set night(v) { night = v; }, get lives() { return lives; }, get time() { return time; },
   get ammo() { return ammo; }, get hasGun() { return hasGun; }, get anomaliesStopped() { return anomaliesStopped; }, get nightLen() { return nightLen; } };
