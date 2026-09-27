@@ -7,29 +7,35 @@
 <style>
   :root { --bg:#0b0820; --neon:#00e5ff; --pink:#ff3df0; --gold:#ffd23f; --green:#45ff8a; --red:#ff4d6d; }
   * { box-sizing: border-box; }
-  html, body { margin:0; height:100%; background:var(--bg); color:#fff; overflow:hidden;
+  html, body { margin:0; height:100%; background:#000; color:#fff; overflow:hidden;
     font-family:'Trebuchet MS', system-ui, sans-serif; touch-action:none; user-select:none; -webkit-user-select:none; }
-  canvas { display:block; }
-  #hud { position:fixed; top:0; left:0; right:0; display:flex; gap:14px; align-items:center; flex-wrap:wrap;
-    padding:8px 12px; background:rgba(11,8,32,.85); font-weight:bold; font-size:16px; pointer-events:none;
-    border-bottom:2px solid rgba(0,229,255,.35); }
+  canvas#c { display:block; width:100vw; height:100vh; }
+  #hud { position:fixed; top:0; left:0; right:0; display:flex; gap:16px; align-items:center; flex-wrap:wrap;
+    padding:8px 12px; background:rgba(11,8,32,.75); font-weight:bold; font-size:16px; pointer-events:none;
+    border-bottom:2px solid rgba(255,77,109,.35); }
   #hud a { pointer-events:auto; color:var(--neon); text-decoration:none; }
-  .bar { width:80px; height:12px; background:#2b2650; border-radius:6px; overflow:hidden; display:inline-block; vertical-align:middle; margin-left:4px; }
-  .bar i { display:block; height:100%; transition:width .1s; }
+  .bar { width:90px; height:12px; background:#2b2650; border-radius:6px; overflow:hidden; display:inline-block; vertical-align:middle; margin-left:4px; }
+  .bar i { display:block; height:100%; }
   #clock.warn { color:var(--red); animation:blink .6s infinite; }
   @keyframes blink { 50% { opacity:.3; } }
-  #list { position:fixed; top:54px; right:10px; background:rgba(11,8,32,.88); border:2px solid var(--gold);
-    border-radius:14px; padding:8px 12px; font-size:15px; min-width:180px; max-width:46vw; cursor:pointer; }
+  #mini { position:fixed; top:52px; left:10px; border:2px solid rgba(255,255,255,.2); border-radius:6px; opacity:.9; }
+  #list { position:fixed; top:52px; right:10px; background:rgba(11,8,32,.85); border:2px solid var(--gold);
+    border-radius:14px; padding:8px 12px; font-size:15px; min-width:170px; max-width:46vw; cursor:pointer; }
   #list h3 { margin:6px 0 2px; font-size:14px; color:var(--gold); }
-  #list .it { padding:1px 0; }
-  #list .it small { color:#aaa; }
   #list .it.got { color:var(--green); text-decoration:line-through; opacity:.75; }
   #list.small .items { display:none; }
-  #scare { position:fixed; inset:0; display:none; align-items:center; justify-content:center; font-size:60vmin; background:rgba(120,0,0,.55); pointer-events:none; }
-  #screen { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(11,8,32,.9); padding:16px; overflow:auto; }
+  #toast { position:fixed; left:50%; bottom:14%; transform:translateX(-50%); font-size:22px; font-weight:bold;
+    text-shadow:0 0 6px #000, 0 0 12px #000; pointer-events:none; text-align:center; transition:opacity .3s; }
+  #hint { position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); background:rgba(0,0,0,.7); padding:12px 20px;
+    border-radius:12px; font-size:18px; pointer-events:none; display:none; }
+  #cross { position:fixed; left:50%; top:50%; width:6px; height:6px; margin:-3px 0 0 -3px; border-radius:50%; background:rgba(255,255,255,.5); pointer-events:none; }
+  #scare { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(90,0,0,.6); pointer-events:none; }
+  #scare svg { width:80vmin; height:80vmin; animation:zoom .35s ease-out; }
+  @keyframes zoom { from { transform:scale(.3); } to { transform:scale(1.1); } }
+  #screen { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(5,3,15,.92); padding:16px; overflow:auto; }
   #screen.hidden { display:none; }
-  .box { max-width:560px; width:100%; background:#171235; border:3px solid var(--neon); border-radius:22px; padding:22px;
-    text-align:center; box-shadow:0 0 40px rgba(0,229,255,.35); }
+  .box { max-width:580px; width:100%; background:#171235; border:3px solid var(--red); border-radius:22px; padding:22px;
+    text-align:center; box-shadow:0 0 40px rgba(255,77,109,.35); }
   .box h1 { margin:0 0 8px; font-size:30px; color:var(--gold); }
   .box p { font-size:17px; line-height:1.45; }
   .notes { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin:12px 0; }
@@ -41,7 +47,7 @@
     background:var(--green); color:#0b0820; box-shadow:0 5px 0 #1b9c4e; }
   .btn:active { transform:translateY(3px); box-shadow:0 2px 0 #1b9c4e; }
   .btn.alt { background:var(--neon); box-shadow:0 5px 0 #0089a0; }
-  .tips { font-size:14px; color:#bbb; text-align:left; margin-top:10px; }
+  .tips { font-size:14px; color:#bbb; text-align:left; margin-top:10px; line-height:1.5; }
   .stars { font-size:44px; letter-spacing:6px; }
 </style>
 </head>
@@ -50,84 +56,109 @@
 <div id="hud">
   <a href="index.html">⬅</a>
   <span>Nivå <span id="lvl">1</span></span>
-  <span>💰 <span id="money">0</span> kr</span>
   <span id="clock">🕛 20:00</span>
   <span>🔦 Batteri<span class="bar"><i id="eBar"></i></span></span>
-  <span>😱 Rädsla<span class="bar"><i id="fBar"></i></span></span>
-  <span>🚽 Kissnödig<span class="bar"><i id="kBar"></i></span></span>
+  <span id="lives">❤️❤️❤️</span>
 </div>
+<canvas id="mini"></canvas>
 <div id="list" title="Tryck för att visa/dölja"></div>
-<div id="scare">🧟</div>
+<div id="cross"></div>
+<div id="toast"></div>
+<div id="hint">🖱️ Klicka för att styra med musen</div>
+<div id="scare">
+  <svg viewBox="0 0 200 240">
+    <ellipse cx="100" cy="120" rx="80" ry="105" fill="#efe3cf"/>
+    <ellipse cx="100" cy="135" rx="80" ry="90" fill="#e2d3bb" opacity=".5"/>
+    <ellipse cx="68" cy="105" rx="20" ry="26" fill="#111"/>
+    <ellipse cx="132" cy="105" rx="20" ry="26" fill="#111"/>
+    <circle cx="68" cy="108" r="6" fill="#ff1a3a"/>
+    <circle cx="132" cy="108" r="6" fill="#ff1a3a"/>
+    <path d="M70 180 Q100 165 130 180" stroke="#8a7a66" stroke-width="5" fill="none"/>
+  </svg>
+</div>
 <div id="screen"></div>
 
-<script>
-// ===== Inställningar och karta =====
-const TS = 48, MW = 36, MH = 26;
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }</script>
+<script type="module">
+import * as THREE from 'three';
+
+// ===== Karta (i rutor) =====
+const MW = 36, MH = 26;
 const SHOPS = [
   { name:'Mataffären', sign:'🛒', x0:0,  y0:0,  x1:12, y1:9,  door:[6,9],   floor:'#cfe8cf', shelves:true,
-    items:[['🥛','Mjölk',15],['🍌','Bananer',20],['🧀','Ost',45],['🥚','Ägg',30],['🍝','Pasta',18],['🥕','Morötter',12],['🍎','Äpplen',22],['🧈','Smör',35],['🧻','Toapapper',40],['🥒','Gurka',14]] },
+    items:[['🥛','Mjölk'],['🍌','Bananer'],['🧀','Ost'],['🥚','Ägg'],['🍝','Pasta'],['🥕','Morötter'],['🍎','Äpplen'],['🧈','Smör'],['🧻','Toapapper'],['🥒','Gurka']] },
   { name:'Apoteket', sign:'💊', x0:12, y0:0,  x1:20, y1:9,  door:[16,9],  floor:'#d8f0ea', shelves:true,
-    items:[['🩹','Plåster',25],['🪥','Tandborste',20],['🧴','Solkräm',60],['💊','Vitaminer',50],['🧼','Tvål',18]] },
-  { name:'Leksaksaffären', sign:'🧸', x0:20, y0:0, x1:28, y1:9, door:[24,9], floor:'#f5d9ef', shelves:true,
-    items:[['🧸','Nalle',80],['🎲','Tärningar',15],['🪀','Jojo',25],['🧩','Pussel',70],['🎈','Ballonger',20]] },
+    items:[['🩹','Plåster'],['🪥','Tandborste'],['🧴','Solkräm'],['💊','Vitaminer'],['🧼','Tvål']] },
+  { name:'Leksaker', sign:'🧸', x0:20, y0:0, x1:28, y1:9, door:[24,9], floor:'#f5d9ef', shelves:true,
+    items:[['🧸','Nalle'],['🎲','Tärningar'],['🪀','Jojo'],['🧩','Pussel'],['🎈','Ballonger']] },
   { name:'Elektronik', sign:'🔌', x0:28, y0:0,  x1:35, y1:9,  door:[31,9],  floor:'#d9dcf5', shelves:true,
-    items:[['🔋','Batterier',40],['💡','Glödlampa',30],['🎧','Hörlurar',150],['🔌','Sladd',50]] },
-  { name:'Klädaffären', sign:'👕', x0:0,  y0:16, x1:10, y1:25, door:[5,16],  floor:'#f5e3cf', shelves:true,
-    items:[['🧦','Strumpor',30],['🧢','Keps',90],['🧤','Vantar',60],['👕','T-shirt',100],['🧣','Halsduk',70]] },
+    items:[['🔋','Batterier'],['💡','Glödlampa'],['🎧','Hörlurar'],['🔌','Sladd']] },
+  { name:'Kläder', sign:'👕', x0:0,  y0:16, x1:10, y1:25, door:[5,16],  floor:'#f5e3cf', shelves:true,
+    items:[['🧦','Strumpor'],['🧢','Keps'],['🧤','Vantar'],['👕','T-shirt'],['🧣','Halsduk']] },
   { name:'Kiosken', sign:'🌭', x0:10, y0:16, x1:20, y1:25, door:[14,16], floor:'#fff1c2', shelves:false, items:[] },
   { name:'Toaletten', sign:'🚽', x0:20, y0:16, x1:25, y1:25, door:[22,16], floor:'#dff3ff', shelves:false, items:[] },
-  { name:'Sportaffären', sign:'⚽', x0:25, y0:16, x1:35, y1:25, door:[30,16], floor:'#e1f5d0', shelves:true,
-    items:[['⚽','Fotboll',120],['🎾','Tennisbollar',40],['🏓','Pingisbollar',25],['🪁','Drake',90],['🕶️','Solglasögon',55]] },
+  { name:'Sport', sign:'⚽', x0:25, y0:16, x1:35, y1:25, door:[30,16], floor:'#e1f5d0', shelves:true,
+    items:[['⚽','Fotboll'],['🎾','Tennisbollar'],['🏓','Pingisbollar'],['🪁','Drake'],['🕶️','Solglasögon']] },
 ];
-const KIOSK = 5, TOILET = 6;
-const FOODS = [
-  { e:'🌭', name:'Korv', price:25, calm:25, kiss:5 },
-  { e:'🍦', name:'Tröstglass', price:20, calm:40, kiss:10 },
-  { e:'🥤', name:'Läsk', price:15, calm:15, kiss:35 },
-];
-const BOO_LINES = ['BÖÖ!', 'Vill du prova kläder?!', 'Stanna och lek...', 'Du får aldrig gå hem!', 'Jag ser dig...'];
+const BOO_LINES = ['BÖÖ!', 'Stanna och lek...', 'Du får aldrig gå hem!', 'Jag ser dig...', 'Vill du prova kläder?!'];
+const CHARGER = { x:34, y:8 };
+const TOILETS = [[21, 21], [24, 21], [21, 24], [24, 24]];
 
-let grid, room, slots, foods, toilets, charger;
-function buildMap() {
-  grid = []; room = [];
-  for (let y = 0; y < MH; y++) { grid.push(new Array(MW).fill(0)); room.push(new Array(MW).fill(-1)); }
-  SHOPS.forEach((s, id) => {
-    for (let y = s.y0; y <= s.y1; y++) for (let x = s.x0; x <= s.x1; x++) {
-      if (x === s.x0 || x === s.x1 || y === s.y0 || y === s.y1) grid[y][x] = 1; else room[y][x] = id;
-    }
+const grid = [], room = [], slotPos = [];
+for (let y = 0; y < MH; y++) { grid.push(new Array(MW).fill(0)); room.push(new Array(MW).fill(-1)); }
+SHOPS.forEach((s, id) => {
+  for (let y = s.y0; y <= s.y1; y++) for (let x = s.x0; x <= s.x1; x++) {
+    if (x === s.x0 || x === s.x1 || y === s.y0 || y === s.y1) grid[y][x] = 1; else room[y][x] = id;
+  }
+});
+for (let y = 10; y <= 15; y++) { grid[y][0] = 1; grid[y][MW - 1] = 1; }
+grid[12][0] = 3; grid[13][0] = 3; // utgången
+SHOPS.forEach(s => { grid[s.door[1]][s.door[0]] = 0; grid[s.door[1]][s.door[0] + 1] = 0; });
+SHOPS.forEach((s, id) => {
+  slotPos[id] = [];
+  if (!s.shelves) return;
+  [s.y0 + 3, s.y0 + 6].forEach(sy => {
+    for (let x = s.x0 + 2; x <= s.x1 - 2; x++) grid[sy][x] = 2;
+    for (let x = s.x0 + 2; x <= s.x1 - 2; x += 2) { slotPos[id].push([x, sy - 1, 1]); slotPos[id].push([x, sy + 1, -1]); }
   });
-  for (let y = 10; y <= 15; y++) { grid[y][0] = 1; grid[y][MW - 1] = 1; }
-  grid[12][0] = 3; grid[13][0] = 3; // utgången
-  SHOPS.forEach(s => { grid[s.door[1]][s.door[0]] = 0; grid[s.door[1]][s.door[0] + 1] = 0; });
-
-  slots = [];
-  SHOPS.forEach((s, id) => {
-    if (!s.shelves) return;
-    const rows = [s.y0 + 3, s.y0 + 6];
-    const free = [];
-    rows.forEach(sy => {
-      for (let x = s.x0 + 2; x <= s.x1 - 2; x++) grid[sy][x] = 2;
-      for (let x = s.x0 + 2; x <= s.x1 - 2; x += 2) { free.push([x, sy - 1]); free.push([x, sy + 1]); }
-    });
-    shuffle(free);
-    s.items.forEach((it, i) => slots.push({ tx:free[i][0], ty:free[i][1], e:it[0], name:it[1], price:it[2], shop:id, taken:false, hintT:0 }));
-  });
-  // Kiosk: disk + bord
-  for (let x = 12; x <= 18; x++) grid[20][x] = 2;
-  grid[23][13] = 2; grid[23][17] = 2;
-  foods = FOODS.map((f, i) => ({ ...f, tx:12 + i * 3, ty:19, ready:true }));
-  toilets = [[21, 21], [24, 21], [21, 24], [24, 24]];
-  toilets.forEach(([x, y]) => grid[y][x] = 4);
-  charger = { tx:34, ty:8 }; // laddstation i Elektronik
-}
+});
+for (let x = 12; x <= 18; x++) grid[20][x] = 2; // kioskdisk
+grid[23][13] = 2; grid[23][17] = 2;
+TOILETS.forEach(([x, y]) => grid[y][x] = 4);
 
 // ===== Hjälpfunktioner =====
-function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; }
+const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; };
 const rand = (a, b) => a + Math.random() * (b - a);
 const dist = (a, b, c, d) => Math.hypot(a - c, b - d);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-function load() { try { return JSON.parse(localStorage.getItem('nils_kopcentret_v1')) || {}; } catch (e) { return {}; } }
-function save(d) { try { localStorage.setItem('nils_kopcentret_v1', JSON.stringify(d)); } catch (e) {} }
+const $ = id => document.getElementById(id);
+function loadSave() { try { return JSON.parse(localStorage.getItem('nils_kopcentret_v1')) || {}; } catch (e) { return {}; } }
+function storeSave(d) { try { localStorage.setItem('nils_kopcentret_v1', JSON.stringify(d)); } catch (e) {} }
+let allDoneFlag = false;
+function solid(x, y) {
+  const tx = Math.floor(x), ty = Math.floor(y);
+  if (tx < 0 || ty < 0 || tx >= MW || ty >= MH) return true;
+  const g = grid[ty][tx];
+  return g === 1 || g === 2 || (g === 3 && !allDoneFlag);
+}
+const hits = (x, y, r) => solid(x - r, y - r) || solid(x + r, y - r) || solid(x - r, y + r) || solid(x + r, y + r);
+function moveBody(o, dx, dy, r) {
+  let bx = false, by = false;
+  const steps = Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)) / .12) || 1;
+  for (let i = 0; i < steps; i++) {
+    if (!bx) { if (!hits(o.x + dx / steps, o.y, r)) o.x += dx / steps; else bx = true; }
+    if (!by) { if (!hits(o.x, o.y + dy / steps, r)) o.y += dy / steps; else by = true; }
+  }
+  return { bx, by };
+}
+function lineOfSight(ax, ay, bx, by) {
+  const n = Math.ceil(dist(ax, ay, bx, by) / .2);
+  for (let i = 1; i < n; i++) {
+    const g = grid[Math.floor(ay + (by - ay) * i / n)][Math.floor(ax + (bx - ax) * i / n)];
+    if (g === 1 || g === 2) return false;
+  }
+  return true;
+}
 
 // ===== Ljud =====
 let AC = null;
@@ -136,405 +167,449 @@ function beep(f, dur = .12, type = 'square', vol = .08, slide = 0) {
     AC = AC || new (window.AudioContext || window.webkitAudioContext)();
     const o = AC.createOscillator(), g = AC.createGain();
     o.type = type; o.frequency.value = f;
-    if (slide) o.frequency.linearRampToValueAtTime(f + slide, AC.currentTime + dur);
+    if (slide) o.frequency.linearRampToValueAtTime(Math.max(20, f + slide), AC.currentTime + dur);
     g.gain.setValueAtTime(vol, AC.currentTime); g.gain.exponentialRampToValueAtTime(.001, AC.currentTime + dur);
     o.connect(g); g.connect(AC.destination); o.start(); o.stop(AC.currentTime + dur);
   } catch (e) {}
 }
 const sfx = {
   pick() { beep(660, .08); setTimeout(() => beep(990, .12), 70); },
-  eat() { beep(300, .1, 'triangle', .1); setTimeout(() => beep(450, .15, 'triangle', .1), 90); },
   hit() { beep(180, .25, 'sawtooth', .1, -120); },
-  no() { beep(200, .15, 'square', .06); },
-  flush() { beep(500, .5, 'sine', .08, -400); },
-  win() { [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => beep(f, .2, 'triangle', .1), i * 130)); },
-  creak() { beep(90, .9, 'sawtooth', .05, -40); },
+  creak() { beep(90, .9, 'sawtooth', .06, -40); },
+  step(v) { beep(1600, .03, 'square', v); setTimeout(() => beep(1100, .03, 'square', v * .7), 60); },
   heart() { beep(55, .12, 'sine', .25); setTimeout(() => beep(50, .12, 'sine', .2), 160); },
-  scream() { beep(900, .4, 'sawtooth', .12, -600); beep(1200, .3, 'square', .06, -800); },
+  scream() { beep(900, .5, 'sawtooth', .14, -600); beep(1250, .4, 'square', .07, -900); },
+  win() { [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => beep(f, .2, 'triangle', .1), i * 130)); },
   lose() { [400, 300, 200].forEach((f, i) => setTimeout(() => beep(f, .25, 'sawtooth', .08), i * 180)); },
 };
 
+// ===== 3D-värld =====
+const T = 2, WALL_H = 3.2, EYE = 1.55;
+const cv = $('c');
+const renderer = new THREE.WebGLRenderer({ canvas:cv, antialias:true });
+renderer.setPixelRatio(Math.min(2, devicePixelRatio));
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x000000);
+scene.fog = new THREE.Fog(0x000000, 3, 24);
+const camera = new THREE.PerspectiveCamera(72, 1, .05, 100);
+camera.rotation.order = 'YXZ';
+scene.add(camera);
+const amb = new THREE.AmbientLight(0x6a5a99, .5);
+scene.add(amb);
+const flash = new THREE.SpotLight(0xfff0cc, 30, 20, .5, .45, 1);
+flash.position.set(.25, -.25, 0);
+flash.target.position.set(0, -.3, -1);
+camera.add(flash); camera.add(flash.target);
+function resize() { renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); }
+addEventListener('resize', resize); resize();
+
+const texCache = {};
+function emojiTex(e) {
+  if (texCache[e]) return texCache[e];
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const x = c.getContext('2d');
+  x.font = '100px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif';
+  x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(e, 64, 72);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  return texCache[e] = t;
+}
+function sprite(e, s = 1) {
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map:emojiTex(e), transparent:true }));
+  sp.scale.set(s, s, s); return sp;
+}
+function signMesh(text) {
+  const c = document.createElement('canvas'); c.width = 512; c.height = 128;
+  const x = c.getContext('2d');
+  x.fillStyle = 'rgba(25,8,50,.95)'; x.fillRect(0, 0, 512, 128);
+  x.strokeStyle = '#ff3df0'; x.lineWidth = 8; x.strokeRect(4, 4, 504, 120);
+  x.font = 'bold 60px "Trebuchet MS","Segoe UI Emoji",sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
+  x.shadowColor = '#ff3df0'; x.shadowBlur = 18; x.fillStyle = '#ffd6fb'; x.fillText(text, 256, 68);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  return new THREE.Mesh(new THREE.PlaneGeometry(2.6, .65), new THREE.MeshBasicMaterial({ map:t, transparent:true }));
+}
+
+// Statisk värld: väggar, hyllor, golv, tak, skyltar
+(function buildStatic() {
+  const walls = [], shelves = [], floors = [];
+  for (let y = 0; y < MH; y++) for (let x = 0; x < MW; x++) {
+    const g = grid[y][x];
+    if (g === 1) walls.push([x, y]); else if (g === 2) shelves.push([x, y]);
+    if (g !== 1) floors.push([x, y]);
+  }
+  const m4 = new THREE.Matrix4();
+  const wallMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(T, WALL_H, T),
+    new THREE.MeshStandardMaterial({ color:0x8a7fa3, roughness:.95 }), walls.length);
+  walls.forEach(([x, y], i) => wallMesh.setMatrixAt(i, m4.makeTranslation((x + .5) * T, WALL_H / 2, (y + .5) * T)));
+  scene.add(wallMesh);
+  const shelfMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(T * .98, 1.8, T * .75),
+    new THREE.MeshStandardMaterial({ color:0x7a5535, roughness:.8 }), shelves.length);
+  shelves.forEach(([x, y], i) => {
+    const h = room[y][x] === 5 ? 1.1 : 1.8;
+    shelfMesh.setMatrixAt(i, m4.compose(new THREE.Vector3((x + .5) * T, h / 2, (y + .5) * T), new THREE.Quaternion(), new THREE.Vector3(1, h / 1.8, 1)));
+  });
+  scene.add(shelfMesh);
+  const floorGeo = new THREE.PlaneGeometry(T, T); floorGeo.rotateX(-Math.PI / 2);
+  const floorMesh = new THREE.InstancedMesh(floorGeo, new THREE.MeshStandardMaterial({ color:0xffffff, roughness:.6 }), floors.length);
+  const col = new THREE.Color();
+  floors.forEach(([x, y], i) => {
+    floorMesh.setMatrixAt(i, m4.makeTranslation((x + .5) * T, 0, (y + .5) * T));
+    const r = room[y][x];
+    col.set(r >= 0 ? SHOPS[r].floor : ((x + y) % 2 ? '#bdb6a6' : '#aaa393'));
+    floorMesh.setColorAt(i, col);
+  });
+  scene.add(floorMesh);
+  const outside = new THREE.Mesh(new THREE.PlaneGeometry(12, 14), new THREE.MeshStandardMaterial({ color:0x333333 }));
+  outside.rotation.x = -Math.PI / 2; outside.position.set(-6, -.01, 13 * T);
+  scene.add(outside);
+  const ceil = new THREE.Mesh(new THREE.PlaneGeometry(MW * T, MH * T), new THREE.MeshStandardMaterial({ color:0x1c1828 }));
+  ceil.rotation.x = Math.PI / 2; ceil.position.set(MW * T / 2, WALL_H, MH * T / 2);
+  scene.add(ceil);
+  SHOPS.forEach(s => {
+    const m = signMesh(`${s.sign} ${s.name}`);
+    const top = s.door[1] === 9;
+    m.position.set((s.door[0] + 1) * T, 2.75, top ? 10 * T + .02 : 16 * T - .02);
+    if (!top) m.rotation.y = Math.PI;
+    scene.add(m);
+  });
+  const exitSign = signMesh('🚪 UTGÅNG');
+  exitSign.rotation.y = Math.PI / 2; exitSign.position.set(T + .02, 2.75, 13 * T);
+  scene.add(exitSign);
+  TOILETS.forEach(([x, y]) => { const s = sprite('🚽', .9); s.position.set((x + .5) * T, .5, (y + .5) * T); scene.add(s); });
+  [['🌭', 12], ['🍦', 15], ['🥤', 18]].forEach(([e, x]) => { const s = sprite(e, .6); s.position.set((x + .5) * T, 1.45, 20.5 * T); scene.add(s); });
+  const ch = sprite('🔋', 1); ch.position.set((CHARGER.x + .5) * T, 1.1, (CHARGER.y + .5) * T); scene.add(ch);
+  const chl = new THREE.PointLight(0x44ff88, 3, 5, 1); chl.position.set((CHARGER.x + .5) * T, 1.5, (CHARGER.y + .5) * T); scene.add(chl);
+  const mom = sprite('👩', 1.3), dad = sprite('👨', 1.3), car = sprite('🚗', 2.2);
+  mom.position.set(-1.2, 1.4, 12.4 * T); dad.position.set(-1.2, 1.4, 13.6 * T); car.position.set(-5, 1, 13 * T);
+  scene.add(mom, dad, car);
+})();
+
+// Monster-modeller
+const mannequinMat = new THREE.MeshStandardMaterial({ color:0xeadfcd, roughness:.5 });
+const eyeMat = new THREE.MeshBasicMaterial({ color:0xff1a3a, fog:false });
+function makeMannequin() {
+  const g = new THREE.Group();
+  const add = (geo, x, y, z, rz = 0) => { const m = new THREE.Mesh(geo, mannequinMat); m.position.set(x, y, z); m.rotation.z = rz; g.add(m); return m; };
+  add(new THREE.CylinderGeometry(.2, .27, .95, 10), 0, 1.2, 0);
+  add(new THREE.CylinderGeometry(.08, .06, .8, 8), -.11, .4, 0);
+  add(new THREE.CylinderGeometry(.08, .06, .8, 8), .11, .4, 0);
+  add(new THREE.CylinderGeometry(.06, .045, .8, 8), -.34, 1.2, 0, -.18);
+  add(new THREE.CylinderGeometry(.06, .045, .8, 8), .34, 1.2, 0, .18);
+  add(new THREE.CylinderGeometry(.06, .07, .15, 8), 0, 1.72, 0);
+  const head = add(new THREE.SphereGeometry(.17, 14, 12), 0, 1.9, 0); head.scale.y = 1.25;
+  [-.06, .06].forEach(x => { const e = new THREE.Mesh(new THREE.SphereGeometry(.028, 8, 6), eyeMat); e.position.set(x, 1.93, .15); g.add(e); });
+  return g;
+}
+function makeRobot() {
+  const g = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color:0x9aa0aa, metalness:.5, roughness:.4 });
+  const b = new THREE.Mesh(new THREE.CylinderGeometry(.45, .5, .45, 16), mat); b.position.y = .3; g.add(b);
+  const d = new THREE.Mesh(new THREE.SphereGeometry(.3, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat); d.position.y = .52; g.add(d);
+  [-.1, .1].forEach(x => { const e = new THREE.Mesh(new THREE.SphereGeometry(.05, 8, 6), eyeMat); e.position.set(x, .65, .25); g.add(e); });
+  return g;
+}
+function makeCart() {
+  const g = new THREE.Group();
+  const cage = new THREE.Mesh(new THREE.BoxGeometry(1.1, .6, .7), new THREE.MeshStandardMaterial({ color:0xb0b6c0, wireframe:true }));
+  cage.position.y = .75; g.add(cage);
+  const base = new THREE.Mesh(new THREE.BoxGeometry(1.1, .05, .7), new THREE.MeshStandardMaterial({ color:0x777777 }));
+  base.position.y = .45; g.add(base);
+  const ghost = sprite('👻', 1); ghost.position.y = 1.6; ghost.material.opacity = .8; g.add(ghost); g.userData.ghost = ghost;
+  return g;
+}
+
 // ===== Spelets tillstånd =====
-let save0 = load();
+let save0 = loadSave();
 let level = 1, state = 'menu';
-let p, money, time, dayLen, battery, fear, kiss, list, carts, robots, sellers, puddles, floats, shake, frozen, stun, blackout, nextBlackout, heartT, scareT;
+let p, yaw, pitch, bob, time, dayLen, battery, lives, list, slots, carts, robots, mannequins, puddles, shake, stun;
+let blackout, nextBlackout, heartT, flow, flowT, hintT, exitDoor, exitLight;
+const dyn = new THREE.Group(); scene.add(dyn);
 
 function setupLevel() {
-  buildMap();
-  const pool = shuffle(slots.slice());
+  while (dyn.children.length) dyn.remove(dyn.children[0]);
+  allDoneFlag = false;
+  slots = [];
+  SHOPS.forEach((s, id) => {
+    const pos = shuffle(slotPos[id].slice());
+    s.items.forEach((it, i) => {
+      const [tx, ty, dir] = pos[i];
+      const sl = { tx, ty, e:it[0], name:it[1], shop:id, taken:false, sprite:sprite(it[0], .75) };
+      sl.sprite.position.set((tx + .5) * T, 1.15, (ty + .5 - dir * .3) * T);
+      dyn.add(sl.sprite); slots.push(sl);
+    });
+  });
   const n = Math.min(3 + level, 12);
-  list = pool.slice(0, n).map((s, i) => ({ slot:s, who:i % 2 ? 'pappa' : 'mamma', got:false }));
-  const total = list.reduce((a, l) => a + l.slot.price, 0);
-  money = total + 45;
-  dayLen = Math.max(100, 170 - level * 10);
-  time = 0; battery = 100; fear = 0; kiss = 10; shake = 0; frozen = 0; stun = 0;
-  blackout = 0; nextBlackout = rand(6, 10); heartT = 0; scareT = 0;
-  p = { x:2.5 * TS, y:13 * TS, vx:0, vy:0, r:15 };
-  puddles = []; floats = [];
+  list = shuffle(slots.slice()).slice(0, n).map((s, i) => ({ slot:s, who:i % 2 ? 'pappa' : 'mamma', got:false }));
+  slots.forEach(s => { if (!list.some(l => l.slot === s)) s.sprite.material.color.set(0x555555); });
+  dayLen = Math.max(150, 240 - level * 15);
+  time = 0; battery = 100; lives = 3; shake = 0; stun = 0; bob = 0; hintT = 0;
+  blackout = 0; nextBlackout = rand(8, 12); heartT = 0; flowT = 0;
+  p = { x:2.5, y:13, vx:0, vy:0 }; yaw = -Math.PI / 2; pitch = 0;
+  puddles = [];
   carts = [];
-  for (let i = 0; i < Math.min(level, 6); i++) {
-    carts.push({ x:rand(6, 32) * TS, y:(10.5 + (i * 2 + 1) % 6) * TS, vx:(Math.random() < .5 ? -1 : 1) * (130 + level * 15), cd:0 });
+  for (let i = 0; i < Math.min(level, 5); i++) {
+    const c = { x:rand(8, 32), y:10.5 + (i * 2 + 1) % 6, vx:(Math.random() < .5 ? -1 : 1) * (2.6 + level * .3), cd:0, mesh:makeCart() };
+    dyn.add(c.mesh); carts.push(c);
   }
   robots = [];
-  for (let i = 0; i < Math.min(Math.ceil(level / 2), 3); i++) robots.push({ x:rand(8, 30) * TS, y:12.5 * TS, tx:0, ty:0, drop:2, cd:0, pickT:0 });
-  robots.forEach(newRobotTarget);
-  const posts = [[9, 11], [21, 14], [28, 11], [13, 14], [33, 12], [4, 3]];
-  sellers = posts.slice(0, Math.min(level + 1, 6)).map(([x, y]) => ({ x:(x + .5) * TS, y:(y + .5) * TS, px:(x + .5) * TS, py:(y + .5) * TS, cd:0, say:'', sayT:0 }));
+  for (let i = 0; i < Math.min(Math.ceil(level / 2), 3); i++) {
+    const r = { x:rand(10, 30), y:12.5, tx:0, ty:0, drop:3, cd:0, mesh:makeRobot() };
+    newRobotTarget(r); dyn.add(r.mesh); robots.push(r);
+  }
+  // Skyltdockorna ställer sig långt bort från start
+  const far = [];
+  for (let y = 0; y < MH; y++) for (let x = 0; x < MW; x++) if ((grid[y][x] === 0 || grid[y][x] === 4) && dist(x, y, 2, 13) > 12) far.push([x, y]);
+  shuffle(far);
+  mannequins = far.slice(0, Math.min(1 + level, 7)).map(([x, y]) => {
+    const m = { x:x + .5, y:y + .5, px:x + .5, py:y + .5, face:rand(0, 6), cd:2, stepT:0, seen:false, mesh:makeMannequin() };
+    dyn.add(m.mesh); return m;
+  });
+  exitDoor = new THREE.Mesh(new THREE.BoxGeometry(.2, WALL_H, T * 2), new THREE.MeshStandardMaterial({ color:0x8a2030, emissive:0x400010 }));
+  exitDoor.position.set(.1, WALL_H / 2, 13 * T); dyn.add(exitDoor);
+  exitLight = null;
+  computeFlow();
   renderList();
 }
-function newRobotTarget(r) { r.tx = rand(2, 33) * TS; r.ty = rand(10.4, 15.6) * TS; }
+function newRobotTarget(r) { r.tx = rand(2, 34); r.ty = rand(10.5, 15.5); }
 const allDone = () => list && list.every(l => l.got);
 
-// ===== Kollision =====
-function solidAt(px, py) {
-  const tx = Math.floor(px / TS), ty = Math.floor(py / TS);
-  if (tx < 0 || ty < 0 || tx >= MW || ty >= MH) return true;
-  const g = grid[ty][tx];
-  return g === 1 || g === 2 || (g === 3 && !allDone());
-}
-function hits(x, y, r) { return solidAt(x - r, y - r) || solidAt(x + r, y - r) || solidAt(x - r, y + r) || solidAt(x + r, y + r); }
-function moveBody(o, dx, dy, r) {
-  let bx = false, by = false;
-  const steps = Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)) / 8) || 1;
-  for (let i = 0; i < steps; i++) {
-    if (!bx) { if (!hits(o.x + dx / steps, o.y, r)) o.x += dx / steps; else bx = true; }
-    if (!by) { if (!hits(o.x, o.y + dy / steps, r)) o.y += dy / steps; else by = true; }
+// Vägkarta så att skyltdockorna hittar runt hörn
+function computeFlow() {
+  flow = Array.from({ length:MH }, () => new Array(MW).fill(1e9));
+  const sx = Math.floor(p.x), sy = Math.floor(p.y), q = [[sx, sy]];
+  flow[sy][sx] = 0;
+  for (let i = 0; i < q.length; i++) {
+    const [x, y] = q[i];
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = x + dx, ny = y + dy;
+      if (nx < 0 || ny < 0 || nx >= MW || ny >= MH || flow[ny][nx] < 1e9) continue;
+      const g = grid[ny][nx];
+      if (g !== 0 && g !== 4) continue;
+      flow[ny][nx] = flow[y][x] + 1; q.push([nx, ny]);
+    }
   }
-  return { bx, by };
 }
 
 // ===== Styrning =====
 const keys = {};
+const isTouch = matchMedia('(pointer:coarse)').matches;
 addEventListener('keydown', e => {
-  keys[e.key.toLowerCase()] = true;
-  if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(e.key.toLowerCase())) e.preventDefault();
+  const k = e.key.toLowerCase(); keys[k] = true;
+  if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(k)) e.preventDefault();
   if ((e.key === 'Enter' || e.key === ' ') && state !== 'play') { const b = document.querySelector('#screen .btn'); if (b) b.click(); }
 });
 addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
-const joy = { on:false, ox:0, oy:0, x:0, y:0, id:null };
-const cv = document.getElementById('c'), ctx = cv.getContext('2d');
-cv.addEventListener('touchstart', e => { const t = e.changedTouches[0]; joy.on = true; joy.id = t.identifier; joy.ox = joy.x = t.clientX; joy.oy = joy.y = t.clientY; e.preventDefault(); }, { passive:false });
-cv.addEventListener('touchmove', e => { for (const t of e.changedTouches) if (t.identifier === joy.id) { joy.x = t.clientX; joy.y = t.clientY; } e.preventDefault(); }, { passive:false });
-cv.addEventListener('touchend', e => { for (const t of e.changedTouches) if (t.identifier === joy.id) joy.on = false; });
-document.getElementById('list').addEventListener('click', e => e.currentTarget.classList.toggle('small'));
-
-function input() {
-  let ix = 0, iy = 0;
-  if (keys['arrowleft'] || keys['a']) ix--;
-  if (keys['arrowright'] || keys['d']) ix++;
-  if (keys['arrowup'] || keys['w']) iy--;
-  if (keys['arrowdown'] || keys['s']) iy++;
-  if (joy.on) {
-    const dx = joy.x - joy.ox, dy = joy.y - joy.oy, l = Math.hypot(dx, dy);
-    if (l > 8) { ix = dx / Math.max(l, 50); iy = dy / Math.max(l, 50); }
+addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+document.addEventListener('mousemove', e => {
+  if (document.pointerLockElement !== cv) return;
+  yaw -= e.movementX * .0022; pitch = clamp(pitch - e.movementY * .0022, -1.1, 1.1);
+});
+cv.addEventListener('click', () => { if (state === 'play' && !isTouch) cv.requestPointerLock(); });
+const joy = { on:false, id:null, ox:0, oy:0, x:0, y:0 }, look = { id:null, x:0, y:0 };
+cv.addEventListener('touchstart', e => {
+  for (const t of e.changedTouches) {
+    if (t.clientX < innerWidth / 2 && !joy.on) { joy.on = true; joy.id = t.identifier; joy.ox = joy.x = t.clientX; joy.oy = joy.y = t.clientY; }
+    else if (look.id === null) { look.id = t.identifier; look.x = t.clientX; look.y = t.clientY; }
   }
-  const l = Math.hypot(ix, iy);
-  if (l > 1) { ix /= l; iy /= l; }
-  return [ix, iy];
+  e.preventDefault();
+}, { passive:false });
+cv.addEventListener('touchmove', e => {
+  for (const t of e.changedTouches) {
+    if (t.identifier === joy.id) { joy.x = t.clientX; joy.y = t.clientY; }
+    if (t.identifier === look.id) {
+      yaw -= (t.clientX - look.x) * .006; pitch = clamp(pitch - (t.clientY - look.y) * .006, -1.1, 1.1);
+      look.x = t.clientX; look.y = t.clientY;
+    }
+  }
+  e.preventDefault();
+}, { passive:false });
+cv.addEventListener('touchend', e => {
+  for (const t of e.changedTouches) { if (t.identifier === joy.id) { joy.on = false; joy.id = null; } if (t.identifier === look.id) look.id = null; }
+});
+$('list').addEventListener('click', e => e.currentTarget.classList.toggle('small'));
+
+let toastT = 0;
+function toast(text, color = '#fff', dur = 1.8) { const el = $('toast'); el.textContent = text; el.style.color = color; el.style.opacity = 1; toastT = dur; }
+
+// ===== Ficklampan =====
+function lightRange() { return 3 + battery * .07; } // i rutor
+function canSee(m) {
+  if (blackout > 0) return false;
+  const dx = m.x - p.x, dy = m.y - p.y, d = Math.hypot(dx, dy);
+  if (d > lightRange()) return false;
+  if (d < .9) return true;
+  const fx = -Math.sin(yaw), fy = -Math.cos(yaw);
+  if ((dx * fx + dy * fy) / d < Math.cos(.58)) return false;
+  return lineOfSight(p.x, p.y, m.x, m.y);
 }
 
-// ===== Flytande text =====
-function say(x, y, text, color = '#fff') { floats.push({ x, y, text, color, t:1.6 }); }
-
 // ===== Uppdatering =====
+const SPEED = 3.3;
 function update(dt) {
   if (state !== 'play') return;
   time += dt;
-  battery = Math.max(0, battery - dt * 100 / 75);
-  kiss += dt * 100 / 110;
-  fear = Math.max(0, fear - dt * 2.5);
   if (time >= dayLen) return lose('clock');
-  if (fear >= 100) return lose('fear');
-  if (kiss >= 100) return lose('kiss');
-  // Lamporna slocknar ibland...
+  battery = Math.max(0, battery - dt * 100 / 90);
   blackout -= dt; nextBlackout -= dt;
-  if (nextBlackout <= 0) { blackout = rand(.7, 1.2); nextBlackout = rand(5, 11) - Math.min(level, 3); sfx.creak(); }
-  scareT -= dt;
-  if (fear > 55) { heartT -= dt; if (heartT <= 0) { heartT = fear > 80 ? .55 : .9; sfx.heart(); } }
-  const need = list.filter(l => !l.got).reduce((a, l) => a + l.slot.price, 0);
-  if (need > money) return lose('money');
+  if (nextBlackout <= 0) { blackout = rand(.9, 1.4); nextBlackout = rand(7, 13) - Math.min(level, 4); sfx.creak(); }
+  hintT -= dt;
 
-  // Spelaren
-  let [ix, iy] = input();
-  if (frozen > 0) { frozen -= dt; ix = iy = 0; }
-  if (stun > 0) { stun -= dt; ix = iy = 0; }
-  const slippery = puddles.some(pd => dist(pd.x, pd.y, p.x, p.y) < 30);
-  const k = stun > 0 ? 3 : slippery ? 1.3 : 12;
-  const SPEED = 220;
-  p.vx += (ix * SPEED - p.vx) * Math.min(1, k * dt);
-  p.vy += (iy * SPEED - p.vy) * Math.min(1, k * dt);
-  const b = moveBody(p, p.vx * dt, p.vy * dt, p.r);
-  if (b.bx) p.vx *= -.3; if (b.by) p.vy *= -.3;
+  // Gå och titta
+  if (keys['arrowleft'] || keys['q']) yaw += 2.4 * dt;
+  if (keys['arrowright'] || keys['e']) yaw -= 2.4 * dt;
+  let mv = 0, st = 0;
+  if (keys['w'] || keys['arrowup']) mv++;
+  if (keys['s'] || keys['arrowdown']) mv--;
+  if (keys['a']) st--;
+  if (keys['d']) st++;
+  if (joy.on) { st = clamp((joy.x - joy.ox) / 50, -1, 1); mv = clamp(-(joy.y - joy.oy) / 50, -1, 1); }
+  const l = Math.hypot(mv, st); if (l > 1) { mv /= l; st /= l; }
+  if (stun > 0) { stun -= dt; mv = st = 0; }
+  const fx = -Math.sin(yaw), fy = -Math.cos(yaw), rx = -fy, ry = fx;
+  const slippery = puddles.some(pd => dist(pd.x, pd.y, p.x, p.y) < .6);
+  const k = stun > 0 ? 3 : slippery ? 1.2 : 12;
+  p.vx += ((fx * mv + rx * st) * SPEED - p.vx) * Math.min(1, k * dt);
+  p.vy += ((fy * mv + ry * st) * SPEED - p.vy) * Math.min(1, k * dt);
+  moveBody(p, p.vx * dt, p.vy * dt, .3);
+  if (Math.hypot(p.vx, p.vy) > .5) bob += dt * 9;
 
-  if (allDone() && p.x < TS * 0.9) return win();
+  if (allDoneFlag && p.x < .75) return win();
 
-  // Varor på hyllorna
+  // Plocka varor
   for (const s of slots) {
     if (s.taken) continue;
-    s.hintT -= dt;
-    const cx = (s.tx + .5) * TS, cy = (s.ty + .5) * TS;
-    if (dist(cx, cy, p.x, p.y) > 32) continue;
+    if (dist(s.tx + .5, s.ty + .5, p.x, p.y) > .8) continue;
     const want = list.find(l => l.slot === s && !l.got);
     if (want) {
-      if (money >= s.price) {
-        money -= s.price; want.got = true; s.taken = true; sfx.pick();
-        say(cx, cy - 20, `${s.e} ${s.name} ✔  -${s.price} kr`, '#45ff8a');
-        renderList();
-        if (allDone()) say(p.x, p.y - 50, 'Allt klart! Spring till utgången! 🚗', '#ffd23f');
-      } else if (s.hintT <= 0) { s.hintT = 2; sfx.no(); say(cx, cy - 20, 'Du har inte råd! 😱', '#ff4d6d'); }
-    } else if (s.hintT <= 0) { s.hintT = 2.5; say(cx, cy - 20, 'Inte på listan', '#ccc'); }
+      want.got = true; s.taken = true; dyn.remove(s.sprite); sfx.pick();
+      toast(`${s.e} ${s.name} ✔`, '#45ff8a');
+      renderList();
+      if (allDone()) {
+        allDoneFlag = true; dyn.remove(exitDoor);
+        exitLight = new THREE.PointLight(0x33ff77, 8, 14, 1); exitLight.position.set(1, 2, 13 * T); dyn.add(exitLight);
+        setTimeout(() => toast('Allt klart! Spring till utgången! 🚗', '#ffd23f', 3), 900);
+      }
+    } else if (hintT <= 0) { hintT = 2.5; toast(`${s.e} Inte på listan`, '#bbb'); }
   }
-  // Kiosken
-  for (const f of foods) {
-    const cx = (f.tx + .5) * TS, cy = (f.ty + .5) * TS, d = dist(cx, cy, p.x, p.y);
-    if (d > 45) f.ready = true;
-    if (d < 30 && f.ready) {
-      f.ready = false;
-      if (money - f.price < need) { sfx.no(); say(cx, cy - 20, 'Pengarna behövs till listan!', '#ff4d6d'); continue; }
-      money -= f.price; fear = Math.max(0, fear - f.calm); kiss = Math.min(99, kiss + f.kiss);
-      sfx.eat(); say(cx, cy - 20, `Mums! ${f.e} Nu känns det bättre`, '#ffd23f');
-      if (f.kiss >= 30) say(cx, cy - 45, 'Nu blir du kissnödig... 💦', '#7fd7ff');
-    }
-  }
-  // Toaletten
-  for (const [tx, ty] of toilets) {
-    if (dist((tx + .5) * TS, (ty + .5) * TS, p.x, p.y) < 26 && kiss > 0) {
-      const before = kiss;
-      kiss = Math.max(0, kiss - 70 * dt);
-      if (before > 5 && kiss <= 5) { sfx.flush(); say(p.x, p.y - 30, 'Aaah! Skönt! 😌', '#7fd7ff'); }
-    }
-  }
-
   // Laddstationen
-  if (dist((charger.tx + .5) * TS, (charger.ty + .5) * TS, p.x, p.y) < 30 && battery < 100) {
-    const before = battery;
-    battery = Math.min(100, battery + 60 * dt);
-    if (before < 95 && battery >= 95) { beep(880, .15, 'triangle'); say(p.x, p.y - 30, 'Full ficklampa! 🔦', '#ffd23f'); }
+  if (dist(CHARGER.x + .5, CHARGER.y + .5, p.x, p.y) < .9 && battery < 100) {
+    const before = battery; battery = Math.min(100, battery + 60 * dt);
+    if (before < 95 && battery >= 95) { beep(880, .15, 'triangle'); toast('Full ficklampa! 🔦', '#ffd23f'); }
   }
-  // Rädslan växer när monster är nära
-  for (const m of [...carts, ...robots, ...sellers]) {
-    const d = dist(m.x, m.y, p.x, p.y);
-    if (d < 160) fear += dt * (160 - d) / 160 * 6;
-  }
-
   // Spökkundvagnar
   for (const c of carts) {
-    c.cd -= dt;
-    c.x += c.vx * dt;
-    if (solidAt(c.x + Math.sign(c.vx) * 20, c.y)) c.vx *= -1;
-    if (c.cd <= 0 && dist(c.x, c.y, p.x, p.y) < 34) {
-      c.cd = 1.5; fear += 10; stun = .5; shake = .3; sfx.hit();
-      p.vx = Math.sign(c.vx) * 420; p.vy = (p.y < c.y ? -1 : 1) * 220;
-      say(p.x, p.y - 30, 'Hihihi! 👻', '#c9b8ff');
+    c.cd -= dt; c.x += c.vx * dt;
+    if (solid(c.x + Math.sign(c.vx) * .6, c.y)) c.vx *= -1;
+    if (c.cd <= 0 && dist(c.x, c.y, p.x, p.y) < .7) {
+      c.cd = 1.5; stun = .4; shake = .35; sfx.hit();
+      p.vx = Math.sign(c.vx) * 7; p.vy = (p.y < c.y ? -1 : 1) * 3;
+      toast('Hihihi! 👻', '#c9b8ff');
     }
   }
   // Städrobotar
   for (const r of robots) {
     r.cd -= dt; r.drop -= dt;
     const d = dist(r.x, r.y, r.tx, r.ty);
-    if (d < 10) newRobotTarget(r);
-    else {
-      const m = moveBody(r, (r.tx - r.x) / d * 70 * dt, (r.ty - r.y) / d * 70 * dt, 14);
-      if (m.bx || m.by) newRobotTarget(r);
+    if (d < .2) newRobotTarget(r);
+    else { const m = moveBody(r, (r.tx - r.x) / d * 1.4 * dt, (r.ty - r.y) / d * 1.4 * dt, .35); if (m.bx || m.by) newRobotTarget(r); }
+    if (r.drop <= 0) {
+      r.drop = rand(2.5, 4.5);
+      if (puddles.length < 14) {
+        const mesh = new THREE.Mesh(new THREE.CircleGeometry(.6 * T / 2, 20), new THREE.MeshStandardMaterial({ color:0x2a7fff, transparent:true, opacity:.6, metalness:.6, roughness:.1 }));
+        mesh.rotation.x = -Math.PI / 2; mesh.position.set(r.x * T, .02, r.y * T); dyn.add(mesh);
+        puddles.push({ x:r.x, y:r.y, t:14, mesh });
+      }
     }
-    if (r.drop <= 0) { r.drop = rand(2.5, 4.5); if (puddles.length < 14) puddles.push({ x:r.x, y:r.y, t:14 }); }
-    if (r.cd <= 0 && dist(r.x, r.y, p.x, p.y) < 30) {
-      r.cd = 1.5; fear += 8; stun = .3; sfx.hit();
-      p.vx = (p.x - r.x) * 8; p.vy = (p.y - r.y) * 8;
-      say(p.x, p.y - 30, 'STÄÄÄDA... DIG... 🤖', '#ff4d6d');
+    if (r.cd <= 0 && dist(r.x, r.y, p.x, p.y) < .7) {
+      r.cd = 1.5; stun = .3; shake = .2; sfx.hit();
+      p.vx = (p.x - r.x) * 6; p.vy = (p.y - r.y) * 6;
+      toast('STÄÄÄDA... DIG... 🤖', '#ff4d6d');
     }
   }
-  puddles.forEach(pd => pd.t -= dt);
+  puddles.forEach(pd => { pd.t -= dt; pd.mesh.material.opacity = Math.min(.6, pd.t / 4); if (pd.t <= 0) dyn.remove(pd.mesh); });
   puddles = puddles.filter(pd => pd.t > 0);
-  // Skyltdockor: står helt still när du lyser på dem, men rör sig i mörkret!
-  const R = lightRadius();
-  for (const s of sellers) {
-    s.cd -= dt; s.sayT -= dt;
-    const d = dist(s.x, s.y, p.x, p.y);
-    s.lit = d < R * .85;
-    if (s.lit || s.cd > 0 || d > 600) continue;
-    const sp = (blackout > 0 ? 150 : 65) + level * 6;
-    moveBody(s, (p.x - s.x) / d * sp * dt, (p.y - s.y) / d * sp * dt, 14);
-    if (d < 30) {
-      s.cd = 7; frozen = 1.2; fear += 15 + level * 3; shake = .5; scareT = .45; sfx.scream();
-      s.say = BOO_LINES[Math.random() * BOO_LINES.length | 0]; s.sayT = 2;
-      say(p.x, p.y - 40, 'AAAAH! 😱', '#ff4d6d');
-      s.x = s.px; s.y = s.py; // dockan försvinner tillbaka till sin plats
+
+  // Skyltdockor: rör sig bara när du inte tittar!
+  flowT -= dt; if (flowT <= 0) { flowT = .25; computeFlow(); }
+  let nearest = 99;
+  for (const m of mannequins) {
+    m.cd -= dt;
+    m.seen = canSee(m);
+    const d = dist(m.x, m.y, p.x, p.y);
+    if (!m.seen) nearest = Math.min(nearest, d);
+    if (m.seen || m.cd > 0) continue;
+    const sp = blackout > 0 ? 3.4 : 1.3 + level * .15;
+    const tx = Math.floor(m.x), ty = Math.floor(m.y);
+    let gx = p.x, gy = p.y, best = flow[ty]?.[tx] ?? 1e9;
+    if (best > 0) for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const v = flow[ty + dy]?.[tx + dx];
+      if (v !== undefined && v < best) { best = v; gx = tx + dx + .5; gy = ty + dy + .5; }
     }
+    const gd = dist(m.x, m.y, gx, gy) || 1;
+    moveBody(m, (gx - m.x) / gd * sp * dt, (gy - m.y) / gd * sp * dt, .25);
+    m.face = Math.atan2(p.x - m.x, p.y - m.y);
+    if (d < 8) { m.stepT -= dt; if (m.stepT <= 0) { m.stepT = blackout > 0 ? .2 : .5; sfx.step((8 - d) / 8 * .07); } }
+    if (d < .6) { caught(m); if (state !== 'play') return; }
   }
-  floats.forEach(f => { f.t -= dt; f.y -= 30 * dt; });
-  floats = floats.filter(f => f.t > 0);
-  shake = Math.max(0, shake - dt);
+  if (nearest < 4) { heartT -= dt; if (heartT <= 0) { heartT = nearest < 2 ? .5 : .85; sfx.heart(); } }
 }
 
-// ===== Ljus =====
-function lightRadius() {
-  if (blackout > 0) return 28;
-  const flick = battery < 20 && Math.random() < .15 ? .6 : 1;
-  return (70 + battery * 1.5) * flick;
+function caught(m) {
+  lives--; sfx.scream(); shake = .6;
+  $('scare').style.display = 'flex';
+  toast(BOO_LINES[Math.random() * BOO_LINES.length | 0], '#ff4d6d', 2);
+  mannequins.forEach(o => o.cd = Math.max(o.cd, 2));
+  m.x = m.px; m.y = m.py; m.cd = 4;
+  if (lives <= 0) { state = 'dying'; setTimeout(() => { $('scare').style.display = 'none'; lose('caught'); }, 1100); }
+  else setTimeout(() => $('scare').style.display = 'none', 700);
 }
-const dark = document.createElement('canvas'), dctx = dark.getContext('2d');
 
 // ===== Rita =====
-let W, H, SC;
-function resize() {
-  const dpr = window.devicePixelRatio || 1;
-  W = innerWidth; H = innerHeight;
-  cv.width = W * dpr; cv.height = H * dpr; dark.width = W; dark.height = H; cv.style.width = W + 'px'; cv.style.height = H + 'px';
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  SC = clamp(Math.min(W / 1000, H / 700), .55, 1.15);
-}
-addEventListener('resize', resize); resize();
-
-const EMOJI = '"Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif';
-function emoji(e, x, y, size) { ctx.font = `${size}px ${EMOJI}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(e, x, y); }
-function label(t, x, y, size, color, bg) {
-  ctx.font = `bold ${size}px 'Trebuchet MS', sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  if (bg) { const w = ctx.measureText(t).width + 14; ctx.fillStyle = bg; roundRect(x - w / 2, y - size * .8, w, size * 1.6, 8); ctx.fill(); }
-  ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,.6)'; if (!bg) ctx.strokeText(t, x, y);
-  ctx.fillStyle = color; ctx.fillText(t, x, y);
-}
-function roundRect(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
-
-function draw(now) {
-  ctx.fillStyle = '#0b0820'; ctx.fillRect(0, 0, W, H);
-  if (!grid) return;
-  const vw = W / SC, vh = H / SC, ww = MW * TS, wh = MH * TS;
-  let cx = vw >= ww ? (ww - vw) / 2 : clamp(p.x - vw / 2, 0, ww - vw);
-  let cy = vh >= wh ? (wh - vh) / 2 : clamp(p.y - vh / 2, -50, wh - vh);
-  if (shake > 0) { cx += rand(-6, 6); cy += rand(-6, 6); }
-  ctx.save(); ctx.scale(SC, SC); ctx.translate(-cx, -cy);
-
-  const t0x = Math.max(0, Math.floor(cx / TS)), t1x = Math.min(MW - 1, Math.ceil((cx + vw) / TS));
-  const t0y = Math.max(0, Math.floor(cy / TS)), t1y = Math.min(MH - 1, Math.ceil((cy + vh) / TS));
-  const done = allDone();
-  for (let ty = t0y; ty <= t1y; ty++) for (let tx = t0x; tx <= t1x; tx++) {
-    const g = grid[ty][tx], x = tx * TS, y = ty * TS, rid = room[ty][tx];
-    if (g === 1) {
-      ctx.fillStyle = '#2a2250'; ctx.fillRect(x, y, TS, TS);
-      ctx.fillStyle = '#3b3170'; ctx.fillRect(x, y, TS, 8);
-      continue;
-    }
-    if (g === 3) {
-      ctx.fillStyle = done ? '#1fdc6a' : '#8a2b3c'; ctx.fillRect(x, y, TS, TS);
-      continue;
-    }
-    ctx.fillStyle = rid >= 0 ? SHOPS[rid].floor : ((tx + ty) % 2 ? '#9d978a' : '#8f897c');
-    ctx.fillRect(x, y, TS, TS);
-    if (rid >= 0) { ctx.strokeStyle = 'rgba(0,0,0,.05)'; ctx.strokeRect(x, y, TS, TS); }
-    if (g === 2) {
-      const kiosk = rid === KIOSK;
-      ctx.fillStyle = kiosk ? '#b5773c' : '#6b4a2e'; ctx.fillRect(x + 2, y + 6, TS - 4, TS - 12);
-      ctx.fillStyle = kiosk ? '#d99a5b' : '#8d6644'; ctx.fillRect(x + 2, y + 6, TS - 4, 8);
-    }
-    if (g === 4) emoji('🚽', x + TS / 2, y + TS / 2, 34);
+const mini = $('mini'), mctx = mini.getContext('2d');
+function render(now, dt) {
+  const sx = shake > 0 ? rand(-.08, .08) : 0, sy = shake > 0 ? rand(-.08, .08) : 0;
+  shake = Math.max(0, shake - dt);
+  camera.position.set(p.x * T + sx, EYE + Math.sin(bob) * .05 + sy, p.y * T);
+  camera.rotation.set(pitch, yaw, 0);
+  const flick = battery < 20 && Math.random() < .15 ? .3 : 1;
+  flash.intensity = blackout > 0 ? 0 : 30 * flick;
+  flash.distance = lightRange() * T * 1.4;
+  amb.intensity = blackout > 0 ? .03 : .5;
+  for (const m of mannequins) { m.mesh.position.set(m.x * T, 0, m.y * T); m.mesh.rotation.y = m.face; }
+  for (const r of robots) { r.mesh.position.set(r.x * T, 0, r.y * T); r.mesh.rotation.y = Math.atan2(r.tx - r.x, r.ty - r.y); }
+  for (const c of carts) {
+    c.mesh.position.set(c.x * T, 0, c.y * T);
+    c.mesh.userData.ghost.position.y = 1.6 + Math.sin(now / 200 + c.y) * .12;
   }
-  // Skyltar vid dörrarna
-  SHOPS.forEach(s => {
-    const x = (s.door[0] + 1) * TS, top = s.door[1] === 9;
-    label(`${s.sign} ${s.name}`, x, top ? 10 * TS + 14 : 16 * TS - 14, 15, '#fff', 'rgba(40,20,90,.85)');
-  });
-  // Utgången och föräldrarna
-  emoji('👩', TS * .5, 11.5 * TS, 34); emoji('👨', TS * .5, 14.5 * TS, 34);
-  label(done ? 'HIT! 🚗' : 'UTGÅNG', TS * 1.1, 12.9 * TS, 14, done ? '#1fdc6a' : '#ffb3c0', 'rgba(0,0,0,.6)');
-  if (done) label('Här är vi! 👋', TS * 1.6, 10.9 * TS, 14, '#ffd23f', 'rgba(0,0,0,.6)');
-
-  // Pölar
-  puddles.forEach(pd => {
-    ctx.globalAlpha = Math.min(1, pd.t / 3) * .7;
-    ctx.fillStyle = '#6ec6ff'; ctx.beginPath(); ctx.ellipse(pd.x, pd.y, 26, 15, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.globalAlpha = 1;
-  });
-  // Varor
-  const pulse = (Math.sin(now / 200) + 1) / 2;
-  for (const s of slots) {
-    if (s.taken) continue;
-    const x = (s.tx + .5) * TS, y = (s.ty + .5) * TS;
-    if (list.some(l => l.slot === s && !l.got)) {
-      ctx.strokeStyle = `rgba(255,190,0,${.5 + pulse * .5})`; ctx.lineWidth = 4;
-      ctx.beginPath(); ctx.arc(x, y, 19 + pulse * 4, 0, Math.PI * 2); ctx.stroke();
-    }
-    emoji(s.e, x, y, 28);
-  }
-  foods.forEach(f => {
-    const x = (f.tx + .5) * TS, y = (f.ty + .5) * TS;
-    emoji(f.e, x, y, 30);
-    label(`${f.price} kr`, x, y + 22, 11, '#333', 'rgba(255,255,255,.85)');
-  });
-  emoji('🔋', (charger.tx + .5) * TS, (charger.ty + .5) * TS, 30);
-  label('Laddstation', (charger.tx + .5) * TS - 10, (charger.ty + .5) * TS + 22, 11, '#333', 'rgba(255,255,255,.85)');
-  // Faror
-  sellers.forEach(s => emoji('🧍', s.x, s.y, 36));
-  robots.forEach(r => emoji('🤖', r.x, r.y, 30));
-  carts.forEach(c => { ctx.save(); ctx.translate(c.x, c.y); if (c.vx > 0) ctx.scale(-1, 1); emoji('🛒', 0, 0, 34); ctx.restore(); });
-
-  // Spelaren
-  emoji('🧒', p.x, p.y, 36);
-  if (list.some(l => l.got)) emoji('🧺', p.x + 16, p.y + 12, 18);
-  if (frozen > 0) emoji('💬', p.x + 18, p.y - 24, 22);
-  if (stun > 0) emoji('💫', p.x, p.y - 26, 22);
-  if (kiss > 75) emoji('💦', p.x - 18, p.y - 20, 16 + pulse * 6);
-
-  ctx.restore();
-
-  // Mörkret med ficklampans ljuscirkel
-  const sx = (p.x - cx) * SC, sy = (p.y - cy) * SC, lr = lightRadius() * SC;
-  dctx.globalCompositeOperation = 'source-over';
-  dctx.clearRect(0, 0, W, H);
-  dctx.fillStyle = blackout > 0 ? 'rgba(0,0,0,.985)' : 'rgba(3,0,12,.94)';
-  dctx.fillRect(0, 0, W, H);
-  dctx.globalCompositeOperation = 'destination-out';
-  const holes = [[sx, sy, lr]];
-  if (blackout <= 0) holes.push([(TS * .6 - cx) * SC, (13 * TS - cy) * SC, 90 * SC], [((charger.tx + .5) * TS - cx) * SC, ((charger.ty + .5) * TS - cy) * SC, 45 * SC]);
-  for (const [hx, hy, hr] of holes) {
-    const gr = dctx.createRadialGradient(hx, hy, hr * .35, hx, hy, hr);
-    gr.addColorStop(0, 'rgba(0,0,0,1)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
-    dctx.fillStyle = gr; dctx.beginPath(); dctx.arc(hx, hy, hr, 0, Math.PI * 2); dctx.fill();
-  }
-  ctx.drawImage(dark, 0, 0, W, H);
-
-  // Röda ögon i mörkret + pratbubblor + flytande text ovanpå mörkret
-  ctx.save(); ctx.scale(SC, SC); ctx.translate(-cx, -cy);
-  const glowEyes = (x, y, col) => { ctx.fillStyle = col; ctx.shadowColor = col; ctx.shadowBlur = 12;
-    ctx.beginPath(); ctx.arc(x - 6, y - 8, 3, 0, 7); ctx.arc(x + 6, y - 8, 3, 0, 7); ctx.fill(); ctx.shadowBlur = 0; };
-  sellers.forEach(s => { if (!s.lit && Math.sin(now / 300 + s.px) > -.7) glowEyes(s.x, s.y, '#ff2040');
-    if (s.sayT > 0) label(s.say, s.x, s.y - 40, 16, '#fff', 'rgba(150,0,20,.9)'); });
-  robots.forEach(r => glowEyes(r.x, r.y + 2, '#ff2040'));
-  carts.forEach(c => { ctx.globalAlpha = .35 + Math.sin(now / 200) * .15; emoji('👻', c.x, c.y - 20, 26); ctx.globalAlpha = 1; });
-  if (blackout <= 0) list.forEach(l => { if (!l.got) { ctx.fillStyle = 'rgba(255,190,0,.35)'; ctx.beginPath(); ctx.arc((l.slot.tx + .5) * TS, (l.slot.ty + .5) * TS, 5, 0, 7); ctx.fill(); } });
-  floats.forEach(f => { ctx.globalAlpha = Math.min(1, f.t); label(f.text, f.x, f.y, 16, f.color); ctx.globalAlpha = 1; });
-  ctx.restore();
-  document.getElementById('scare').style.display = scareT > 0 ? 'flex' : 'none';
-
-  drawMinimap();
-  if (joy.on) {
-    ctx.strokeStyle = 'rgba(255,255,255,.4)'; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.arc(joy.ox, joy.oy, 50, 0, Math.PI * 2); ctx.stroke();
-    const dx = joy.x - joy.ox, dy = joy.y - joy.oy, l = Math.hypot(dx, dy), m = Math.min(l, 50) / (l || 1);
-    ctx.fillStyle = 'rgba(0,229,255,.6)'; ctx.beginPath(); ctx.arc(joy.ox + dx * m, joy.oy + dy * m, 22, 0, Math.PI * 2); ctx.fill();
-  }
+  const pulse = 1 + Math.sin(now / 250) * .12;
+  list.forEach(l => { if (!l.got) l.slot.sprite.scale.setScalar(.8 * pulse); });
+  renderer.render(scene, camera);
+  drawMinimap(now);
+  if (toastT > 0) { toastT -= dt; if (toastT <= 0) $('toast').style.opacity = 0; }
+  $('hint').style.display = state === 'play' && !isTouch && document.pointerLockElement !== cv ? 'block' : 'none';
 }
 
-function drawMinimap() {
-  const m = W < 600 ? 3 : 4, ox = 10, oy = 58;
-  ctx.fillStyle = 'rgba(11,8,32,.8)'; ctx.fillRect(ox - 4, oy - 4, MW * m + 8, MH * m + 8);
+function drawMinimap(now) {
+  const m = innerWidth < 600 ? 3 : 4;
+  if (mini.width !== MW * m) { mini.width = MW * m; mini.height = MH * m; }
   for (let y = 0; y < MH; y++) for (let x = 0; x < MW; x++) {
-    const g = grid[y][x], rid = room[y][x];
-    ctx.fillStyle = g === 1 ? '#3b3170' : g === 2 ? '#6b4a2e' : g === 3 ? (allDone() ? '#1fdc6a' : '#8a2b3c') : rid >= 0 ? SHOPS[rid].floor : '#aaa';
-    ctx.fillRect(ox + x * m, oy + y * m, m, m);
+    const g = grid[y][x], r = room[y][x];
+    mctx.fillStyle = g === 1 ? '#2a2250' : g === 2 ? '#6b4a2e' : g === 3 ? (allDoneFlag ? '#1fdc6a' : '#8a2b3c') : r >= 0 ? SHOPS[r].floor : '#888';
+    mctx.fillRect(x * m, y * m, m, m);
   }
-  const blink = Math.sin(performance.now() / 150) > 0;
-  ctx.fillStyle = '#ff9d00';
-  list.forEach(l => { if (!l.got && blink) ctx.fillRect(ox + l.slot.tx * m - 1, oy + l.slot.ty * m - 1, m + 2, m + 2); });
-  ctx.fillStyle = '#ff3df0';
-  ctx.beginPath(); ctx.arc(ox + p.x / TS * m, oy + p.y / TS * m, m + 1, 0, Math.PI * 2); ctx.fill();
+  if (Math.sin(now / 150) > 0) {
+    mctx.fillStyle = '#ff9d00';
+    list.forEach(l => { if (!l.got) mctx.fillRect(l.slot.tx * m - 1, l.slot.ty * m - 1, m + 2, m + 2); });
+  }
+  mctx.fillStyle = '#44ff88'; mctx.fillRect(CHARGER.x * m, CHARGER.y * m, m, m);
+  const px = p.x * m, py = p.y * m;
+  mctx.strokeStyle = '#ff3df0'; mctx.lineWidth = 2;
+  mctx.beginPath(); mctx.moveTo(px, py); mctx.lineTo(px - Math.sin(yaw) * m * 2.5, py - Math.cos(yaw) * m * 2.5); mctx.stroke();
+  mctx.fillStyle = '#ff3df0'; mctx.beginPath(); mctx.arc(px, py, m * .9, 0, 7); mctx.fill();
 }
 
 // ===== HUD och listor =====
-const $ = id => document.getElementById(id);
 function renderList() {
-  const part = who => list.filter(l => l.who === who).map(l =>
-    `<div class="it ${l.got ? 'got' : ''}">${l.slot.e} ${l.slot.name} <small>${l.slot.price} kr</small></div>`).join('');
+  const part = who => list.filter(l => l.who === who).map(l => `<div class="it ${l.got ? 'got' : ''}">${l.slot.e} ${l.slot.name}</div>`).join('');
   const left = list.filter(l => !l.got).length;
   $('list').innerHTML = `<b>📝 Inköpslistan (${list.length - left}/${list.length})</b><div class="items">
     <h3>👩 Mamma</h3>${part('mamma')}<h3>👨 Pappa</h3>${part('pappa')}</div>
@@ -542,62 +617,66 @@ function renderList() {
 }
 function updateHud() {
   $('lvl').textContent = level;
-  $('money').textContent = Math.round(money);
   const mins = 20 * 60 + Math.floor(time / dayLen * 240);
   $('clock').textContent = `🕛 ${String(Math.floor(mins / 60) % 24).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
   $('clock').className = dayLen - time < 25 ? 'warn' : '';
-  const e = clamp(battery, 0, 100), k = clamp(kiss, 0, 100), fr = clamp(fear, 0, 100);
+  const e = clamp(battery, 0, 100);
   $('eBar').style.width = e + '%'; $('eBar').style.background = e < 25 ? '#ff4d6d' : '#ffd23f';
-  $('fBar').style.width = fr + '%'; $('fBar').style.background = fr > 70 ? '#ff2040' : '#b07bff';
-  $('kBar').style.width = k + '%'; $('kBar').style.background = k > 75 ? '#ff4d6d' : '#6ec6ff';
+  $('lives').textContent = '❤️'.repeat(Math.max(0, lives)) + '🖤'.repeat(3 - Math.max(0, lives));
 }
 
 // ===== Skärmar =====
-function show(html) { $('screen').innerHTML = `<div class="box">${html}</div>`; $('screen').classList.remove('hidden'); }
+function show(html) { $('screen').innerHTML = `<div class="box">${html}</div>`; $('screen').classList.remove('hidden'); if (document.pointerLockElement) document.exitPointerLock(); }
 function hide() { $('screen').classList.add('hidden'); }
 function notes() {
   const n = who => list.filter(l => l.who === who).map(l => `${l.slot.e} ${l.slot.name}`).join('<br>');
   return `<div class="notes"><div class="note"><b>👩 Mammas lista</b>${n('mamma')}</div><div class="note"><b>👨 Pappas lista</b>${n('pappa')}</div></div>`;
 }
 function menu() {
-  state = 'menu'; setupLevel();
+  state = 'menu'; setupLevel(); updateHud();
   const best = save0.best ? `<p>🏆 Ditt rekord: nivå ${save0.best}</p>` : '';
+  const ctrl = isTouch
+    ? '🎮 Dra med vänster tumme för att gå. Dra med höger tumme för att titta runt.'
+    : '🎮 Gå med WASD eller piltangenterna. Titta runt med musen (klicka först). Tryck Esc för att släppa musen.';
   show(`<h1>🔦 Mörka köpcentret</h1>
-    <p>Mamma och pappa glömde handla! Klockan är 20:00 och köpcentret har nattöppet... men alla lampor är släckta och något är MYCKET konstigt. Mamma och pappa väntar vid bilen. Köp allt på listorna och spring ut innan klockan slår tolv!</p>
-    <p><b>Nivå ${level}</b> · Du har <b>${money} kr</b></p>
+    <p>Mamma och pappa glömde handla! Klockan är 20:00 och köpcentret har nattöppet... men alla lampor är släckta och något är MYCKET konstigt. Köp allt på listorna och spring ut till bilen innan klockan slår tolv!</p>
+    <p><b>Nivå ${level}</b></p>
     ${notes()}${best}
-    <button class="btn" onclick="start()">Kör! 🏃</button>
+    <button class="btn" id="goBtn">Kör! 🏃</button>
     <div class="tips">
-      🎮 Gå med piltangenterna eller WASD. På mobil drar du med fingret.<br>
-      🧍 Skyltdockorna rör sig bara i mörkret. Lys på dem så står de still... men ibland slocknar lampan!<br>
+      ${ctrl}<br>
+      🧍 Skyltdockorna rör sig bara när du INTE tittar på dem. Håll ficklampan på dem! Men ibland slocknar lampan...<br>
+      👂 Hör du steg? Vänd dig om!<br>
       🔦 Ficklampan blir svagare. Ladda den vid 🔋 laddstationen i Elektronik.<br>
-      😱 Blir du för rädd? En tröstglass 🍦 i kiosken hjälper.<br>
-      🚽 Kissnödig? Spring till toaletten!<br>
-      👻 Akta dig för spökkundvagnarna och 🤖 städroboten med röda ögon.
+      👻 Akta dig för spökkundvagnarna och 🤖 städroboten som gör golvet halt.
     </div>`);
+  $('goBtn').onclick = start;
 }
-function start() { hide(); state = 'play'; beep(440, .05); }
+function start() {
+  hide(); state = 'play'; beep(440, .05);
+  if (!isTouch) cv.requestPointerLock();
+}
 function lose(why) {
   state = 'over'; sfx.lose();
   const txt = {
     clock:['🕛 Klockan slog tolv!', 'Alla skyltdockor vaknade på riktigt och började dansa runt dig. Du fick springa ut tomhänt!'],
-    fear:['😱 Du blev för rädd!', 'Du skrek AAAAH och sprang hela vägen hem. Nästa gång: ät en tröstglass och håll ficklampan laddad!'],
-    kiss:['💦 Oj oj oj!', 'Du hann inte till toaletten! Nästa gång springer du till 🚽 i tid.'],
-    money:['💸 Pengarna tog slut!', 'Du har inte råd med resten av listan. Handla inte för mycket i kiosken!'],
+    caught:['🧍 Skyltdockorna tog dig!', 'Nu står du i skyltfönstret och poserar i en jättefin kostym... Försök igen och håll ficklampan på dem!'],
   }[why];
-  show(`<h1>${txt[0]}</h1><p>${txt[1]}</p><p>Du hann köpa ${list.filter(l => l.got).length} av ${list.length} saker.</p>
-    <button class="btn" onclick="menu()">Försök igen 🔁</button>`);
+  show(`<h1>${txt[0]}</h1><p>${txt[1]}</p><p>Du hann hitta ${list.filter(l => l.got).length} av ${list.length} saker.</p>
+    <button class="btn" id="goBtn">Försök igen 🔁</button>`);
+  $('goBtn').onclick = menu;
 }
 function win() {
   state = 'over'; sfx.win();
-  const stars = 1 + (dayLen - time > dayLen * .3 ? 1 : 0) + (fear < 50 && kiss < 60 ? 1 : 0);
-  save0.best = Math.max(save0.best || 0, level + 1); save(save0);
+  const stars = 1 + (dayLen - time > dayLen * .3 ? 1 : 0) + (lives === 3 ? 1 : 0);
+  save0.best = Math.max(save0.best || 0, level + 1); storeSave(save0);
   const cheer = ['Puh! Mamma och pappa kramar dig i bilen! 🚗', 'Du är modigare än ett spöke!', 'Wow! Inte ens skyltdockorna kunde stoppa dig!'][stars - 1];
   show(`<h1>🎉 Du överlevde!</h1><div class="stars">${'⭐'.repeat(stars)}${'☆'.repeat(3 - stars)}</div>
-    <p>${cheer}<br>Du hade ${Math.round(money)} kr kvar i växel.</p>
-    <p>Nästa nivå: längre listor, fler skyltdockor och spöken!</p>
-    <button class="btn" onclick="level++; menu()">Nästa nivå ➡</button>
-    <button class="btn alt" onclick="menu()">Samma nivå igen</button>`);
+    <p>${cheer}</p><p>Nästa nivå: längre listor, fler skyltdockor och spöken!</p>
+    <button class="btn" id="goBtn">Nästa nivå ➡</button>
+    <button class="btn alt" id="againBtn">Samma nivå igen</button>`);
+  $('goBtn').onclick = () => { level++; menu(); };
+  $('againBtn').onclick = menu;
 }
 
 // ===== Spel-loop =====
@@ -605,13 +684,16 @@ let last = performance.now();
 function loop(now) {
   const dt = Math.min(.05, (now - last) / 1000); last = now;
   update(dt);
-  draw(now);
+  render(now, dt);
   if (state === 'play') updateHud();
   requestAnimationFrame(loop);
 }
-level = 1;
-menu(); updateHud();
+menu();
 requestAnimationFrame(loop);
+// För testning
+window.__game = { get state() { return state; }, get p() { return p; }, get list() { return list; }, get mannequins() { return mannequins; },
+  set yaw(v) { yaw = v; }, get yaw() { return yaw; }, keys, grid, update, render, menu, start, set level(v) { level = v; },
+  get lives() { return lives; }, get time() { return time; }, get battery() { return battery; } };
 </script>
 </body>
 </html>
