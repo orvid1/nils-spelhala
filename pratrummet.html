@@ -391,7 +391,37 @@ function skickaLage(tvinga) {
 // ---------- Använda sakerna ----------
 // Gå nära en sak och tryck E (eller på den gula knappen).
 const rum = { v: 0, tv: 0, lampa: 1, disco: 0 };   // det här ser alla i rummet likadant
-const KANALER = [null, ['🚀', '#0b1a4a', 'Rymden'], ['⚽', '#1f7a3a', 'Fotboll'], ['🐱', '#b0457a', 'Tecknat']];
+const KANALER = [null, ['🚀', '#0b1a4a', 'Rymden'], ['⚽', '#1f7a3a', 'Fotboll'], ['🐱', '#b0457a', 'Tecknat'],
+  ['', '#7ad0ff', 'Familjen Knas', ritaKnas]];
+// Familjen Knas: en egen tecknad familj som vi har hittat på själva.
+// x, bredd, höjd, färg och vad som är speciellt med var och en.
+const KNAS = [
+  { namn: 'Pappa Bullen', x: 36, b: 44, h: 70, farg: '#3fbf5a', extra: 'hatt' },
+  { namn: 'Mamma Mirra', x: 86, b: 38, h: 76, farg: '#ff6fb5', extra: 'rosett' },
+  { namn: 'Bus-Bo', x: 134, b: 32, h: 52, farg: '#ff9a3d', extra: 'keps' },
+  { namn: 'Kloka Klara', x: 178, b: 30, h: 56, farg: '#b07bff', extra: 'tofsar' },
+  { namn: 'Bebis Plupp', x: 220, b: 24, h: 32, farg: '#ffe14d', extra: 'napp' }
+];
+function ritaKnas(g, t) {
+  g.fillStyle = '#58c26b'; g.fillRect(0, 100, 256, 44);               // gräs
+  g.fillStyle = '#fff'; g.beginPath(); g.arc(40 + (t * 8) % 300 - 40, 22, 12, 0, 7); g.arc(56 + (t * 8) % 300 - 40, 18, 15, 0, 7); g.fill();   // moln
+  KNAS.forEach((f, i) => {
+    const y = 108 - Math.abs(Math.sin(t * 4 + i * 0.9)) * 10, topp = y - f.h;
+    g.fillStyle = f.farg;
+    g.beginPath(); g.ellipse(f.x, y - f.h / 2, f.b / 2, f.h / 2, 0, 0, 7); g.fill();
+    g.fillStyle = '#fff';                                                // ögon
+    g.beginPath(); g.arc(f.x - f.b * .18, topp + f.h * .3, f.b * .14, 0, 7); g.arc(f.x + f.b * .18, topp + f.h * .3, f.b * .14, 0, 7); g.fill();
+    g.fillStyle = '#111';
+    g.beginPath(); g.arc(f.x - f.b * .16, topp + f.h * .3, f.b * .06, 0, 7); g.arc(f.x + f.b * .2, topp + f.h * .3, f.b * .06, 0, 7); g.fill();
+    g.strokeStyle = '#111'; g.lineWidth = 2;                             // mun
+    g.beginPath(); g.arc(f.x, topp + f.h * .5, f.b * .2, 0.2, Math.PI - 0.2); g.stroke();
+    if (f.extra === 'hatt') { g.fillStyle = '#222'; g.fillRect(f.x - 14, topp - 12, 28, 14); g.fillRect(f.x - 22, topp, 44, 4); }
+    else if (f.extra === 'rosett') { g.fillStyle = '#ff2d2d'; g.beginPath(); g.moveTo(f.x, topp + 2); g.lineTo(f.x - 12, topp - 8); g.lineTo(f.x - 12, topp + 10); g.closePath(); g.moveTo(f.x, topp + 2); g.lineTo(f.x + 12, topp - 8); g.lineTo(f.x + 12, topp + 10); g.closePath(); g.fill(); }
+    else if (f.extra === 'keps') { g.fillStyle = '#1f6fff'; g.beginPath(); g.arc(f.x, topp + 6, 13, Math.PI, 0); g.fill(); g.fillRect(f.x, topp + 3, 22, 4); }
+    else if (f.extra === 'tofsar') { g.fillStyle = '#7a3fd0'; g.beginPath(); g.arc(f.x - 17, topp + 12, 7, 0, 7); g.arc(f.x + 17, topp + 12, 7, 0, 7); g.fill(); }
+    else if (f.extra === 'napp') { g.fillStyle = '#ff4d6d'; g.beginPath(); g.arc(f.x, topp + f.h * .56, 5, 0, 7); g.fill(); }
+  });
+}
 const BLINKA = [262, 262, 392, 392, 440, 440, 392, 349, 349, 330, 330, 294, 294, 262];   // Blinka lilla stjärna
 let pianoSteg = 0;
 const SAKER = [
@@ -421,7 +451,7 @@ function anvand() {
     else { jag.sitt = 1; jag.x = 190 + (Math.random() - .5) * 80; jag.y = 48; jag.mal = null; jag.dans = 0; ritaDansKnappar(); }
     skickaLage(true);
   }
-  else if (s.id === 'tv') andraRum({ tv: (rum.tv + 1) % 4 });
+  else if (s.id === 'tv') andraRum({ tv: (rum.tv + 1) % KANALER.length });
   else if (s.id === 'lampa') andraRum({ lampa: rum.lampa ? 0 : 1 });
   else if (s.id === 'disco') andraRum({ disco: rum.disco ? 0 : 1 });
   else if (s.id === 'piano') { const n = pianoSteg++ % BLINKA.length; effekt('ton', n); __prat.skickaSpel({ s: 'fx', typ: 'ton', n }); }
@@ -432,7 +462,7 @@ $('anvand').onclick = anvand;
 function sakHandelse(id, d) {   // en kompis använde en sak
   if (d.s === 'sak' && d.rum && d.rum.v > rum.v) {
     rum.v = +d.rum.v || 0;
-    rum.tv = [0, 1, 2, 3].includes(d.rum.tv) ? d.rum.tv : 0;
+    rum.tv = KANALER[d.rum.tv] ? d.rum.tv : 0;
     rum.lampa = d.rum.lampa ? 1 : 0; rum.disco = d.rum.disco ? 1 : 0;
     ritaTv(0);
   } else if (d.s === 'fx') {
@@ -459,8 +489,10 @@ function ritaTv(t) {
   g.fillStyle = k ? k[1] : '#05050a'; g.fillRect(0, 0, 256, 144);
   if (k) {
     g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.font = '70px sans-serif'; g.fillText(k[0], 128 + Math.sin(t * 2) * 70, 62 - Math.abs(Math.sin(t * 5)) * 14);
-    g.font = 'bold 22px Trebuchet MS, sans-serif'; g.fillStyle = '#fff'; g.fillText(k[2], 128, 124);
+    if (k[3]) k[3](g, t);
+    else { g.font = '70px sans-serif'; g.fillText(k[0], 128 + Math.sin(t * 2) * 70, 62 - Math.abs(Math.sin(t * 5)) * 14); }
+    g.font = 'bold 20px Trebuchet MS, sans-serif'; g.lineWidth = 4; g.strokeStyle = 'rgba(0,0,0,.6)'; g.strokeText(k[2], 128, 128);
+    g.fillStyle = '#fff'; g.fillText(k[2], 128, 128);
   }
   tvSkarm.material.map.needsUpdate = true;
 }
