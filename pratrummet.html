@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Pratrummet</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { height:100%; overflow:hidden; background:#0b0b2a; color:#fff; font-family:'Trebuchet MS','Segoe UI',sans-serif; }
+  canvas { display:block; position:fixed; inset:0; width:100%; height:100%; touch-action:none; }
+  #hem { position:fixed; top:8px; left:8px; color:#fff; text-decoration:none; background:rgba(0,0,0,.5); padding:6px 12px;
+    border-radius:12px; font-weight:bold; }
+  #tips { position:fixed; top:8px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,.55); padding:6px 14px;
+    border-radius:12px; font-size:14px; text-align:center; max-width:70vw; }
+  #tips b { color:#ffd23f; letter-spacing:2px; }
+  #tips button { margin-left:6px; }
+  button { cursor:pointer; color:#fff; border:none; border-radius:10px; font-size:16px; font-weight:bold; padding:8px 12px;
+    background:#3a2a7a; touch-action:manipulation; }
+  #valj { position:fixed; top:8px; right:8px; display:flex; flex-direction:column; gap:6px; align-items:flex-end; }
+  #meny { display:none; background:rgba(18,10,48,.95); border:2px solid #00e5ff; border-radius:14px; padding:10px; width:230px; }
+  #meny div { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:8px; }
+  #meny button { background:none; font-size:26px; padding:3px 5px; border:2px solid transparent; }
+  #meny button.vald { border-color:#ffd23f; }
+  #meny .f { width:30px; height:30px; border-radius:50%; padding:0; }
+  #sag { position:fixed; left:50%; bottom:max(10px, env(safe-area-inset-bottom)); transform:translateX(-50%); display:flex; gap:6px;
+    width:min(460px, calc(100vw - 20px)); }
+  #sag input { flex:1; padding:10px 12px; border-radius:12px; border:2px solid #00e5ff; background:rgba(11,11,42,.9); color:#fff;
+    font-size:16px; outline:none; }
+  #sag button { background:#1f9d55; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<a id="hem" href="index.html">⬅ Hem</a>
+<div id="tips"></div>
+<div id="valj">
+  <button id="menyKnapp">🎨 Byt gubbe</button>
+  <div id="meny"><div id="djur"></div><div id="farger"></div></div>
+</div>
+<form id="sag"><input id="sagIn" maxlength="200" placeholder="Säg något..." autocomplete="off"><button>Säg</button></form>
+
+<script src="prat.js"></script>
+<script>
+// ===== Pratrummet: gå runt med din gubbe och prata med kompisar =====
+const W = 1000, H = 600;              // rummets storlek
+const DJUR = ['🐱', '🐶', '🦊', '🐸', '🐼', '🦄', '🤖', '👽', '🐵', '🐧', '🦖', '👻'];
+const FARGER = ['#00e5ff', '#ff3df0', '#ffd23f', '#45ff8a', '#ff4d6d', '#b07bff'];
+const FART = 260;                     // pixlar per sekund
+const SPARA = 'nils_pratrum_v1';
+const MOBLER = [                      // sakerna i rummet (bara pynt)
+  { e: '🛋️', x: 180, y: 150, s: 110 }, { e: '📺', x: 180, y: 290, s: 70 }, { e: '🪴', x: 60, y: 90, s: 70 },
+  { e: '🪴', x: 940, y: 90, s: 70 }, { e: '🎹', x: 800, y: 150, s: 90 }, { e: '🪩', x: 500, y: 70, s: 60 },
+  { e: '🍕', x: 820, y: 480, s: 50 }, { e: '🧸', x: 110, y: 500, s: 60 }, { e: '🎮', x: 290, y: 300, s: 40 }
+];
+
+const cv = document.getElementById('c'), g = cv.getContext('2d');
+const $ = id => document.getElementById(id);
+
+let sparat = {};
+try { sparat = JSON.parse(localStorage.getItem(SPARA)) || {}; } catch (e) {}
+const jag = {
+  x: 400 + Math.random() * 200, y: 330 + Math.random() * 150,
+  djur: DJUR.includes(sparat.djur) ? sparat.djur : DJUR[Math.floor(Math.random() * DJUR.length)],
+  farg: FARGER.includes(sparat.farg) ? sparat.farg : FARGER[Math.floor(Math.random() * FARGER.length)],
+  bubbla: '', bubblaTid: 0, hopp: 0, mal: null
+};
+const andra = {};   // peer-id -> gubbe
+const keys = {};
+
+function sparaGubbe() { try { localStorage.setItem(SPARA, JSON.stringify({ djur: jag.djur, farg: jag.farg })); } catch (e) {} }
+
+// ---------- Skärm ----------
+let skala = 1, ox = 0, oy = 0;
+function passaIn() {
+  const d = devicePixelRatio || 1;
+  cv.width = innerWidth * d; cv.height = innerHeight * d;
+  skala = Math.min(innerWidth / W, innerHeight / H);
+  ox = (innerWidth - W * skala) / 2; oy = (innerHeight - H * skala) / 2;
+}
+addEventListener('resize', passaIn); passaIn();
+
+// ---------- Styrning ----------
+addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT') return;
+  const k = e.key.toLowerCase(); keys[k] = true;
+  if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(k)) e.preventDefault();
+  if (k === ' ' && !jag.hopp) { jag.hopp = 1; skickaLage(true); }
+  if (k === 'enter') $('sagIn').focus();
+});
+addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+cv.addEventListener('pointerdown', e => {   // tryck i rummet = gå dit
+  jag.mal = { x: (e.clientX - ox) / skala, y: (e.clientY - oy) / skala };
+  $('sagIn').blur(); $('meny').style.display = 'none';
+});
+
+// ---------- Prata ----------
+function sag(gubbe, text) { gubbe.bubbla = text; gubbe.bubblaTid = 6; }
+$('sag').addEventListener('submit', e => {
+  e.preventDefault();
+  const t = $('sagIn').value.trim(); $('sagIn').value = '';
+  if (!t) return;
+  if (__prat.iRum) __prat.skicka(t); else sag(jag, t);
+});
+__prat.pa('msg', (id, text) => {
+  if (id === 'jag') sag(jag, text);
+  else if (andra[id]) sag(andra[id], text);
+});
+__prat.pa('in', () => skickaLage(true));
+__prat.pa('ut', id => delete andra[id]);
+__prat.pa('spel', (id, d, namn) => {
+  if (!d || d.s !== 'rum') return;
+  const a = andra[id] || (andra[id] = { x: d.x, y: d.y, bubbla: '', bubblaTid: 0, hopp: 0 });
+  a.tx = Math.max(0, Math.min(W, +d.x || 0)); a.ty = Math.max(0, Math.min(H, +d.y || 0));
+  a.djur = DJUR.includes(d.djur) ? d.djur : '🙂';
+  a.farg = FARGER.includes(d.farg) ? d.farg : '#fff';
+  a.namn = namn || 'Kompis';
+  if (d.hopp && !a.hopp) a.hopp = 1;
+});
+
+let sistSkickat = 0, sistX = 0, sistY = 0;
+function skickaLage(tvinga) {
+  if (!__prat.iRum) return;
+  const nu = performance.now();
+  const flyttat = Math.abs(jag.x - sistX) + Math.abs(jag.y - sistY) > 1;
+  if (!tvinga && !(flyttat && nu - sistSkickat > 80) && nu - sistSkickat < 1500) return;
+  sistSkickat = nu; sistX = jag.x; sistY = jag.y;
+  __prat.skickaSpel({ s: 'rum', x: Math.round(jag.x), y: Math.round(jag.y), djur: jag.djur, farg: jag.farg, hopp: jag.hopp > 0.5 ? 1 : 0 });
+}
+
+// ---------- Byt gubbe ----------
+function ritaMeny() {
+  $('djur').innerHTML = ''; $('farger').innerHTML = '';
+  DJUR.forEach(d => {
+    const b = document.createElement('button'); b.textContent = d; if (d === jag.djur) b.className = 'vald';
+    b.onclick = () => { jag.djur = d; sparaGubbe(); ritaMeny(); skickaLage(true); };
+    $('djur').appendChild(b);
+  });
+  FARGER.forEach(f => {
+    const b = document.createElement('button'); b.className = 'f' + (f === jag.farg ? ' vald' : ''); b.style.background = f;
+    b.onclick = () => { jag.farg = f; sparaGubbe(); ritaMeny(); skickaLage(true); };
+    $('farger').appendChild(b);
+  });
+}
+$('menyKnapp').onclick = () => { const m = $('meny'); m.style.display = m.style.display === 'block' ? 'none' : 'block'; };
+ritaMeny();
+
+let tipsText = '';
+function ritaTips() {
+  const t = __prat.iRum
+    ? 'Rummets hemliga kod: <b>' + __prat.kod + '</b> · ' + (__prat.kompisar + 1) + ' här inne'
+    : 'Du är själv här. <button id="bjud">💬 Bjud in kompisar</button>';
+  if (t === tipsText) return;
+  tipsText = t; $('tips').innerHTML = t;
+  const b = $('bjud'); if (b) b.onclick = () => __prat.oppna();
+}
+
+// ---------- Spelet ----------
+function uppdatera(dt) {
+  let dx = 0, dy = 0;
+  if (keys['a'] || keys['arrowleft']) dx--;
+  if (keys['d'] || keys['arrowright']) dx++;
+  if (keys['w'] || keys['arrowup']) dy--;
+  if (keys['s'] || keys['arrowdown']) dy++;
+  if (dx || dy) jag.mal = null;
+  else if (jag.mal) {
+    const mx = jag.mal.x - jag.x, my = jag.mal.y - jag.y, l = Math.hypot(mx, my);
+    if (l < 6) jag.mal = null; else { dx = mx / l; dy = my / l; }
+  }
+  const l = Math.hypot(dx, dy);
+  if (l > 0) { jag.x += dx / l * FART * dt; jag.y += dy / l * FART * dt; }
+  jag.x = Math.max(30, Math.min(W - 30, jag.x));
+  jag.y = Math.max(120, Math.min(H - 20, jag.y));   // man kan inte gå upp på väggen
+
+  for (const gubbe of [jag, ...Object.values(andra)]) {
+    if (gubbe.hopp > 0) gubbe.hopp = Math.max(0, gubbe.hopp - dt * 2.2);
+    if (gubbe.bubblaTid > 0) gubbe.bubblaTid -= dt;
+    if (gubbe !== jag && gubbe.tx != null) {         // kompisar glider mjukt dit de är
+      gubbe.x += (gubbe.tx - gubbe.x) * Math.min(1, dt * 12);
+      gubbe.y += (gubbe.ty - gubbe.y) * Math.min(1, dt * 12);
+    }
+  }
+  skickaLage(false);
+  ritaTips();
+}
+
+function rundRuta(x, y, w, h, r) {
+  g.beginPath();
+  g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r);
+  g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
+}
+function ritaGubbe(p, namn) {
+  const hopp = Math.sin(p.hopp * Math.PI) * 45;
+  g.fillStyle = 'rgba(0,0,0,.3)';
+  g.beginPath(); g.ellipse(p.x, p.y + 4, 24 - hopp * .2, 9, 0, 0, 7); g.fill();
+  g.fillStyle = p.farg;
+  g.beginPath(); g.arc(p.x, p.y - 28 - hopp, 30, 0, 7); g.fill();
+  g.font = '40px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(p.djur, p.x, p.y - 26 - hopp);
+  g.font = 'bold 15px Trebuchet MS, sans-serif';
+  g.lineWidth = 4; g.strokeStyle = 'rgba(0,0,0,.7)'; g.strokeText(namn, p.x, p.y + 20);
+  g.fillStyle = '#fff'; g.fillText(namn, p.x, p.y + 20);
+}
+function ritaBubbla(p) {
+  if (p.bubblaTid <= 0 || !p.bubbla) return;
+  g.font = '17px Trebuchet MS, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  // dela upp texten i rader
+  const rader = []; let rad = '';
+  for (const ord of p.bubbla.split(' ')) {
+    const prov = rad ? rad + ' ' + ord : ord;
+    if (g.measureText(prov).width > 220 && rad) { rader.push(rad); rad = ord; } else rad = prov;
+  }
+  rader.push(rad);
+  if (rader.length > 4) { rader.length = 4; rader[3] += '…'; }
+  const bredd = Math.min(260, Math.max(...rader.map(r => g.measureText(r).width)) + 24), hojd = rader.length * 22 + 14;
+  const x = Math.max(bredd / 2 + 4, Math.min(W - bredd / 2 - 4, p.x));
+  const y = p.y - 70 - Math.sin(p.hopp * Math.PI) * 45 - hojd;
+  g.globalAlpha = Math.min(1, p.bubblaTid * 2);
+  g.fillStyle = '#fff'; g.strokeStyle = p.farg; g.lineWidth = 3;
+  rundRuta(x - bredd / 2, y, bredd, hojd, 12); g.fill(); g.stroke();
+  g.beginPath(); g.moveTo(p.x - 8, y + hojd - 1); g.lineTo(p.x, y + hojd + 10); g.lineTo(p.x + 8, y + hojd - 1); g.fill();
+  g.fillStyle = '#111';
+  g.save(); g.beginPath(); g.rect(x - bredd / 2 + 4, y, bredd - 8, hojd); g.clip();
+  rader.forEach((r, i) => g.fillText(r, x, y + 18 + i * 22));
+  g.restore();
+  g.globalAlpha = 1;
+}
+function rita() {
+  const d = devicePixelRatio || 1;
+  g.setTransform(d, 0, 0, d, 0, 0);
+  g.fillStyle = '#0b0b2a'; g.fillRect(0, 0, innerWidth, innerHeight);
+  g.setTransform(d * skala, 0, 0, d * skala, d * ox, d * oy);
+  // vägg och golv
+  g.fillStyle = '#2a1a5e'; g.fillRect(0, 0, W, 110);
+  g.fillStyle = '#ff3df0'; g.fillRect(0, 104, W, 6);
+  for (let y = 110, r = 0; y < H; y += 70, r++)
+    for (let x = 0, k = 0; x < W; x += 100, k++) {
+      g.fillStyle = (r + k) % 2 ? '#1c1446' : '#231a55'; g.fillRect(x, y, 100, 70);
+    }
+  g.fillStyle = 'rgba(0,229,255,.12)'; g.beginPath(); g.ellipse(500, 380, 230, 130, 0, 0, 7); g.fill();   // mattan
+  g.strokeStyle = 'rgba(0,229,255,.5)'; g.lineWidth = 4; g.stroke();
+  g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#fff';
+  for (const m of MOBLER) { g.font = m.s + 'px sans-serif'; g.fillText(m.e, m.x, m.y); }
+  g.strokeStyle = '#00e5ff'; g.lineWidth = 4; g.strokeRect(2, 2, W - 4, H - 4);
+  // gubbarna, de längst bak först
+  const alla = [{ p: jag, namn: __prat.namn || 'Du' }, ...Object.values(andra).map(p => ({ p, namn: p.namn }))];
+  alla.sort((a, b) => a.p.y - b.p.y);
+  alla.forEach(a => ritaGubbe(a.p, a.namn));
+  alla.forEach(a => ritaBubbla(a.p));
+}
+
+let forra = performance.now();
+function varv(nu) {
+  const dt = Math.min(0.05, (nu - forra) / 1000); forra = nu;
+  uppdatera(dt); rita();
+  requestAnimationFrame(varv);
+}
+requestAnimationFrame(varv);
+window.__game = { jag, andra, uppdatera, rita };
+</script>
+</body>
+</html>

@@ -24,6 +24,8 @@
   const samtalUt = {};   // peer-id -> mitt samtal dit (min röst)
   const ljud = {};       // peer-id -> <audio> med kompisens röst
   let olasta = 0, oppen = false;
+  const lyssnare = {};  // spel kan lyssna: 'in', 'ut', 'msg', 'spel'
+  function hander(typ, a, b, c) { (lyssnare[typ] || []).forEach(f => { try { f(a, b, c); } catch (e) {} }); }
 
   function spara() { try { localStorage.setItem(SPARA, JSON.stringify(sparat)); } catch (e) {} }
   function sparaHist() { try { sessionStorage.setItem(HISTORIK, JSON.stringify(hist.slice(-30))); } catch (e) {} }
@@ -189,13 +191,18 @@
         const forsta = !k.namn;
         k.namn = String(d.namn || 'Kompis').slice(0, 14); k.mic = !!d.mic;
         if (forsta) info('👋 ' + k.namn + ' kom in i rummet');
+        hander('in', conn.peer, k.namn);
         ritaFolk();
       } else if (d.t === 'mic') {
         k.mic = !!d.on; ritaFolk();
         if (!k.mic) stangLjud(conn.peer);
       } else if (d.t === 'msg' && !sedda.has(d.id)) {
         sedda.add(d.id);
-        nyttMeddelande({ namn: k.namn || 'Kompis', text: String(d.text || '').slice(0, 200) });
+        const text = String(d.text || '').slice(0, 200);
+        nyttMeddelande({ namn: k.namn || 'Kompis', text });
+        hander('msg', conn.peer, text, k.namn);
+      } else if (d.t === 'spel') {
+        hander('spel', conn.peer, d.d, k.namn);
       }
     });
     const borta = () => {
@@ -205,6 +212,7 @@
       stangLjud(conn.peer);
       if (samtalUt[conn.peer]) { try { samtalUt[conn.peer].close(); } catch (e) {} delete samtalUt[conn.peer]; }
       if (k.namn) info('🚪 ' + k.namn + ' gick ut');
+      hander('ut', conn.peer);
       ritaFolk();
     };
     conn.on('close', borta);
@@ -256,6 +264,7 @@
     sedda.add(id);
     skickaAlla({ t: 'msg', id, text });
     nyttMeddelande({ namn: sparat.namn, text, jag: true });
+    hander('msg', 'jag', text, sparat.namn);
   }
 
   // ---------- Röst ----------
@@ -344,5 +353,11 @@
   }
   if (document.body) start(); else addEventListener('DOMContentLoaded', start);
 
-  window.__prat = { skicka: skickaText, lamna, get kod() { return kod; }, get kompisar() { return Object.keys(kompisar).length; } };
+  window.__prat = {
+    skicka: skickaText, lamna, oppna: () => visaRuta(true),
+    skickaSpel: d => skickaAlla({ t: 'spel', d }),
+    pa: (typ, f) => (lyssnare[typ] = lyssnare[typ] || []).push(f),
+    get kod() { return kod; }, get iRum() { return iRum; }, get namn() { return sparat.namn || ''; },
+    get kompisar() { return Object.keys(kompisar).length; }
+  };
 })();
