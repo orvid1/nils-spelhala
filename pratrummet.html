@@ -27,6 +27,11 @@
   #sag input { flex:1; padding:10px 12px; border-radius:12px; border:2px solid #00e5ff; background:rgba(11,11,42,.9); color:#fff;
     font-size:16px; outline:none; }
   #sag button { background:#1f9d55; }
+  #dans { position:fixed; right:8px; bottom:max(10px, env(safe-area-inset-bottom)); display:flex; flex-direction:column; gap:6px; }
+  #dans button { background:#c026a8; text-align:left; }
+  #dans button.pa { background:#ffd23f; color:#3a2410; }
+  #dans #ljud { background:#3a2a7a; text-align:center; }
+  @media (max-width:760px) { #sag { bottom:auto; top:48px; } }
 </style>
 </head>
 <body>
@@ -37,6 +42,7 @@
   <button id="menyKnapp">🎨 Byt gubbe</button>
   <div id="meny"><div id="djur"></div><div id="farger"></div></div>
 </div>
+<div id="dans"><button data-d="1">💃 Vicka</button><button data-d="2">🌀 Snurra</button><button data-d="3">🦘 Studsa</button><button id="ljud">🔊 Musik</button></div>
 <form id="sag"><input id="sagIn" maxlength="200" placeholder="Säg något..." autocomplete="off"><button>Säg</button></form>
 
 <script src="prat.js"></script>
@@ -62,7 +68,7 @@ const jag = {
   x: 400 + Math.random() * 200, y: 330 + Math.random() * 150,
   djur: DJUR.includes(sparat.djur) ? sparat.djur : DJUR[Math.floor(Math.random() * DJUR.length)],
   farg: FARGER.includes(sparat.farg) ? sparat.farg : FARGER[Math.floor(Math.random() * FARGER.length)],
-  bubbla: '', bubblaTid: 0, hopp: 0, mal: null
+  bubbla: '', bubblaTid: 0, hopp: 0, mal: null, dans: 0
 };
 const andra = {};   // peer-id -> gubbe
 const keys = {};
@@ -86,6 +92,7 @@ addEventListener('keydown', e => {
   if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(k)) e.preventDefault();
   if (k === ' ' && !jag.hopp) { jag.hopp = 1; skickaLage(true); }
   if (k === 'enter') $('sagIn').focus();
+  if (['1', '2', '3'].includes(k) && !e.repeat) dansa(+k);
 });
 addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 cv.addEventListener('pointerdown', e => {   // tryck i rummet = gå dit
@@ -115,6 +122,7 @@ __prat.pa('spel', (id, d, namn) => {
   a.farg = FARGER.includes(d.farg) ? d.farg : '#fff';
   a.namn = namn || 'Kompis';
   if (d.hopp && !a.hopp) a.hopp = 1;
+  a.dans = [1, 2, 3].includes(d.dans) ? d.dans : 0;
 });
 
 let sistSkickat = 0, sistX = 0, sistY = 0;
@@ -124,8 +132,52 @@ function skickaLage(tvinga) {
   const flyttat = Math.abs(jag.x - sistX) + Math.abs(jag.y - sistY) > 1;
   if (!tvinga && !(flyttat && nu - sistSkickat > 80) && nu - sistSkickat < 1500) return;
   sistSkickat = nu; sistX = jag.x; sistY = jag.y;
-  __prat.skickaSpel({ s: 'rum', x: Math.round(jag.x), y: Math.round(jag.y), djur: jag.djur, farg: jag.farg, hopp: jag.hopp > 0.5 ? 1 : 0 });
+  __prat.skickaSpel({ s: 'rum', x: Math.round(jag.x), y: Math.round(jag.y), djur: jag.djur, farg: jag.farg, hopp: jag.hopp > 0.5 ? 1 : 0, dans: jag.dans });
 }
+
+// ---------- Dansa ----------
+// 1 = vicka, 2 = snurra, 3 = studsa. Tryck en gång till för att sluta. Går man så slutar man dansa.
+function dansa(nr) {
+  jag.dans = jag.dans === nr ? 0 : nr;
+  jag.mal = null;
+  ritaDansKnappar(); skickaLage(true); startaMusik();
+}
+function ritaDansKnappar() {
+  document.querySelectorAll('#dans [data-d]').forEach(b => b.classList.toggle('pa', +b.dataset.d === jag.dans));
+}
+document.querySelectorAll('#dans [data-d]').forEach(b => b.onclick = () => dansa(+b.dataset.d));
+function nagonDansar() { return jag.dans > 0 || Object.values(andra).some(a => a.dans > 0); }
+
+// Discomusik som datorn spelar själv när någon dansar
+let ac = null, musikPa = true, steg = 0;
+try { musikPa = localStorage.getItem('nils_pratrum_musik') !== 'av'; } catch (e) {}
+const BAS = [110, 110, 165, 110, 131, 131, 196, 147];
+function pip(typ, f1, f2, styrka, langd) {
+  const o = ac.createOscillator(), v = ac.createGain(), t = ac.currentTime;
+  o.type = typ; o.frequency.setValueAtTime(f1, t); o.frequency.exponentialRampToValueAtTime(f2, t + langd);
+  v.gain.setValueAtTime(styrka, t); v.gain.exponentialRampToValueAtTime(0.001, t + langd);
+  o.connect(v); v.connect(ac.destination); o.start(t); o.stop(t + langd);
+}
+function startaMusik() {
+  if (ac) { if (ac.state === 'suspended') ac.resume(); return; }
+  try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
+  setInterval(() => {
+    if (!musikPa || !nagonDansar() || ac.state !== 'running') return;
+    if (steg % 2 === 0) pip('sine', 150, 40, 0.5, 0.18);          // trumma
+    else pip('square', 6000, 5000, 0.03, 0.04);                    // hi-hat
+    pip('triangle', BAS[(steg >> 1) % 8], BAS[(steg >> 1) % 8], 0.15, 0.2);   // bas
+    if (steg % 8 === 6) pip('square', 660, 880, 0.05, 0.15);       // litet pling
+    steg++;
+  }, 230);
+}
+function ritaLjud() { $('ljud').textContent = musikPa ? '🔊 Musik' : '🔇 Tyst'; }
+$('ljud').onclick = () => {
+  musikPa = !musikPa; ritaLjud(); startaMusik();
+  try { localStorage.setItem('nils_pratrum_musik', musikPa ? 'pa' : 'av'); } catch (e) {}
+};
+addEventListener('pointerdown', startaMusik, { once: true });   // så man hör när kompisar dansar
+addEventListener('keydown', startaMusik, { once: true });
+ritaLjud();
 
 // ---------- Byt gubbe ----------
 function ritaMeny() {
@@ -167,7 +219,10 @@ function uppdatera(dt) {
     if (l < 6) jag.mal = null; else { dx = mx / l; dy = my / l; }
   }
   const l = Math.hypot(dx, dy);
-  if (l > 0) { jag.x += dx / l * FART * dt; jag.y += dy / l * FART * dt; }
+  if (l > 0) {
+    jag.x += dx / l * FART * dt; jag.y += dy / l * FART * dt;
+    if (jag.dans) { jag.dans = 0; ritaDansKnappar(); skickaLage(true); }
+  }
   jag.x = Math.max(30, Math.min(W - 30, jag.x));
   jag.y = Math.max(120, Math.min(H - 20, jag.y));   // man kan inte gå upp på väggen
 
@@ -189,14 +244,30 @@ function rundRuta(x, y, w, h, r) {
   g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
 }
 function ritaGubbe(p, namn) {
-  const hopp = Math.sin(p.hopp * Math.PI) * 45;
+  const t = performance.now() / 1000;
+  let hopp = Math.sin(p.hopp * Math.PI) * 45, vrid = 0, sx = 1, sy = 1, sida = 0;
+  if (p.dans === 1) { vrid = Math.sin(t * 8) * 0.4; sida = Math.sin(t * 8) * 10; }
+  else if (p.dans === 2) { sx = Math.cos(t * 7); hopp += 6; }
+  else if (p.dans === 3) { const s = Math.abs(Math.sin(t * 8)); hopp += s * 26; sy = 0.85 + s * 0.2; sx = 1.12 - s * 0.14; }
   g.fillStyle = 'rgba(0,0,0,.3)';
-  g.beginPath(); g.ellipse(p.x, p.y + 4, 24 - hopp * .2, 9, 0, 0, 7); g.fill();
+  g.beginPath(); g.ellipse(p.x, p.y + 4, Math.max(10, 24 - hopp * .2), 9, 0, 0, 7); g.fill();
+  g.save();
+  g.translate(p.x + sida, p.y - 28 - hopp); g.rotate(vrid); g.scale(sx, sy);
   g.fillStyle = p.farg;
-  g.beginPath(); g.arc(p.x, p.y - 28 - hopp, 30, 0, 7); g.fill();
+  g.beginPath(); g.arc(0, 0, 30, 0, 7); g.fill();
   g.font = '40px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.fillText(p.djur, p.x, p.y - 26 - hopp);
-  g.font = 'bold 15px Trebuchet MS, sans-serif';
+  g.fillText(p.djur, 0, 2);
+  g.restore();
+  if (p.dans) {   // noter som flyger upp
+    g.font = '22px sans-serif'; g.fillStyle = '#fff';
+    for (let i = 0; i < 2; i++) {
+      const f = (t * 0.8 + i * 0.5 + p.x * 0.01) % 1;
+      g.globalAlpha = 1 - f;
+      g.fillText(i ? '🎶' : '🎵', p.x + (i ? 34 : -34) + Math.sin(f * 6) * 6, p.y - 50 - hopp - f * 50);
+    }
+    g.globalAlpha = 1;
+  }
+  g.font = 'bold 15px Trebuchet MS, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
   g.lineWidth = 4; g.strokeStyle = 'rgba(0,0,0,.7)'; g.strokeText(namn, p.x, p.y + 20);
   g.fillStyle = '#fff'; g.fillText(namn, p.x, p.y + 20);
 }
@@ -238,6 +309,16 @@ function rita() {
     }
   g.fillStyle = 'rgba(0,229,255,.12)'; g.beginPath(); g.ellipse(500, 380, 230, 130, 0, 0, 7); g.fill();   // mattan
   g.strokeStyle = 'rgba(0,229,255,.5)'; g.lineWidth = 4; g.stroke();
+  if (nagonDansar()) {   // discoljus på golvet
+    const t = performance.now() / 1000;
+    FARGER.forEach((f, i) => {
+      const v = t * (0.7 + i * 0.13) + i * 1.05;
+      g.globalAlpha = 0.22 + 0.1 * Math.sin(t * 6 + i);
+      g.fillStyle = f;
+      g.beginPath(); g.ellipse(500 + Math.cos(v) * 380, 360 + Math.sin(v * 1.3) * 190, 70, 40, 0, 0, 7); g.fill();
+    });
+    g.globalAlpha = 1;
+  }
   g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#fff';
   for (const m of MOBLER) { g.font = m.s + 'px sans-serif'; g.fillText(m.e, m.x, m.y); }
   g.strokeStyle = '#00e5ff'; g.lineWidth = 4; g.strokeRect(2, 2, W - 4, H - 4);
@@ -255,7 +336,7 @@ function varv(nu) {
   requestAnimationFrame(varv);
 }
 requestAnimationFrame(varv);
-window.__game = { jag, andra, uppdatera, rita };
+window.__game = { jag, andra, uppdatera, rita, dansa };
 </script>
 </body>
 </html>
