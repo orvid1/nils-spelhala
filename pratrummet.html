@@ -31,7 +31,9 @@
   #dans button { background:#c026a8; text-align:left; }
   #dans button.pa { background:#ffd23f; color:#3a2410; }
   #dans #ljud { background:#3a2a7a; text-align:center; }
-  @media (max-width:760px) { #sag { bottom:auto; top:48px; } }
+  #hjalp { position:fixed; left:8px; bottom:max(10px, env(safe-area-inset-bottom)); font-size:13px; color:rgba(255,255,255,.6);
+    max-width:26vw; pointer-events:none; }
+  @media (max-width:760px) { #sag { bottom:auto; top:48px; } #hjalp { display:none; } }
 </style>
 </head>
 <body>
@@ -43,24 +45,26 @@
   <div id="meny"><div id="djur"></div><div id="farger"></div></div>
 </div>
 <div id="dans"><button data-d="1">💃 Vicka</button><button data-d="2">🌀 Snurra</button><button data-d="3">🦘 Studsa</button><button id="ljud">🔊 Musik</button></div>
+<div id="hjalp">Gå: WASD eller klicka på golvet · Hoppa: mellanslag · Titta runt: dra med musen · Zooma: scrolla</div>
 <form id="sag"><input id="sagIn" maxlength="200" placeholder="Säg något..." autocomplete="off"><button>Säg</button></form>
 
 <script src="prat.js"></script>
-<script>
-// ===== Pratrummet: gå runt med din gubbe och prata med kompisar =====
-const W = 1000, H = 600;              // rummets storlek
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }</script>
+<script type="module">
+// ===== Pratrummet i 3D: gå runt med din gubbe och prata med kompisar =====
+import * as THREE from 'three';
+
+const W = 1000, H = 600;              // rummets storlek (samma mått som skickas till kompisarna)
+const S = 50;                         // så många "rumspixlar" går det på en meter i 3D
+const VAGG = 4;                       // hur höga väggarna är
 const DJUR = ['🐻', '🐱', '🐶', '🦊', '🐸', '🐼', '🦄', '🤖', '👽', '🐵', '🐧', '🦖', '👻'];
 const FARGER = ['#00e5ff', '#ff3df0', '#ffd23f', '#45ff8a', '#ff4d6d', '#b07bff'];
-const FART = 260;                     // pixlar per sekund
+const FART = 260;                     // rumspixlar per sekund
 const SPARA = 'nils_pratrum_v1';
-const MOBLER = [                      // sakerna i rummet (bara pynt)
-  { e: '🛋️', x: 180, y: 150, s: 110 }, { e: '📺', x: 180, y: 290, s: 70 }, { e: '🪴', x: 60, y: 90, s: 70 },
-  { e: '🪴', x: 940, y: 90, s: 70 }, { e: '🎹', x: 800, y: 150, s: 90 }, { e: '🪩', x: 500, y: 70, s: 60 },
-  { e: '🍕', x: 820, y: 480, s: 50 }, { e: '🧸', x: 110, y: 500, s: 60 }, { e: '🎮', x: 290, y: 300, s: 40 }
-];
 
-const cv = document.getElementById('c'), g = cv.getContext('2d');
+const cv = document.getElementById('c');
 const $ = id => document.getElementById(id);
+const __prat = window.__prat;
 
 let sparat = {};
 try { sparat = JSON.parse(localStorage.getItem(SPARA)) || {}; } catch (e) {}
@@ -68,22 +72,227 @@ const jag = {
   x: 400 + Math.random() * 200, y: 330 + Math.random() * 150,
   djur: DJUR.includes(sparat.djur) ? sparat.djur : DJUR[Math.floor(Math.random() * DJUR.length)],
   farg: FARGER.includes(sparat.farg) ? sparat.farg : FARGER[Math.floor(Math.random() * FARGER.length)],
-  bubbla: '', bubblaTid: 0, hopp: 0, mal: null, dans: 0
+  bubbla: '', bubblaTid: 0, hopp: 0, mal: null, dans: 0, vinkel: 0
 };
 const andra = {};   // peer-id -> gubbe
 const keys = {};
 
 function sparaGubbe() { try { localStorage.setItem(SPARA, JSON.stringify({ djur: jag.djur, farg: jag.farg })); } catch (e) {} }
+const tillX = x => (x - W / 2) / S, tillZ = y => (y - H / 2) / S;   // från rumspixlar till 3D
 
-// ---------- Skärm ----------
-let skala = 1, ox = 0, oy = 0;
+// ---------- 3D-världen ----------
+const renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+const scen = new THREE.Scene();
+scen.background = new THREE.Color('#0b0b2a');
+const kamera = new THREE.PerspectiveCamera(55, 1, 0.1, 100);
+let kamVinkel = 0, kamLut = 0.62, kamAvstand = 9;   // kameran snurrar runt gubben
+
+const himmel = new THREE.HemisphereLight('#c9b8ff', '#2a1a5e', 1.5); scen.add(himmel);
+const sol = new THREE.DirectionalLight('#ffffff', 1.3); sol.position.set(4, 8, 6); scen.add(sol);
+
 function passaIn() {
-  const d = devicePixelRatio || 1;
-  cv.width = innerWidth * d; cv.height = innerHeight * d;
-  skala = Math.min(innerWidth / W, innerHeight / H);
-  ox = (innerWidth - W * skala) / 2; oy = (innerHeight - H * skala) / 2;
+  renderer.setSize(innerWidth, innerHeight, false);
+  kamera.aspect = innerWidth / innerHeight; kamera.updateProjectionMatrix();
 }
 addEventListener('resize', passaIn); passaIn();
+
+function lada(b, h, d, farg, x, y, z, extra) {   // en låda, alla möbler byggs av sådana
+  const m = new THREE.Mesh(new THREE.BoxGeometry(b, h, d), new THREE.MeshStandardMaterial(Object.assign({ color: farg }, extra)));
+  m.position.set(x, y, z); return m;
+}
+const emojiCache = {};
+function emojiBild(e) {
+  if (emojiCache[e]) return emojiCache[e];
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const g = c.getContext('2d');
+  g.font = '100px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(e, 64, 70);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  return emojiCache[e] = t;
+}
+function emojiSprite(e, storlek) {
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: emojiBild(e), transparent: true }));
+  s.scale.set(storlek, storlek, 1); return s;
+}
+
+// golv med rutor
+{
+  const c = document.createElement('canvas'); c.width = 400; c.height = 240;
+  const g = c.getContext('2d');
+  for (let r = 0; r < 6; r++) for (let k = 0; k < 10; k++) { g.fillStyle = (r + k) % 2 ? '#2a2068' : '#35297d'; g.fillRect(k * 40, r * 40, 40, 40); }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.magFilter = THREE.NearestFilter;
+  const golv = new THREE.Mesh(new THREE.PlaneGeometry(W / S, H / S), new THREE.MeshStandardMaterial({ map: t, roughness: .6 }));
+  golv.rotation.x = -Math.PI / 2; scen.add(golv);
+  const matta = new THREE.Mesh(new THREE.CircleGeometry(3.6, 48), new THREE.MeshStandardMaterial({ color: '#0a6f8f', roughness: 1 }));
+  matta.rotation.x = -Math.PI / 2; matta.position.y = 0.01; scen.add(matta);
+  const kant = new THREE.Mesh(new THREE.RingGeometry(3.5, 3.7, 48), new THREE.MeshBasicMaterial({ color: '#00e5ff' }));
+  kant.rotation.x = -Math.PI / 2; kant.position.y = 0.02; scen.add(kant);
+}
+// väggar (syns bara inifrån, så kameran kan titta in utifrån)
+{
+  const bx = W / S / 2, bz = H / S / 2;
+  const vm = new THREE.MeshStandardMaterial({ color: '#3a2a8a' });
+  const nm = new THREE.MeshBasicMaterial({ color: '#ff3df0' });
+  [[0, -bz, 0, bx * 2], [0, bz, Math.PI, bx * 2], [-bx, 0, Math.PI / 2, bz * 2], [bx, 0, -Math.PI / 2, bz * 2]].forEach(([x, z, ry, b]) => {
+    const v = new THREE.Mesh(new THREE.PlaneGeometry(b, VAGG), vm);
+    v.position.set(x, VAGG / 2, z); v.rotation.y = ry; scen.add(v);
+    const n = new THREE.Mesh(new THREE.PlaneGeometry(b, 0.12), nm);   // neonlist
+    n.position.set(x * 0.999, 1.3, z * 0.999); n.rotation.y = ry; scen.add(n);
+  });
+}
+// möbler
+const discokula = new THREE.Mesh(new THREE.IcosahedronGeometry(0.55, 2),
+  new THREE.MeshStandardMaterial({ color: '#ffffff', metalness: .2, roughness: .25, flatShading: true, emissive: '#8888aa' }));
+{
+  const soffa = new THREE.Group();
+  soffa.add(lada(3, .5, 1.1, '#2f6bff', 0, .45, 0), lada(3, 1, .35, '#2456d6', 0, .9, -.45),
+    lada(.35, .8, 1.1, '#2456d6', -1.5, .6, 0), lada(.35, .8, 1.1, '#2456d6', 1.5, .6, 0));
+  soffa.position.set(-6.2, 0, -5.2); scen.add(soffa);
+
+  const tv = new THREE.Group();
+  tv.add(lada(.5, .7, 1.8, '#5a3b1e', 0, .35, 0), lada(.15, 1.1, 1.8, '#111111', 0, 1.3, 0),
+    lada(.02, .9, 1.6, '#00e5ff', .09, 1.3, 0, { emissive: '#00e5ff', emissiveIntensity: .8 }));
+  tv.position.set(-9.5, 0, 0.5); scen.add(tv);
+  const spel = emojiSprite('🎮', .6); spel.position.set(-8.6, .35, 0.5); scen.add(spel);
+
+  const piano = new THREE.Group();
+  piano.add(lada(2.4, 1, .8, '#1a1a1a', 0, .5, 0), lada(2.2, .08, .4, '#ffffff', 0, 1.02, .35));
+  for (let i = 0; i < 7; i++) piano.add(lada(.12, .1, .25, '#111111', -0.9 + i * .3, 1.06, .28));
+  piano.position.set(6, 0, -5.4); scen.add(piano);
+
+  [[-9.3, -5.3], [9.3, -5.3], [9.3, 5.3]].forEach(([x, z]) => {   // krukväxter
+    const kruka = new THREE.Mesh(new THREE.CylinderGeometry(.35, .25, .5, 12), new THREE.MeshStandardMaterial({ color: '#d9703a' }));
+    kruka.position.set(x, .25, z); scen.add(kruka);
+    for (let i = 0; i < 3; i++) {
+      const blad = new THREE.Mesh(new THREE.SphereGeometry(.35 - i * .07, 10, 8), new THREE.MeshStandardMaterial({ color: '#3fbf5a' }));
+      blad.position.set(x + (i - 1) * .18, .75 + i * .32, z); scen.add(blad);
+    }
+  });
+
+  const bord = new THREE.Mesh(new THREE.CylinderGeometry(.8, .8, .1, 20), new THREE.MeshStandardMaterial({ color: '#8a5a2b' }));
+  bord.position.set(6.5, .7, 3.6); scen.add(bord);
+  const ben = new THREE.Mesh(new THREE.CylinderGeometry(.12, .12, .7, 10), new THREE.MeshStandardMaterial({ color: '#5a3b1e' }));
+  ben.position.set(6.5, .35, 3.6); scen.add(ben);
+  const pizza = emojiSprite('🍕', .8); pizza.position.set(6.5, 1.15, 3.6); scen.add(pizza);
+  const nalle = emojiSprite('🧸', 1.2); nalle.position.set(-8.3, .6, 4.4); scen.add(nalle);
+
+  const lampa = new THREE.Group();
+  lampa.add(lada(.08, 2.2, .08, '#cccccc', 0, 1.1, 0));
+  const kula = new THREE.Mesh(new THREE.SphereGeometry(.28, 12, 10), new THREE.MeshStandardMaterial({ color: '#ffd23f', emissive: '#ffb000', emissiveIntensity: 1 }));
+  kula.position.y = 2.3; lampa.add(kula);
+  lampa.position.set(-4.1, 0, -5.4); scen.add(lampa);
+
+  discokula.position.set(0, 3.5, 0); scen.add(discokula);
+  scen.add(lada(.03, 1, .03, '#aaaaaa', 0, 4.4, 0));
+}
+// discoljus på golvet (syns bara när någon dansar)
+const discoljus = FARGER.map(f => {
+  const m = new THREE.Mesh(new THREE.CircleGeometry(1.2, 24),
+    new THREE.MeshBasicMaterial({ color: f, transparent: true, opacity: .35, blending: THREE.AdditiveBlending, depthWrite: false }));
+  m.rotation.x = -Math.PI / 2; m.position.y = 0.04; m.visible = false; scen.add(m); return m;
+});
+
+// ---------- Gubbarna ----------
+function textSprite() {   // en skylt som alltid tittar mot kameran (namn och pratbubbla)
+  const c = document.createElement('canvas');
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, transparent: true, depthTest: false }));
+  s.renderOrder = 10; s.userData.c = c; return s;
+}
+function ritaNamn(s, namn) {
+  const c = s.userData.c, g = c.getContext('2d');
+  c.width = 256; c.height = 48;
+  g.font = 'bold 30px Trebuchet MS, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.lineWidth = 7; g.strokeStyle = 'rgba(0,0,0,.8)'; g.strokeText(namn, 128, 26);
+  g.fillStyle = '#fff'; g.fillText(namn, 128, 26);
+  s.material.map.needsUpdate = true; s.scale.set(2.2, 2.2 * 48 / 256, 1);
+}
+function ritaBubbla(s, text, farg) {
+  const c = s.userData.c, g = c.getContext('2d');
+  const font = '30px Trebuchet MS, sans-serif';
+  g.font = font;
+  const rader = []; let rad = '';
+  for (const ord of text.split(' ')) {   // dela upp texten i rader
+    const prov = rad ? rad + ' ' + ord : ord;
+    if (g.measureText(prov).width > 400 && rad) { rader.push(rad); rad = ord; } else rad = prov;
+  }
+  rader.push(rad);
+  if (rader.length > 4) { rader.length = 4; rader[3] += '…'; }
+  const b = Math.min(460, Math.max(...rader.map(r => g.measureText(r).width)) + 44), h = rader.length * 38 + 26;
+  c.width = b + 8; c.height = h + 26;
+  g.font = font; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillStyle = '#fff'; g.strokeStyle = farg; g.lineWidth = 6;
+  g.beginPath(); g.roundRect(4, 4, b, h, 20); g.fill(); g.stroke();
+  g.beginPath(); g.moveTo(c.width / 2 - 14, h + 2); g.lineTo(c.width / 2, h + 22); g.lineTo(c.width / 2 + 14, h + 2); g.fill();
+  g.fillStyle = '#111';
+  g.save(); g.beginPath(); g.rect(10, 4, b - 12, h); g.clip();
+  rader.forEach((r, i) => g.fillText(r, c.width / 2, 34 + i * 38));
+  g.restore();
+  s.material.map.dispose();
+  s.material.map = new THREE.CanvasTexture(c); s.material.map.colorSpace = THREE.SRGBColorSpace;
+  s.scale.set(c.width / 130, c.height / 130, 1);
+  s.userData.h = c.height / 130;
+}
+function byggGubbe(p) {
+  const grupp = new THREE.Group(), kropp = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color: p.farg, roughness: .5 });
+  const mage = new THREE.Mesh(new THREE.CapsuleGeometry(.38, .45, 6, 14), mat); mage.position.y = .75;
+  const huvud = new THREE.Mesh(new THREE.SphereGeometry(.42, 18, 14), mat); huvud.position.y = 1.55;
+  const ansikte = emojiSprite(p.djur, 1.05); ansikte.position.y = 1.58; ansikte.material.depthTest = false; ansikte.renderOrder = 5;
+  kropp.add(mage, huvud, ansikte);
+  [-1, 1].forEach(s => {
+    const arm = new THREE.Mesh(new THREE.SphereGeometry(.15, 10, 8), mat); arm.position.set(s * .5, .9, 0); kropp.add(arm);
+    const fot = new THREE.Mesh(new THREE.SphereGeometry(.17, 10, 8), mat); fot.position.set(s * .2, .12, .08); fot.scale.z = 1.4; kropp.add(fot);
+  });
+  const skugga = new THREE.Mesh(new THREE.CircleGeometry(.5, 20), new THREE.MeshBasicMaterial({ color: '#000', transparent: true, opacity: .3, depthWrite: false }));
+  skugga.rotation.x = -Math.PI / 2; skugga.position.y = 0.03;
+  const namn = textSprite(), bubbla = textSprite(); bubbla.visible = false; bubbla.renderOrder = 11;
+  const noter = [emojiSprite('🎵', .5), emojiSprite('🎶', .5)];
+  noter.forEach(n => { n.visible = false; n.material = n.material.clone(); });
+  grupp.add(kropp, skugga, namn, bubbla, ...noter);
+  scen.add(grupp);
+  p.d3 = { grupp, kropp, mat, ansikte, skugga, namn, bubbla, noter, djur: p.djur, farg: p.farg, namnText: null, bubblaText: null, snurr: 0 };
+}
+function taBortGubbe(p) { if (p && p.d3) scen.remove(p.d3.grupp); }
+function ritaGubbe(p, namn, t, dt) {
+  if (!p.d3) byggGubbe(p);
+  const d = p.d3;
+  if (d.djur !== p.djur) { d.djur = p.djur; d.ansikte.material.map = emojiBild(p.djur); }
+  if (d.farg !== p.farg) { d.farg = p.farg; d.mat.color.set(p.farg); d.bubblaText = null; }
+  if (d.namnText !== namn) { d.namnText = namn; ritaNamn(d.namn, namn); }
+
+  let hopp = Math.sin(p.hopp * Math.PI) * 1.1, vrid = 0, sx = 1, sy = 1, snurra = false;
+  if (p.dans === 1) vrid = Math.sin(t * 8) * 0.45;
+  else if (p.dans === 2) { snurra = true; hopp += .1; }
+  else if (p.dans === 3) { const s = Math.abs(Math.sin(t * 8)); hopp += s * .6; sy = .85 + s * .2; sx = 1.12 - s * .14; }
+  d.grupp.position.set(tillX(p.x), 0, tillZ(p.y));
+  if (snurra) d.snurr += dt * 9; else d.snurr = 0;
+  let skillnad = (p.vinkel || 0) - d.kropp.rotation.y;   // vrid mjukt dit gubben går
+  if (!snurra) {
+    skillnad = Math.atan2(Math.sin(skillnad), Math.cos(skillnad));
+    d.kropp.rotation.y += skillnad * Math.min(1, dt * 12);
+  } else d.kropp.rotation.y = d.snurr;
+  d.kropp.rotation.z = vrid;
+  d.kropp.position.y = hopp;
+  d.kropp.scale.set(sx, sy, sx);
+  d.ansikte.scale.set(1.05 * (snurra ? Math.cos(d.snurr) : 1), 1.05, 1);
+  d.skugga.scale.setScalar(Math.max(.4, 1 - hopp * .4));
+  d.namn.position.y = 2.35 + hopp;
+
+  const visa = p.bubblaTid > 0 && p.bubbla;
+  d.bubbla.visible = !!visa;
+  if (visa) {
+    if (d.bubblaText !== p.bubbla) { d.bubblaText = p.bubbla; ritaBubbla(d.bubbla, p.bubbla, p.farg); }
+    d.bubbla.position.y = 2.65 + hopp + d.bubbla.userData.h / 2;
+    d.bubbla.material.opacity = Math.min(1, p.bubblaTid * 2);
+  }
+  d.noter.forEach((n, i) => {   // noter som flyger upp när man dansar
+    n.visible = p.dans > 0;
+    const f = (t * 0.8 + i * 0.5) % 1;
+    n.position.set((i ? .8 : -.8) + Math.sin(f * 6) * .15, 1.8 + hopp + f * 1.2, 0);
+    n.material.opacity = 1 - f;
+  });
+}
 
 // ---------- Styrning ----------
 addEventListener('keydown', e => {
@@ -95,10 +304,41 @@ addEventListener('keydown', e => {
   if (['1', '2', '3'].includes(k) && !e.repeat) dansa(+k);
 });
 addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
-cv.addEventListener('pointerdown', e => {   // tryck i rummet = gå dit
-  jag.mal = { x: (e.clientX - ox) / skala, y: (e.clientY - oy) / skala };
+
+// Tryck på golvet = gå dit. Dra = titta runt. Scrolla eller nyp = zooma.
+const pekare = new Map(); let drog = false, nypStart = 0;
+const stralar = new THREE.Raycaster(), golvPlan = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+cv.addEventListener('pointerdown', e => {
+  pekare.set(e.pointerId, { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY });
+  drog = pekare.size > 1; nypStart = 0;
+  try { cv.setPointerCapture(e.pointerId); } catch (err) {}
   $('sagIn').blur(); $('meny').style.display = 'none';
 });
+cv.addEventListener('pointermove', e => {
+  const p = pekare.get(e.pointerId); if (!p) return;
+  if (pekare.size === 2) {   // två fingrar: zooma
+    p.x = e.clientX; p.y = e.clientY;
+    const [a, b] = [...pekare.values()], l = Math.hypot(a.x - b.x, a.y - b.y);
+    if (nypStart) kamAvstand = Math.max(4, Math.min(16, kamAvstand * nypStart / l));
+    nypStart = l; drog = true; return;
+  }
+  if (!drog && Math.hypot(e.clientX - p.sx, e.clientY - p.sy) > 8) drog = true;
+  if (drog) {
+    kamVinkel -= (e.clientX - p.x) * 0.006;
+    kamLut = Math.max(0.15, Math.min(1.35, kamLut + (e.clientY - p.y) * 0.005));
+  }
+  p.x = e.clientX; p.y = e.clientY;
+});
+function slapp(e) {
+  if (!pekare.has(e.pointerId)) return;
+  pekare.delete(e.pointerId);
+  if (drog || e.type !== 'pointerup') return;
+  stralar.setFromCamera(new THREE.Vector2(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1), kamera);
+  const tr = new THREE.Vector3();
+  if (stralar.ray.intersectPlane(golvPlan, tr)) jag.mal = { x: tr.x * S + W / 2, y: tr.z * S + H / 2 };
+}
+cv.addEventListener('pointerup', slapp); cv.addEventListener('pointercancel', slapp);
+cv.addEventListener('wheel', e => { kamAvstand = Math.max(4, Math.min(16, kamAvstand + e.deltaY * 0.01)); e.preventDefault(); }, { passive: false });
 
 // ---------- Prata ----------
 function sag(gubbe, text) { gubbe.bubbla = text; gubbe.bubblaTid = 6; }
@@ -113,13 +353,13 @@ __prat.pa('msg', (id, text) => {
   else if (andra[id]) sag(andra[id], text);
 });
 __prat.pa('in', () => skickaLage(true));
-__prat.pa('ut', id => delete andra[id]);
+__prat.pa('ut', id => { taBortGubbe(andra[id]); delete andra[id]; });
 __prat.pa('spel', (id, d, namn) => {
   if (!d || d.s !== 'rum') return;
-  const a = andra[id] || (andra[id] = { x: d.x, y: d.y, bubbla: '', bubblaTid: 0, hopp: 0 });
+  const a = andra[id] || (andra[id] = { x: +d.x || 0, y: +d.y || 0, bubbla: '', bubblaTid: 0, hopp: 0, vinkel: 0 });
   a.tx = Math.max(0, Math.min(W, +d.x || 0)); a.ty = Math.max(0, Math.min(H, +d.y || 0));
   a.djur = DJUR.includes(d.djur) ? d.djur : '🙂';
-  a.farg = FARGER.includes(d.farg) ? d.farg : '#fff';
+  a.farg = FARGER.includes(d.farg) ? d.farg : '#ffffff';
   a.namn = namn || 'Kompis';
   if (d.hopp && !a.hopp) a.hopp = 1;
   a.dans = [1, 2, 3].includes(d.dans) ? d.dans : 0;
@@ -208,135 +448,73 @@ function ritaTips() {
 
 // ---------- Spelet ----------
 function uppdatera(dt) {
-  let dx = 0, dy = 0;
-  if (keys['a'] || keys['arrowleft']) dx--;
-  if (keys['d'] || keys['arrowright']) dx++;
-  if (keys['w'] || keys['arrowup']) dy--;
-  if (keys['s'] || keys['arrowdown']) dy++;
-  if (dx || dy) jag.mal = null;
-  else if (jag.mal) {
+  let ix = 0, iy = 0, dx = 0, dy = 0;
+  if (keys['a'] || keys['arrowleft']) ix--;
+  if (keys['d'] || keys['arrowright']) ix++;
+  if (keys['w'] || keys['arrowup']) iy--;
+  if (keys['s'] || keys['arrowdown']) iy++;
+  if (ix || iy) {   // framåt är alltid dit kameran tittar
+    jag.mal = null;
+    const c = Math.cos(kamVinkel), s = Math.sin(kamVinkel);
+    dx = c * ix + s * iy; dy = -s * ix + c * iy;
+  } else if (jag.mal) {
     const mx = jag.mal.x - jag.x, my = jag.mal.y - jag.y, l = Math.hypot(mx, my);
     if (l < 6) jag.mal = null; else { dx = mx / l; dy = my / l; }
   }
   const l = Math.hypot(dx, dy);
   if (l > 0) {
     jag.x += dx / l * FART * dt; jag.y += dy / l * FART * dt;
+    jag.vinkel = Math.atan2(dx, dy);
     if (jag.dans) { jag.dans = 0; ritaDansKnappar(); skickaLage(true); }
   }
   jag.x = Math.max(30, Math.min(W - 30, jag.x));
-  jag.y = Math.max(120, Math.min(H - 20, jag.y));   // man kan inte gå upp på väggen
+  jag.y = Math.max(30, Math.min(H - 30, jag.y));
 
   for (const gubbe of [jag, ...Object.values(andra)]) {
     if (gubbe.hopp > 0) gubbe.hopp = Math.max(0, gubbe.hopp - dt * 2.2);
     if (gubbe.bubblaTid > 0) gubbe.bubblaTid -= dt;
     if (gubbe !== jag && gubbe.tx != null) {         // kompisar glider mjukt dit de är
-      gubbe.x += (gubbe.tx - gubbe.x) * Math.min(1, dt * 12);
-      gubbe.y += (gubbe.ty - gubbe.y) * Math.min(1, dt * 12);
+      const mx = gubbe.tx - gubbe.x, my = gubbe.ty - gubbe.y;
+      if (Math.hypot(mx, my) > 3) gubbe.vinkel = Math.atan2(mx, my);
+      gubbe.x += mx * Math.min(1, dt * 12);
+      gubbe.y += my * Math.min(1, dt * 12);
     }
   }
   skickaLage(false);
   ritaTips();
 }
 
-function rundRuta(x, y, w, h, r) {
-  g.beginPath();
-  g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r);
-  g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
-}
-function ritaGubbe(p, namn) {
+function rita(dt) {
   const t = performance.now() / 1000;
-  let hopp = Math.sin(p.hopp * Math.PI) * 45, vrid = 0, sx = 1, sy = 1, sida = 0;
-  if (p.dans === 1) { vrid = Math.sin(t * 8) * 0.4; sida = Math.sin(t * 8) * 10; }
-  else if (p.dans === 2) { sx = Math.cos(t * 7); hopp += 6; }
-  else if (p.dans === 3) { const s = Math.abs(Math.sin(t * 8)); hopp += s * 26; sy = 0.85 + s * 0.2; sx = 1.12 - s * 0.14; }
-  g.fillStyle = 'rgba(0,0,0,.3)';
-  g.beginPath(); g.ellipse(p.x, p.y + 4, Math.max(10, 24 - hopp * .2), 9, 0, 0, 7); g.fill();
-  g.save();
-  g.translate(p.x + sida, p.y - 28 - hopp); g.rotate(vrid); g.scale(sx, sy);
-  g.fillStyle = p.farg;
-  g.beginPath(); g.arc(0, 0, 30, 0, 7); g.fill();
-  g.font = '40px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.fillText(p.djur, 0, 2);
-  g.restore();
-  if (p.dans) {   // noter som flyger upp
-    g.font = '22px sans-serif'; g.fillStyle = '#fff';
-    for (let i = 0; i < 2; i++) {
-      const f = (t * 0.8 + i * 0.5 + p.x * 0.01) % 1;
-      g.globalAlpha = 1 - f;
-      g.fillText(i ? '🎶' : '🎵', p.x + (i ? 34 : -34) + Math.sin(f * 6) * 6, p.y - 50 - hopp - f * 50);
-    }
-    g.globalAlpha = 1;
-  }
-  g.font = 'bold 15px Trebuchet MS, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.lineWidth = 4; g.strokeStyle = 'rgba(0,0,0,.7)'; g.strokeText(namn, p.x, p.y + 20);
-  g.fillStyle = '#fff'; g.fillText(namn, p.x, p.y + 20);
-}
-function ritaBubbla(p) {
-  if (p.bubblaTid <= 0 || !p.bubbla) return;
-  g.font = '17px Trebuchet MS, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-  // dela upp texten i rader
-  const rader = []; let rad = '';
-  for (const ord of p.bubbla.split(' ')) {
-    const prov = rad ? rad + ' ' + ord : ord;
-    if (g.measureText(prov).width > 220 && rad) { rader.push(rad); rad = ord; } else rad = prov;
-  }
-  rader.push(rad);
-  if (rader.length > 4) { rader.length = 4; rader[3] += '…'; }
-  const bredd = Math.min(260, Math.max(...rader.map(r => g.measureText(r).width)) + 24), hojd = rader.length * 22 + 14;
-  const x = Math.max(bredd / 2 + 4, Math.min(W - bredd / 2 - 4, p.x));
-  const y = p.y - 70 - Math.sin(p.hopp * Math.PI) * 45 - hojd;
-  g.globalAlpha = Math.min(1, p.bubblaTid * 2);
-  g.fillStyle = '#fff'; g.strokeStyle = p.farg; g.lineWidth = 3;
-  rundRuta(x - bredd / 2, y, bredd, hojd, 12); g.fill(); g.stroke();
-  g.beginPath(); g.moveTo(p.x - 8, y + hojd - 1); g.lineTo(p.x, y + hojd + 10); g.lineTo(p.x + 8, y + hojd - 1); g.fill();
-  g.fillStyle = '#111';
-  g.save(); g.beginPath(); g.rect(x - bredd / 2 + 4, y, bredd - 8, hojd); g.clip();
-  rader.forEach((r, i) => g.fillText(r, x, y + 18 + i * 22));
-  g.restore();
-  g.globalAlpha = 1;
-}
-function rita() {
-  const d = devicePixelRatio || 1;
-  g.setTransform(d, 0, 0, d, 0, 0);
-  g.fillStyle = '#0b0b2a'; g.fillRect(0, 0, innerWidth, innerHeight);
-  g.setTransform(d * skala, 0, 0, d * skala, d * ox, d * oy);
-  // vägg och golv
-  g.fillStyle = '#2a1a5e'; g.fillRect(0, 0, W, 110);
-  g.fillStyle = '#ff3df0'; g.fillRect(0, 104, W, 6);
-  for (let y = 110, r = 0; y < H; y += 70, r++)
-    for (let x = 0, k = 0; x < W; x += 100, k++) {
-      g.fillStyle = (r + k) % 2 ? '#1c1446' : '#231a55'; g.fillRect(x, y, 100, 70);
-    }
-  g.fillStyle = 'rgba(0,229,255,.12)'; g.beginPath(); g.ellipse(500, 380, 230, 130, 0, 0, 7); g.fill();   // mattan
-  g.strokeStyle = 'rgba(0,229,255,.5)'; g.lineWidth = 4; g.stroke();
-  if (nagonDansar()) {   // discoljus på golvet
-    const t = performance.now() / 1000;
-    FARGER.forEach((f, i) => {
-      const v = t * (0.7 + i * 0.13) + i * 1.05;
-      g.globalAlpha = 0.22 + 0.1 * Math.sin(t * 6 + i);
-      g.fillStyle = f;
-      g.beginPath(); g.ellipse(500 + Math.cos(v) * 380, 360 + Math.sin(v * 1.3) * 190, 70, 40, 0, 0, 7); g.fill();
-    });
-    g.globalAlpha = 1;
-  }
-  g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#fff';
-  for (const m of MOBLER) { g.font = m.s + 'px sans-serif'; g.fillText(m.e, m.x, m.y); }
-  g.strokeStyle = '#00e5ff'; g.lineWidth = 4; g.strokeRect(2, 2, W - 4, H - 4);
-  // gubbarna, de längst bak först
-  const alla = [{ p: jag, namn: __prat.namn || 'Du' }, ...Object.values(andra).map(p => ({ p, namn: p.namn }))];
-  alla.sort((a, b) => a.p.y - b.p.y);
-  alla.forEach(a => ritaGubbe(a.p, a.namn));
-  alla.forEach(a => ritaBubbla(a.p));
+  ritaGubbe(jag, __prat.namn || 'Du', t, dt);
+  for (const a of Object.values(andra)) ritaGubbe(a, a.namn, t, dt);
+
+  discokula.rotation.y = t * 0.8;
+  const disco = nagonDansar();
+  discoljus.forEach((m, i) => {
+    m.visible = disco;
+    const v = t * (0.7 + i * 0.13) + i * 1.05;
+    m.position.x = Math.cos(v) * 7.5; m.position.z = Math.sin(v * 1.3) * 4;
+    m.material.opacity = .3 + .12 * Math.sin(t * 6 + i);
+  });
+  himmel.intensity = disco ? 1.0 + .25 * Math.sin(t * 8) : 1.5;
+
+  // kameran följer med gubben
+  const mx = tillX(jag.x), mz = tillZ(jag.y);
+  kamera.position.set(mx + Math.sin(kamVinkel) * Math.cos(kamLut) * kamAvstand, 1.2 + Math.sin(kamLut) * kamAvstand,
+    mz + Math.cos(kamVinkel) * Math.cos(kamLut) * kamAvstand);
+  kamera.lookAt(mx, 1.2, mz);
+  renderer.render(scen, kamera);
 }
 
 let forra = performance.now();
 function varv(nu) {
   const dt = Math.min(0.05, (nu - forra) / 1000); forra = nu;
-  uppdatera(dt); rita();
+  uppdatera(dt); rita(dt);
   requestAnimationFrame(varv);
 }
 requestAnimationFrame(varv);
-window.__game = { jag, andra, uppdatera, rita, dansa };
+window.__game = { jag, andra, uppdatera, rita, dansa, kamera: () => ({ kamVinkel, kamLut, kamAvstand }) };
 </script>
 </body>
 </html>
