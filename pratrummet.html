@@ -37,10 +37,35 @@
     display:none; background:#ffd23f; color:#3a2410; font-size:18px; padding:10px 18px; box-shadow:0 0 16px rgba(255,210,63,.7);
     white-space:nowrap; }
   @media (max-width:760px) { #sag { bottom:auto; top:48px; } #hjalp { display:none; } }
+  #las { position:fixed; inset:0; z-index:1000; display:flex; align-items:center; justify-content:center; padding:16px;
+    background:#0b0b2a; }
+  #las .ruta { background:#120a30; border:3px solid #00e5ff; border-radius:18px; padding:22px; width:min(360px, 100%);
+    text-align:center; display:flex; flex-direction:column; gap:12px; box-shadow:0 0 24px rgba(0,229,255,.5); }
+  #las .stor { font-size:56px; }
+  #las h2 { color:#ffd23f; }
+  #las input { padding:12px; border-radius:12px; border:2px solid #3a2a7a; background:#0b0b2a; color:#fff; font-size:22px;
+    text-align:center; letter-spacing:3px; outline:none; width:100%; }
+  #las input:focus { border-color:#00e5ff; }
+  #las button { background:#1f9d55; font-size:18px; padding:12px; }
+  #las a { color:#9fd; font-size:14px; }
+  #lasFel { color:#ff8a8a; min-height:20px; font-size:15px; }
+  #las.skaka .ruta { animation:skaka .35s; }
+  @keyframes skaka { 25% { transform:translateX(-10px); } 75% { transform:translateX(10px); } }
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
+<div id="las">
+  <form class="ruta" id="lasForm">
+    <div class="stor">🔒</div>
+    <h2>Pratrummet är låst</h2>
+    <div>Skriv koden för att komma in</div>
+    <input id="lasIn" inputmode="numeric" maxlength="20" autocomplete="off" placeholder="Koden">
+    <div id="lasFel"></div>
+    <button>🔓 Lås upp</button>
+    <a href="index.html">⬅ Tillbaka till Spelhålan</a>
+  </form>
+</div>
 <a id="hem" href="index.html">⬅ Hem</a>
 <div id="tips"></div>
 <div id="valj">
@@ -657,6 +682,36 @@ function varv(nu) {
 }
 requestAnimationFrame(varv);
 window.__game = { jag, andra, uppdatera, rita, dansa, anvand, rum, narmast, kamera: () => ({ kamVinkel, kamLut, kamAvstand }) };
+</script>
+<script>
+// ===== Låset på Pratrummet =====
+// Koden står inte här i klartext, bara dess "fingeravtryck" (SHA-256).
+// Vill du byta kod måste fingeravtrycket räknas ut på nytt.
+(function () {
+  const RATT = 'd0ed97c88f71217ea17f92e8bb090bc49edf41d1f4cf98a77ded9d41ee38b5e0';
+  const SPARA = 'nils_pratrum_las';
+  const las = document.getElementById('las'), inn = document.getElementById('lasIn'), fel = document.getElementById('lasFel');
+  async function fingeravtryck(kod) {
+    const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('nils-pratrum:' + kod));
+    return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('');
+  }
+  function lasUpp() { las.style.display = 'none'; }
+  let sparad = '';
+  try { sparad = localStorage.getItem(SPARA) || ''; } catch (e) {}
+  if (sparad === RATT) lasUpp(); else inn.focus();   // har man låst upp förut slipper man skriva koden igen
+  ['keydown', 'keyup', 'pointerdown'].forEach(t => las.addEventListener(t, e => e.stopPropagation()));
+  document.getElementById('lasForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const h = await fingeravtryck(inn.value.trim());
+    if (h === RATT) {
+      try { localStorage.setItem(SPARA, RATT); } catch (err) {}
+      lasUpp();
+    } else {
+      fel.textContent = 'Fel kod! Försök igen 🙈'; inn.value = ''; inn.focus();
+      las.classList.remove('skaka'); void las.offsetWidth; las.classList.add('skaka');
+    }
+  });
+})();
 </script>
 </body>
 </html>
