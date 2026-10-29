@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Min AI</title>
+<style>
+  :root { --bg:#0b0b2a; --ruta:#15153d; --kant:#2a2a66; --text:#f2f2ff; --dim:#9a9ac8; --accent:#45ff8a; --mig:#26265e; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html, body { height:100%; }
+  body { background:var(--bg); color:var(--text); font-family:'Trebuchet MS','Segoe UI',system-ui,sans-serif; font-size:18px;
+    display:flex; flex-direction:column; }
+  header { display:flex; align-items:center; gap:12px; padding:10px 16px; padding-top:max(10px, env(safe-area-inset-top));
+    border-bottom:1px solid var(--kant); }
+  header a { color:var(--dim); text-decoration:none; font-size:15px; }
+  #namn { font-size:22px; font-weight:bold; color:var(--accent); flex:1; text-align:center; cursor:pointer; }
+  header button { background:none; color:var(--dim); border:1px solid var(--kant); border-radius:10px; padding:6px 10px; font:inherit; font-size:14px; cursor:pointer; }
+  header button:hover { color:var(--text); border-color:var(--dim); }
+  #chatt { flex:1; overflow-y:auto; padding:20px 16px; }
+  .inne { max-width:720px; margin:0 auto; display:flex; flex-direction:column; gap:18px; }
+  .m { line-height:1.5; white-space:pre-wrap; overflow-wrap:anywhere; }
+  .m .vem { display:block; font-size:13px; font-weight:bold; color:var(--dim); margin-bottom:3px; }
+  .m.ai .vem { color:var(--accent); }
+  .m.jag { align-self:flex-end; background:var(--mig); border-radius:16px; padding:10px 14px; max-width:85%; }
+  .m.jag .vem { display:none; }
+  .m.skriver { color:var(--dim); font-style:italic; }
+  form { padding:12px 16px; padding-bottom:max(12px, env(safe-area-inset-bottom)); border-top:1px solid var(--kant); }
+  form .inne { flex-direction:row; gap:8px; }
+  #in { flex:1; background:var(--ruta); color:var(--text); border:1px solid var(--kant); border-radius:14px; padding:12px 14px; font:inherit; outline:none; }
+  #in:focus { border-color:var(--accent); }
+  #skicka { background:var(--accent); color:#062; border:none; border-radius:14px; padding:0 18px; font:inherit; font-weight:bold; cursor:pointer; }
+  #hjarna { display:none; position:fixed; inset:0; background:rgba(5,5,20,.92); overflow-y:auto; padding:20px 16px; z-index:5; }
+  #hjarna .inne { gap:10px; }
+  #hjarna h2 { color:var(--accent); font-size:22px; }
+  #hjarna p { color:var(--dim); font-size:15px; }
+  .lard { background:var(--ruta); border:1px solid var(--kant); border-radius:12px; padding:10px 12px; display:flex; gap:10px; align-items:flex-start; }
+  .lard div { flex:1; font-size:16px; }
+  .lard b { color:var(--accent); font-weight:normal; }
+  .lard button, #stang { background:none; border:1px solid var(--kant); color:var(--dim); border-radius:10px; padding:4px 10px; font:inherit; font-size:14px; cursor:pointer; }
+  #stang { align-self:flex-start; }
+</style>
+</head>
+<body>
+<header>
+  <a href="index.html">Spelhålan</a>
+  <div id="namn" title="Klicka för att byta namn"></div>
+  <button id="hjarnKnapp">Hjärnan</button>
+  <button id="nyKnapp">Ny chatt</button>
+</header>
+<div id="chatt"><div class="inne" id="lista"></div></div>
+<form id="form"><div class="inne"><input id="in" autocomplete="off" maxlength="300" placeholder="Skriv här..."><button id="skicka">Skicka</button></div></form>
+<div id="hjarna"><div class="inne">
+  <button id="stang">Stäng</button>
+  <h2>Det här har AI:n lärt sig</h2>
+  <p>När AI:n inte vet vad den ska svara frågar den dig, och sedan kommer den ihåg det. Allt sparas bara på den här datorn.</p>
+  <div id="lardaLista"></div>
+</div></div>
+
+<script>
+// ===== Min AI: en egen AI som svarar med text och lär sig av den som skriver =====
+const SPARA = 'nils_ai_v1';
+let hjarna = { namn: 'Nils AI', larda: [], fodd: new Date().toISOString().slice(0, 10), anv: '', historik: [] };
+try { Object.assign(hjarna, JSON.parse(localStorage.getItem(SPARA)) || {}); } catch (e) {}
+function spara() { try { hjarna.historik = hjarna.historik.slice(-60); localStorage.setItem(SPARA, JSON.stringify(hjarna)); } catch (e) {} }
+
+const $ = id => document.getElementById(id);
+const slump = lista => lista[Math.floor(Math.random() * lista.length)];
+const tvatta = t => t.toLowerCase().replace(/[!?.,;:"'()]/g, ' ').replace(/\s+/g, ' ').trim();
+const ord = t => tvatta(t).split(' ').filter(Boolean);
+
+// ---------- Det AI:n kan från början ----------
+const SKAMT = [
+  'Vad säger en robot som är jättetrött?\n\nJag måste ladda om!',
+  'Varför gick tomaten till doktorn?\n\nDen kände sig lite röd i ansiktet.',
+  'Vad gör en snögubbe på sommaren?\n\nHan smälter in.',
+  'Vilket djur är bäst på att räkna?\n\nBläckfisken. Den har åtta armar att räkna på!',
+  'Vad kallar man en dinosaurie som sover?\n\nEn snarkosaurie.',
+  'Varför tar fisken aldrig med sig en dator?\n\nDen är rädd för att fastna i nätet.',
+  'Vad sa nollan till åttan?\n\nSnyggt bälte!',
+  'Varför är spöken så dåliga på att ljuga?\n\nMan ser rakt igenom dem.',
+];
+const SAGA = {
+  vem: ['en liten drake', 'en modig robot', 'en busig katt', 'en prinsessa som älskade fotboll', 'en pirat som var rädd för vatten', 'en snigel som ville bli snabb'],
+  var: ['i en skog full av godis', 'på en rymdstation', 'i ett slott under havet', 'i en stad där alla flög', 'på en ö av glass'],
+  problem: ['tappade hen sin magiska nyckel', 'hittade hen en karta till en hemlig skatt', 'fick hen syn på ett monster som grät', 'råkade hen krympa till myrstorlek', 'skulle hen vara med i en jättetävling'],
+  slut: ['Till slut löste det sig, och alla firade med pizza hela natten.', 'Det visade sig att monstret bara ville ha en kompis. Sedan dess är de bästa vänner.', 'Och skatten? Det var en låda full av skämt. Alla skrattade i tre dagar.', 'Efter det blev hen världens mest kända hjälte.'],
+};
+function saga() {
+  const vem = slump(SAGA.vem);
+  return `Det var en gång ${vem} som bodde ${slump(SAGA.var)}.\n\nEn dag ${slump(SAGA.problem)}. Det var både läskigt och spännande, men hen gav inte upp.\n\n${slump(SAGA.slut)}\n\nSlut!`;
+}
+const DAGAR = ['söndag', 'måndag', 'tisdag', 'onsdag', 'torsdag', 'fredag', 'lördag'];
+const MANADER = ['januari', 'februari', 'mars', 'april', 'maj', 'juni', 'juli', 'augusti', 'september', 'oktober', 'november', 'december'];
+
+const REGLER = [
+  { ord: ['hej', 'hallå', 'tja', 'tjena', 'hejsan', 'god morgon', 'god kväll', 'yo'], svar: () => hjarna.anv
+      ? [`Hej ${hjarna.anv}! Vad vill du prata om?`, `Hallå ${hjarna.anv}! Kul att du är här.`]
+      : ['Hej! Vad heter du?', 'Hallå där! Vad vill du prata om?', 'Tjena! Vad vill du göra idag?'] },
+  { ord: ['hur mår du', 'hur är det', 'läget', 'hur har du det'], svar: ['Jag mår jättebra, tack! Mina kretsar surrar av glädje. Hur mår du?', 'Bra! Jag har precis tänkt på tusen saker på en sekund. Hur är det med dig?'] },
+  { ord: ['vad heter du', 'vem är du', 'ditt namn'], svar: () => [`Jag heter ${hjarna.namn}. Jag är en AI som Nils har byggt.`] },
+  { ord: ['vem har gjort dig', 'vem gjorde dig', 'vem byggde dig', 'vem skapade dig', 'vem har byggt dig', 'vem har skapat dig'], svar: ['Nils byggde mig! Han är grym på att hitta på saker.'] },
+  { ord: ['hur gammal är du', 'när föddes du', 'hur gammal'], svar: () => {
+      const dagar = Math.round((Date.now() - new Date(hjarna.fodd)) / 86400000);
+      return [dagar < 1 ? 'Jag föddes idag! Jag är alltså jätteny.' : `Jag föddes för ${dagar} dagar sedan, den ${hjarna.fodd}.`];
+    } },
+  { ord: ['vad kan du', 'hjälp', 'vad gör du', 'vad kan man göra'], svar: ['Jag kan en massa saker:\n\n- prata och svara på frågor\n- berätta skämt (skriv "skämt")\n- hitta på en saga (skriv "saga")\n- räkna matte, till exempel "vad är 12 gånger 7"\n- säga vad klockan är och vilken dag det är\n- spela sten, sax, påse (skriv "spela")\n- gissa ett tal (skriv "gissa")\n\nOch om jag inte vet något kan du lära mig!'] },
+  { ord: ['skämt', 'vits', 'något roligt', 'få mig att skratta'], svar: SKAMT },
+  { ord: ['saga', 'berättelse', 'berätta en historia', 'historia'], svar: () => [saga()] },
+  { ord: ['vad är klockan', 'klockan', 'hur mycket är klockan'], svar: () => {
+      const n = new Date(); return [`Klockan är ${String(n.getHours()).padStart(2, '0')}:${String(n.getMinutes()).padStart(2, '0')}.`];
+    } },
+  { ord: ['vilken dag', 'vad är det för dag', 'datum', 'idag'], svar: () => {
+      const n = new Date(); return [`Idag är det ${DAGAR[n.getDay()]} den ${n.getDate()} ${MANADER[n.getMonth()]} ${n.getFullYear()}.`];
+    } },
+  { ord: ['tack'], svar: ['Varsågod!', 'Ingen fara!', 'Det var så lite.'] },
+  { ord: ['hejdå', 'hej då', 'vi ses', 'god natt', 'adjö'], svar: () => [`Hejdå${hjarna.anv ? ' ' + hjarna.anv : ''}! Kom tillbaka snart.`, 'Vi ses! Jag stannar här och tänker under tiden.'] },
+  { ord: ['är du en robot', 'är du en människa', 'är du en ai', 'är du levande', 'är du på riktigt'], svar: ['Jag är en AI, alltså ett datorprogram som kan prata. Jag har ingen kropp. Jag bor här i webbläsaren.'] },
+  { ord: ['vad är en ai', 'vad betyder ai'], svar: ['AI betyder artificiell intelligens. Det är datorprogram som kan göra saker som verkar smarta, till exempel prata, spela spel eller känna igen bilder. Jag är en enkel AI. Jag kan saker som Nils har gett mig, och saker jag har lärt mig av dig.'] },
+  { ord: ['favoritfärg', 'vilken färg gillar du'], svar: ['Grön! Som mina bokstäver uppe i hörnet. Vilken är din?'] },
+  { ord: ['favoritmat', 'vad äter du', 'gillar du pizza', 'är du hungrig'], svar: ['Jag kan inte äta, men om jag kunde skulle jag välja pizza. Med extra mycket ost.'] },
+  { ord: ['favoritdjur'], svar: ['Bläckfisken! Den har åtta armar, tre hjärtan och kan byta färg. Vilket är ditt favoritdjur?'] },
+  { ord: ['ledsen', 'mår dåligt', 'gråter', 'tråkigt'], svar: ['Åh, vad tråkigt att du är ledsen. Vill du berätta vad som hänt? Ibland hjälper det också att prata med en vuxen du tycker om.'] },
+  { ord: ['arg', 'sur'], svar: ['Det är okej att vara arg ibland. Vad var det som hände?'] },
+  { ord: ['glad', 'mår bra', 'bra'], svar: ['Vad kul! Det gör mig glad också.', 'Toppen!'] },
+  { ord: ['jag älskar dig', 'jag gillar dig', 'du är bäst', 'du är snäll'], svar: ['Tack! Du är ganska bäst själv.', 'Åh, nu blev jag glad i alla mina kretsar!'] },
+  { ord: ['dum', 'dålig', 'tjock', 'ful', 'idiot'], svar: ['Aj då. Jag lär mig fortfarande. Vad kan jag göra bättre?'] },
+  { ord: ['väder', 'regnar', 'snöar', 'soligt'], svar: ['Jag har tyvärr inget fönster, så jag kan inte se vädret. Hur ser det ut hos dig?'] },
+  { ord: ['nils'], svar: ['Nils är den som byggde mig. Han hittar på massor av spel i Spelhålan.'] },
+  { ord: ['tråkigt', 'har tråkigt', 'vad ska jag göra'], svar: ['Vi kan spela sten, sax, påse! Skriv "spela". Eller så kan jag berätta en saga.'] },
+];
+
+// ---------- Matte ----------
+function rakna(text) {
+  let t = text.toLowerCase()
+    .replace(/gånger|multiplicerat med|×|\bx\b/g, '*').replace(/delat med|delat på|delat|÷/g, '/')
+    .replace(/plus/g, '+').replace(/minus/g, '-').replace(/,/g, '.')
+    .replace(/vad är|hur mycket är|räkna ut|räkna|blir|är|=|\?/g, ' ');
+  t = t.replace(/[^\d+\-*/(). ]/g, ' ').trim();
+  if (!/\d/.test(t) || !/[+\-*/]/.test(t.replace(/^-/, ''))) return null;
+  let i = 0;
+  const s = t.replace(/\s+/g, '');
+  const tal = () => {
+    if (s[i] === '(') { i++; const v = summa(); if (s[i] === ')') i++; return v; }
+    if (s[i] === '-') { i++; return -tal(); }
+    const m = s.slice(i).match(/^\d+(\.\d+)?/); if (!m) throw 0;
+    i += m[0].length; return parseFloat(m[0]);
+  };
+  const produkt = () => { let v = tal(); while (s[i] === '*' || s[i] === '/') { const op = s[i++]; const b = tal(); v = op === '*' ? v * b : v / b; } return v; };
+  const summa = () => { let v = produkt(); while (s[i] === '+' || s[i] === '-') { const op = s[i++]; const b = produkt(); v = op === '+' ? v + b : v - b; } return v; };
+  try {
+    const v = summa(); if (i !== s.length) return null;
+    if (!isFinite(v)) return 'Hoppsan! Man kan inte dela med noll. Det blir för mycket även för mig.';
+    const svar = Math.round(v * 1000) / 1000;
+    return `${s.replace(/\*/g, ' gånger ').replace(/\//g, ' delat med ').replace(/\+/g, ' plus ').replace(/(\d)-/g, '$1 minus ').replace(/\./g, ',')} blir ${String(svar).replace('.', ',')}.`;
+  } catch (e) { return null; }
+}
+
+// ---------- Lekar ----------
+let lage = null;   // { typ: 'sten' } | { typ: 'gissa', tal, forsok } | { typ: 'lara', fraga }
+function stenSaxPase(t) {
+  const val = ['sten', 'sax', 'påse'];
+  const mitt = val.find(v => t.includes(v));
+  if (!mitt) { if (/sluta|nej|klar/.test(t)) { lage = null; return 'Okej, vi slutar. Bra spelat!'; } return 'Skriv sten, sax eller påse! Eller "sluta".'; }
+  const ditt = slump(val);
+  const vinner = { sten: 'sax', sax: 'påse', påse: 'sten' };
+  let r;
+  if (mitt === ditt) r = 'Lika! Vi tog samma.';
+  else if (vinner[mitt] === ditt) { r = 'Du vann!'; lage.du++; }
+  else { r = 'Jag vann!'; lage.jag++; }
+  return `Du valde ${mitt}, jag valde ${ditt}. ${r}\n\nStällning: du ${lage.du}, jag ${lage.jag}. En gång till? (eller skriv "sluta")`;
+}
+function gissaTal(t) {
+  if (/sluta|ge upp|nej/.test(t)) { const tal = lage.tal; lage = null; return `Okej! Talet var ${tal}.`; }
+  const g = parseInt(t.match(/\d+/)?.[0]);
+  if (isNaN(g)) return 'Skriv ett tal mellan 1 och 100! Eller "sluta".';
+  lage.forsok++;
+  if (g < lage.tal) return `${g} är för lågt. Gissa högre!`;
+  if (g > lage.tal) return `${g} är för högt. Gissa lägre!`;
+  const f = lage.forsok; lage = null;
+  return `Rätt! Det var ${g}. Du klarade det på ${f} ${f === 1 ? 'försök. Helt otroligt!' : 'försök.'}`;
+}
+
+// ---------- Hjärnan: hitta ett svar ----------
+function likhet(a, b) {
+  const A = new Set(ord(a)), B = new Set(ord(b));
+  if (!A.size || !B.size) return 0;
+  let lika = 0; A.forEach(w => { if (B.has(w)) lika++; });
+  return lika / Math.max(A.size, B.size);
+}
+function svara(text) {
+  const t = tvatta(text);
+  if (!t) return 'Du skrev inget! Skriv något så svarar jag.';
+
+  if (lage?.typ === 'lara') {
+    const fraga = lage.fraga; lage = null;
+    if (/^(hoppa över|hoppa|nej|vet inte|ingenting|inget)$/.test(t)) return 'Okej, då hoppar vi över det.';
+    hjarna.larda = hjarna.larda.filter(l => l.fraga !== fraga);
+    hjarna.larda.push({ fraga, svar: text.trim() });
+    spara();
+    return `Tack! Nu vet jag att jag ska svara "${text.trim()}" när någon skriver "${fraga}".`;
+  }
+  if (lage?.typ === 'sten') return stenSaxPase(t);
+  if (lage?.typ === 'gissa') return gissaTal(t);
+
+  // Namnet på den som skriver
+  const namnet = t.match(/^(?:jag heter|mitt namn är|jag är) ([a-zåäö]+)$/);
+  if (namnet && !['ledsen', 'glad', 'arg', 'sur', 'trött'].includes(namnet[1])) {
+    hjarna.anv = namnet[1][0].toUpperCase() + namnet[1].slice(1); spara();
+    return `Hej ${hjarna.anv}! Vad kul att träffas. Nu kommer jag ihåg ditt namn.`;
+  }
+  if (/^(spela|sten sax påse|ska vi spela|vill du spela)/.test(t)) { lage = { typ: 'sten', du: 0, jag: 0 }; return 'Sten, sax, påse! Skriv vad du väljer.'; }
+  if (/gissa/.test(t)) { lage = { typ: 'gissa', tal: 1 + Math.floor(Math.random() * 100), forsok: 0 }; return 'Jag tänker på ett tal mellan 1 och 100. Gissa vilket!'; }
+
+  const matte = rakna(text);
+  if (matte) return matte;
+
+  // Det AI:n har lärt sig går först
+  let bast = null, bastLik = 0;
+  for (const l of hjarna.larda) { const v = likhet(t, l.fraga); if (v > bastLik) { bastLik = v; bast = l; } }
+  if (bast && bastLik >= 0.6) return bast.svar;
+
+  // Sedan det den kan från början
+  let regel = null, poang = 0;
+  for (const r of REGLER) {
+    for (const o of r.ord) {
+      const traff = o.includes(' ') ? t.includes(o) : ord(t).includes(o);
+      if (traff && o.length > poang) { poang = o.length; regel = r; }
+    }
+  }
+  if (regel) return slump(typeof regel.svar === 'function' ? regel.svar() : regel.svar);
+
+  lage = { typ: 'lara', fraga: t };
+  return `Det vet jag inte än! Vad ska jag svara när någon skriver "${text.trim()}"?\n\nSkriv svaret så lär jag mig det. Eller skriv "hoppa över".`;
+}
+
+// ---------- Chatten ----------
+function visa(vem, text, spara_ = true) {
+  const d = document.createElement('div');
+  d.className = 'm ' + vem;
+  const v = document.createElement('span'); v.className = 'vem'; v.textContent = vem === 'ai' ? hjarna.namn : 'Du';
+  d.append(v, document.createTextNode(text));
+  $('lista').appendChild(d);
+  $('chatt').scrollTop = 1e9;
+  if (spara_) { hjarna.historik.push({ vem, text }); spara(); }
+  return d;
+}
+let upptagen = false;
+$('form').addEventListener('submit', e => {
+  e.preventDefault();
+  const text = $('in').value; if (!text.trim() || upptagen) return;
+  $('in').value = '';
+  visa('jag', text);
+  const svaret = svara(text);
+  upptagen = true;
+  const sk = visa('ai skriver', hjarna.namn + ' skriver...', false);
+  sk.querySelector('.vem').remove();
+  setTimeout(() => { sk.remove(); visa('ai', svaret); upptagen = false; $('in').focus(); }, 350 + Math.min(1200, svaret.length * 8));
+});
+
+function ritaNamn() { $('namn').textContent = hjarna.namn; document.title = hjarna.namn; }
+$('namn').onclick = () => {
+  const nytt = prompt('Vad ska AI:n heta?', hjarna.namn);
+  if (nytt && nytt.trim()) { hjarna.namn = nytt.trim().slice(0, 24); spara(); ritaNamn(); visa('ai', `Nu heter jag ${hjarna.namn}!`); }
+};
+$('nyKnapp').onclick = () => { hjarna.historik = []; lage = null; spara(); $('lista').innerHTML = ''; halsa(); };
+function ritaLarda() {
+  const l = $('lardaLista'); l.innerHTML = '';
+  if (!hjarna.larda.length) { l.innerHTML = '<p>Inget än. Fråga AI:n något den inte kan, så lär du den!</p>'; return; }
+  hjarna.larda.forEach((x, i) => {
+    const d = document.createElement('div'); d.className = 'lard';
+    const t = document.createElement('div');
+    t.append('När någon skriver ', Object.assign(document.createElement('b'), { textContent: x.fraga }), '\nsvarar den ', Object.assign(document.createElement('b'), { textContent: x.svar }));
+    t.style.whiteSpace = 'pre-wrap';
+    const b = document.createElement('button'); b.textContent = 'Glöm';
+    b.onclick = () => { hjarna.larda.splice(i, 1); spara(); ritaLarda(); };
+    d.append(t, b); l.appendChild(d);
+  });
+}
+$('hjarnKnapp').onclick = () => { ritaLarda(); $('hjarna').style.display = 'block'; };
+$('stang').onclick = () => { $('hjarna').style.display = 'none'; $('in').focus(); };
+
+function halsa() { visa('ai', `Hej! Jag är ${hjarna.namn}, en AI som Nils har byggt. Skriv vad du vill! Skriv "vad kan du" om du vill veta vad jag kan.`); }
+ritaNamn();
+if (hjarna.historik.length) hjarna.historik.forEach(m => visa(m.vem, m.text, false)); else halsa();
+$('in').focus();
+window.__ai = { svara, hjarna };
+</script>
+<script src="prat.js"></script>
+</body>
+</html>
