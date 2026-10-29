@@ -90,7 +90,7 @@
     <label>Vad heter du?</label>
     <input id="namnIn" maxlength="14" placeholder="Ditt namn">
     <button class="gron" id="nytt">✨ Starta nytt rum</button>
-    <div id="eller">eller skriv kompisens kod</div>
+    <div id="eller">eller skriv koden som din kompis fick</div>
     <div class="rad"><input id="kodIn" maxlength="4" placeholder="KOD"><button class="rosa" id="gaMed">Gå med</button></div>
     <div id="status"></div>
   </div>
@@ -355,6 +355,8 @@
 
   window.__prat = {
     skicka: skickaText, lamna, oppna: () => visaRuta(true),
+    nyttRum: () => { visaRuta(true); $('nytt').click(); },
+    oppnaKod: () => { visaRuta(true); $('kodIn').focus(); },
     skickaSpel: d => skickaAlla({ t: 'spel', d }),
     pa: (typ, f) => (lyssnare[typ] = lyssnare[typ] || []).push(f),
     get kod() { return kod; }, get iRum() { return iRum; }, get namn() { return sparat.namn || ''; },

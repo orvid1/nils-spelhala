@@ -14,6 +14,10 @@
     border-radius:12px; font-size:14px; text-align:center; max-width:70vw; }
   #tips b { color:#ffd23f; letter-spacing:2px; }
   #tips button { margin-left:6px; }
+  #tips .storKnapp { font-size:18px; padding:8px 14px; margin:4px 0 4px 8px; border-radius:12px; border:2px solid #fff; background:#1f9d55; color:#fff; font-weight:bold; cursor:pointer; }
+  #tips .storKnapp + .storKnapp { background:#c2185b; }
+  #tips .storKod { font-size:30px; padding:0 6px; }
+  #tips small { opacity:.85; }
   button { cursor:pointer; color:#fff; border:none; border-radius:10px; font-size:16px; font-weight:bold; padding:8px 12px;
     background:#3a2a7a; touch-action:manipulation; }
   #valj { position:fixed; top:8px; right:8px; display:flex; flex-direction:column; gap:6px; align-items:flex-end; }
@@ -77,7 +81,7 @@
 <button id="anvand"></button>
 <form id="sag"><input id="sagIn" maxlength="200" placeholder="Säg något..." autocomplete="off"><button>Säg</button></form>
 
-<script src="prat.js"></script>
+<script src="prat.js?v=2"></script>
 <script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }</script>
 <script type="module">
 // ===== Pratrummet i 3D: gå runt med din gubbe och prata med kompisar =====
@@ -600,12 +604,14 @@ ritaMeny();
 
 let tipsText = '';
 function ritaTips() {
-  const t = __prat.iRum
-    ? 'Rummets hemliga kod: <b>' + __prat.kod + '</b> · ' + (__prat.kompisar + 1) + ' här inne'
-    : 'Du är själv här. <button id="bjud">💬 Bjud in kompisar</button>';
+  let t;
+  if (!__prat.iRum) t = '👋 Vill du leka med en kompis? <button id="bjud" class="storKnapp">✨ Skapa rum</button><button id="harKod" class="storKnapp">🔑 Jag har en kod</button>';
+  else if (!__prat.kompisar) t = 'Säg koden <b class="storKod">' + __prat.kod + '</b> till din kompis!<br><small>Kompisen trycker på 🔑 Jag har en kod och skriver den. Väntar på kompisar...</small>';
+  else t = 'Rummets hemliga kod: <b>' + __prat.kod + '</b> · ' + (__prat.kompisar + 1) + ' här inne';
   if (t === tipsText) return;
   tipsText = t; $('tips').innerHTML = t;
-  const b = $('bjud'); if (b) b.onclick = () => __prat.oppna();
+  const b = $('bjud'); if (b) b.onclick = () => (__prat.nyttRum || __prat.oppna)();
+  const k = $('harKod'); if (k) k.onclick = () => (__prat.oppnaKod || __prat.oppna)();
 }
 
 // ---------- Spelet ----------
