@@ -133,7 +133,7 @@ const REGLER = [
       const dagar = Math.round((Date.now() - new Date(hjarna.fodd)) / 86400000);
       return [dagar < 1 ? 'Jag föddes idag! Jag är alltså jätteny.' : `Jag föddes för ${dagar} dagar sedan, den ${hjarna.fodd}.`];
     } },
-  { ord: ['vad kan du', 'hjälp', 'vad gör du', 'vad kan man göra'], svar: ['Jag kan en massa saker:\n\n- prata och svara på frågor\n- berätta skämt (skriv "skämt")\n- hitta på en saga (skriv "saga")\n- räkna matte, till exempel "vad är 12 gånger 7"\n- säga vad klockan är och vilken dag det är\n- spela sten, sax, påse (skriv "spela")\n- gissa ett tal (skriv "gissa")\n\nOch om jag inte vet något kan du lära mig!'] },
+  { ord: ['vad kan du', 'hjälp', 'vad gör du', 'vad kan man göra'], svar: ['Jag kan en massa saker:\n\n- prata och svara på frågor\n- berätta skämt (skriv "skämt")\n- hitta på en saga (skriv "saga")\n- svara på frågor om nästan allt i världen, till exempel "vad är en vulkan" eller "vem var Astrid Lindgren"\n- räkna matte, till exempel "vad är 12 gånger 7"\n- säga vad klockan är och vilken dag det är\n- spela sten, sax, påse (skriv "spela")\n- gissa ett tal (skriv "gissa")\n\nOch om jag inte vet något kan du lära mig!'] },
   { ord: ['skämt', 'vits', 'något roligt', 'få mig att skratta'], svar: SKAMT },
   { ord: ['saga', 'berättelse', 'berätta en historia', 'historia'], svar: () => [saga()] },
   { ord: ['vad är klockan', 'klockan', 'hur mycket är klockan'], svar: () => {
@@ -250,17 +250,60 @@ function svara(text) {
   if (bast && bastLik >= 0.6) return bast.svar;
 
   // Sedan det den kan från början
+  // Är det en fråga om något i världen? Då gäller bara regler som passar hela frågan bra
+  const fraga = arFraga(t);
   let regel = null, poang = 0;
   for (const r of REGLER) {
     for (const o of r.ord) {
+      if (fraga && !o.includes(' ')) continue;
       const traff = o.includes(' ') ? t.includes(o) : ord(t).includes(o);
       if (traff && o.length > poang) { poang = o.length; regel = r; }
     }
   }
   if (regel) return slump(typeof regel.svar === 'function' ? regel.svar() : regel.svar);
 
+  if (fraga) return { wiki: amne(t), fraga: t, text };
+  return lara(t, text);
+}
+function lara(t, text) {
   lage = { typ: 'lara', fraga: t };
   return `Det vet jag inte än! Vad ska jag svara när någon skriver "${text.trim()}"?\n\nSkriv svaret så lär jag mig det. Eller skriv "hoppa över".`;
+}
+
+// ---------- Wikipedia: en jättestor uppslagsbok ----------
+const FRAGEORD = /^(vad|vem|vilka|vilken|vilket|var|när|hur|varför|vet du|kan du berätta|berätta|säg något om|förklara)(?=\s|$)/;
+const arFraga = t => FRAGEORD.test(t);
+function amne(t) {
+  let a = t
+    .replace(/^(kan du )?(berätta|säg|förklara)( lite| något)?( mer)? (om|för mig om|vad)? ?/, '')
+    .replace(/^vet du (något )?(om|vad|vem)? ?/, '')
+    .replace(/^(vad|vem|vilka|vilken|vilket) (är|var|betyder|heter|kallas|gör|gjorde) /, '')
+    .replace(/^vad (för något )?är /, '')
+    .replace(/^var (ligger|finns|bor|bodde) /, '')
+    .replace(/^när (föddes|dog|byggdes|började|slutade|hände|var|uppfanns) /, '')
+    .replace(/^(en|ett|den|det|de) /, '');
+  return a.trim() || t;
+}
+const OLAMPLIGT = /\b(sex|sexuell|porr|porno|naken|nakna|knark|narkotika|droger|våldtäkt|självmord|mord)/;
+async function slaUpp(amnet) {
+  if (OLAMPLIGT.test(amnet)) return 'Det där är en fråga som du kan ställa till en vuxen.';
+  const url = 'https://sv.wikipedia.org/w/api.php?action=query&format=json&origin=*&redirects=1&generator=search&gsrlimit=1'
+    + '&prop=extracts&exintro=1&explaintext=1&exsentences=6&gsrsearch=' + encodeURIComponent(amnet);
+  const ctrl = new AbortController(); const stopp = setTimeout(() => ctrl.abort(), 6000);
+  try {
+    const svar = await (await fetch(url, { signal: ctrl.signal })).json();
+    const sida = svar.query && Object.values(svar.query.pages)[0];
+    if (!sida || !sida.extract) return null;
+    let text = sida.extract.replace(/\s*\([^)]*\)/g, '').replace(/\s+/g, ' ').trim();
+    // Hoppa över hänvisningar som "Uppslagsordet X leder hit" och "För Y, se Z"
+    const meningar = text.match(/[^.!?]+[.!?]+/g) || [text];
+    text = meningar.filter(m => !/leder hit|omdirigeras hit|, se |^\s*(för|se även) /i.test(m)).slice(0, 3).join('').trim();
+    if (!text) return null;
+    if (OLAMPLIGT.test(text.toLowerCase())) return 'Det där är en fråga som du kan ställa till en vuxen.';
+    if (text.length > 600) text = text.slice(0, 600).replace(/[^.!?]*$/, '');
+    return `${text}\n\n(Från Wikipedia: ${sida.title})`;
+  } catch (e) { return null; }
+  finally { clearTimeout(stopp); }
 }
 
 // ---------- Robotansiktet ----------
@@ -329,12 +372,18 @@ $('form').addEventListener('submit', e => {
   const text = $('in').value; if (!text.trim() || upptagen) return;
   $('in').value = '';
   visa('jag', text);
-  const svaret = svara(text);
+  let svaret = svara(text);
+  const klar = s => { visa('ai', s); prata(s.replace(/\n\n\(Från Wikipedia: .*\)$/, '')); $('in').placeholder = 'Skriv här, eller tryck på 🎤 och prata...'; $('in').focus(); };
+  if (typeof svaret === 'string') { klar(svaret); return; }
+  // Leta på Wikipedia
   upptagen = true;
-  const sk = visa('ai skriver', hjarna.namn + ' tänker...', false);
-  robot.classList.add('tanker');
+  const sk = visa('ai skriver', hjarna.namn + ' letar i uppslagsboken...', false);
   sk.querySelector('.vem').remove();
-  setTimeout(() => { sk.remove(); robot.classList.remove('tanker'); visa('ai', svaret); prata(svaret); upptagen = false; $('in').placeholder = 'Skriv här, eller tryck på 🎤 och prata...'; $('in').focus(); }, 350 + Math.min(1200, svaret.length * 8));
+  robot.classList.add('tanker');
+  slaUpp(svaret.wiki).then(s => {
+    sk.remove(); robot.classList.remove('tanker'); upptagen = false;
+    klar(s || lara(svaret.fraga, svaret.text));
+  });
 });
 
 function ritaNamn() { $('namn').textContent = hjarna.namn; document.title = hjarna.namn; }
@@ -363,7 +412,7 @@ function halsa() { visa('ai', `Hej! Jag är ${hjarna.namn}, en AI som Nils har b
 ritaNamn(); ritaFarg(); ritaRost();
 if (hjarna.historik.length) hjarna.historik.forEach(m => visa(m.vem, m.text, false)); else halsa();
 $('in').focus();
-window.__ai = { svara, hjarna };
+window.__ai = { svara, hjarna, slaUpp, amne };
 </script>
 <script src="prat.js"></script>
 </body>
