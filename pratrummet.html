@@ -26,6 +26,8 @@
   #meny button { background:none; font-size:26px; padding:3px 5px; border:2px solid transparent; }
   #meny button.vald { border-color:#ffd23f; }
   #meny .f { width:30px; height:30px; border-radius:50%; padding:0; }
+  #meny small { display:block; font-size:12px; opacity:.7; margin:-2px 0 2px; }
+  #ogonKnapp.pa { background:#ffd23f; color:#3a2410; }
   #sag { position:fixed; left:50%; bottom:max(10px, env(safe-area-inset-bottom)); transform:translateX(-50%); display:flex; gap:6px;
     width:min(460px, calc(100vw - 20px)); }
   #sag input { flex:1; padding:10px 12px; border-radius:12px; border:2px solid #00e5ff; background:rgba(11,11,42,.9); color:#fff;
@@ -74,10 +76,11 @@
 <div id="tips"></div>
 <div id="valj">
   <button id="menyKnapp">🎨 Byt gubbe</button>
-  <div id="meny"><div id="djur"></div><div id="farger"></div></div>
+  <div id="meny"><div id="djur"></div><small>Tröja</small><div id="farger"></div><small>Hud</small><div id="hudar"></div><small>Hår</small><div id="harfarger"></div></div>
+  <button id="ogonKnapp">👀 Ögon</button>
 </div>
 <div id="dans"><button data-d="1">💃 Vicka</button><button data-d="2">🌀 Snurra</button><button data-d="3">🦘 Studsa</button><button id="ljud">🔊 Musik</button></div>
-<div id="hjalp">Gå: WASD eller klicka på golvet · Hoppa: mellanslag · Använd saker: E · Titta runt: dra med musen · Zooma: scrolla</div>
+<div id="hjalp">Gå: WASD eller klicka på golvet · Hoppa: mellanslag · Använd saker: E · Titta runt: dra med musen · Zooma: scrolla · Se med ögonen: V</div>
 <button id="anvand"></button>
 <form id="sag"><input id="sagIn" maxlength="200" placeholder="Säg något..." autocomplete="off"><button>Säg</button></form>
 
@@ -90,7 +93,10 @@ import * as THREE from 'three';
 const W = 1000, H = 600;              // rummets storlek (samma mått som skickas till kompisarna)
 const S = 50;                         // så många "rumspixlar" går det på en meter i 3D
 const VAGG = 4;                       // hur höga väggarna är
-const DJUR = ['🐻', '🐱', '🐶', '🦊', '🐸', '🐼', '🦄', '🤖', '👽', '🐵', '🐧', '🦖', '👻'];
+const MANNISKOR = ['🧑', '👧'];      // riktiga människor: kort och långt hår
+const HUDAR = ['#f2d0b5', '#e0ac7e', '#a86b45', '#5c3a24'];
+const HARFARGER = ['#2b1b10', '#6b4423', '#e8c872', '#b0401a'];
+const DJUR = ['🧑', '👧', '🐻', '🐱', '🐶', '🦊', '🐸', '🐼', '🦄', '🤖', '👽', '🐵', '🐧', '🦖', '👻'];
 const FARGER = ['#00e5ff', '#ff3df0', '#ffd23f', '#45ff8a', '#ff4d6d', '#b07bff'];
 const FART = 260;                     // rumspixlar per sekund
 const SPARA = 'nils_pratrum_v1';
@@ -101,21 +107,27 @@ const __prat = window.__prat;
 
 let sparat = {};
 try { sparat = JSON.parse(localStorage.getItem(SPARA)) || {}; } catch (e) {}
+if (!sparat.manniska) { sparat.djur = '🧑'; sparat.manniska = 1; }   // alla blir människor första gången
+const arManniska = d => MANNISKOR.includes(d);
 const jag = {
   x: 400 + Math.random() * 200, y: 330 + Math.random() * 150,
   djur: DJUR.includes(sparat.djur) ? sparat.djur : DJUR[Math.floor(Math.random() * DJUR.length)],
   farg: FARGER.includes(sparat.farg) ? sparat.farg : FARGER[Math.floor(Math.random() * FARGER.length)],
+  hud: HUDAR.includes(sparat.hud) ? sparat.hud : HUDAR[0], har: HARFARGER.includes(sparat.har) ? sparat.har : HARFARGER[0],
   bubbla: '', bubblaTid: 0, hopp: 0, mal: null, dans: 0, vinkel: 0, sitt: 0
 };
+let ogon = !!sparat.ogon, blick = 0;   // se med gubbens ögon
 const andra = {};   // peer-id -> gubbe
 const keys = {};
 
-function sparaGubbe() { try { localStorage.setItem(SPARA, JSON.stringify({ djur: jag.djur, farg: jag.farg })); } catch (e) {} }
+function sparaGubbe() { try { localStorage.setItem(SPARA, JSON.stringify({ djur: jag.djur, farg: jag.farg, hud: jag.hud, har: jag.har, ogon: ogon ? 1 : 0, manniska: 1 })); } catch (e) {} }
+sparaGubbe();
 const tillX = x => (x - W / 2) / S, tillZ = y => (y - H / 2) / S;   // från rumspixlar till 3D
 
 // ---------- 3D-världen ----------
 const renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const scen = new THREE.Scene();
 scen.background = new THREE.Color('#0b0b2a');
 const kamera = new THREE.PerspectiveCamera(55, 1, 0.1, 100);
@@ -123,6 +135,8 @@ let kamVinkel = 0, kamLut = 0.62, kamAvstand = 9;   // kameran snurrar runt gubb
 
 const himmel = new THREE.HemisphereLight('#c9b8ff', '#2a1a5e', 1.5); scen.add(himmel);
 const sol = new THREE.DirectionalLight('#ffffff', 1.3); sol.position.set(4, 8, 6); scen.add(sol);
+sol.castShadow = true; sol.shadow.mapSize.set(2048, 2048);
+Object.assign(sol.shadow.camera, { left: -12, right: 12, top: 9, bottom: -9, near: 1, far: 30 }); sol.shadow.bias = -0.0005;
 
 function passaIn() {
   renderer.setSize(innerWidth, innerHeight, false);
@@ -155,9 +169,9 @@ function emojiSprite(e, storlek) {
   for (let r = 0; r < 6; r++) for (let k = 0; k < 10; k++) { g.fillStyle = (r + k) % 2 ? '#2a2068' : '#35297d'; g.fillRect(k * 40, r * 40, 40, 40); }
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.magFilter = THREE.NearestFilter;
   const golv = new THREE.Mesh(new THREE.PlaneGeometry(W / S, H / S), new THREE.MeshStandardMaterial({ map: t, roughness: .6 }));
-  golv.rotation.x = -Math.PI / 2; scen.add(golv);
+  golv.rotation.x = -Math.PI / 2; golv.receiveShadow = true; scen.add(golv);
   const matta = new THREE.Mesh(new THREE.CircleGeometry(3.6, 48), new THREE.MeshStandardMaterial({ color: '#0a6f8f', roughness: 1 }));
-  matta.rotation.x = -Math.PI / 2; matta.position.y = 0.01; scen.add(matta);
+  matta.rotation.x = -Math.PI / 2; matta.position.y = 0.01; matta.receiveShadow = true; scen.add(matta);
   const kant = new THREE.Mesh(new THREE.RingGeometry(3.5, 3.7, 48), new THREE.MeshBasicMaterial({ color: '#00e5ff' }));
   kant.rotation.x = -Math.PI / 2; kant.position.y = 0.02; scen.add(kant);
 }
@@ -173,6 +187,8 @@ function emojiSprite(e, storlek) {
     n.position.set(x * 0.999, 1.3, z * 0.999); n.rotation.y = ry; scen.add(n);
   });
 }
+const tak = new THREE.Mesh(new THREE.PlaneGeometry(W / S, H / S), new THREE.MeshStandardMaterial({ color: '#4a3a9a' }));
+tak.rotation.x = Math.PI / 2; tak.position.y = VAGG; tak.visible = false; scen.add(tak);
 // möbler
 let lampKula, tvSkarm;
 const tvDuk = document.createElement('canvas'); tvDuk.width = 256; tvDuk.height = 144;
@@ -271,17 +287,57 @@ function ritaBubbla(s, text, farg) {
   s.scale.set(c.width / 130, c.height / 130, 1);
   s.userData.h = c.height / 130;
 }
+function byggManniska(p, kropp) {
+  const M = (c, r = .8) => new THREE.MeshStandardMaterial({ color: c, roughness: r });
+  const hud = M(p.hud || HUDAR[0], .6), troja = M(p.farg), byxa = M('#2b3a5c', .9), sko = M('#1a1a1a', .5), har = M(p.har || HARFARGER[0], .9);
+  const nat = (geo, mat, x, y, z, f) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; (f || kropp).add(m); return m; };
+  const ben = [], armar = [];
+  [-1, 1].forEach(s => {
+    const b = new THREE.Group(); b.position.set(s * .11, .92, 0); kropp.add(b); ben.push(b);
+    nat(new THREE.CylinderGeometry(.085, .075, .82, 12), byxa, 0, -.41, 0, b);
+    nat(new THREE.BoxGeometry(.13, .09, .27), sko, 0, -.86, .05, b);
+    const a = new THREE.Group(); a.position.set(s * .3, 1.47, 0); a.rotation.z = s * .08; kropp.add(a); armar.push(a);
+    nat(new THREE.CylinderGeometry(.07, .062, .32, 10), troja, 0, -.16, 0, a);
+    nat(new THREE.CylinderGeometry(.055, .048, .28, 10), hud, 0, -.44, 0, a);
+    nat(new THREE.SphereGeometry(.06, 10, 8), hud, 0, -.6, 0, a);
+  });
+  nat(new THREE.BoxGeometry(.38, .16, .22), byxa, 0, .96, 0);
+  const mage = nat(new THREE.CapsuleGeometry(.2, .36, 6, 16), troja, 0, 1.22, 0); mage.scale.set(1.3, 1, .75);
+  nat(new THREE.CylinderGeometry(.06, .07, .14, 10), hud, 0, 1.54, 0);
+  const huvud = new THREE.Group(); huvud.position.y = 1.72; kropp.add(huvud);
+  nat(new THREE.SphereGeometry(.17, 24, 18), hud, 0, 0, 0, huvud).scale.set(1, 1.12, 1.02);
+  const vitt = M('#ffffff', .3), pupill = M('#3a2a1a', .3);
+  [-1, 1].forEach(s => {
+    nat(new THREE.SphereGeometry(.032, 12, 10), vitt, s * .062, .02, .142, huvud);
+    nat(new THREE.SphereGeometry(.018, 10, 8), pupill, s * .062, .02, .168, huvud);
+    nat(new THREE.BoxGeometry(.065, .014, .012), har, s * .062, .068, .158, huvud).rotation.z = s * -.12;
+    nat(new THREE.SphereGeometry(.036, 10, 8), hud, s * .172, 0, 0, huvud).scale.set(.55, 1, .8);
+  });
+  nat(new THREE.ConeGeometry(.026, .065, 10), hud, 0, -.025, .18, huvud).rotation.x = Math.PI / 2;
+  nat(new THREE.TorusGeometry(.036, .008, 6, 14, Math.PI), M('#b0505a', .5), 0, -.075, .152, huvud).rotation.z = Math.PI;
+  const lugg = nat(new THREE.SphereGeometry(.185, 24, 16, 0, Math.PI * 2, 0, Math.PI * .55), har, 0, .025, -.01, huvud);
+  lugg.rotation.x = -.3;
+  if (p.djur === '👧') {   // långt hår
+    nat(new THREE.CapsuleGeometry(.13, .32, 6, 12), har, 0, -.2, -.1, huvud).scale.set(1.25, 1, .55);
+  }
+  return { mat: troja, ben, armar };
+}
 function byggGubbe(p) {
   const grupp = new THREE.Group(), kropp = new THREE.Group();
-  const mat = new THREE.MeshStandardMaterial({ color: p.farg, roughness: .5 });
-  const mage = new THREE.Mesh(new THREE.CapsuleGeometry(.38, .45, 6, 14), mat); mage.position.y = .75;
-  const huvud = new THREE.Mesh(new THREE.SphereGeometry(.42, 18, 14), mat); huvud.position.y = 1.55;
-  const ansikte = emojiSprite(p.djur, 1.05); ansikte.position.y = 1.58; ansikte.material.depthTest = false; ansikte.renderOrder = 5;
-  kropp.add(mage, huvud, ansikte);
-  [-1, 1].forEach(s => {
-    const arm = new THREE.Mesh(new THREE.SphereGeometry(.15, 10, 8), mat); arm.position.set(s * .5, .9, 0); kropp.add(arm);
-    const fot = new THREE.Mesh(new THREE.SphereGeometry(.17, 10, 8), mat); fot.position.set(s * .2, .12, .08); fot.scale.z = 1.4; kropp.add(fot);
-  });
+  let mat, ansikte = null, ben = [], armar = [];
+  if (arManniska(p.djur)) ({ mat, ben, armar } = byggManniska(p, kropp));
+  else {
+    mat = new THREE.MeshStandardMaterial({ color: p.farg, roughness: .5 });
+    const mage = new THREE.Mesh(new THREE.CapsuleGeometry(.38, .45, 6, 14), mat); mage.position.y = .75;
+    const huvud = new THREE.Mesh(new THREE.SphereGeometry(.42, 18, 14), mat); huvud.position.y = 1.55;
+    mage.castShadow = huvud.castShadow = true;
+    ansikte = emojiSprite(p.djur, 1.05); ansikte.position.y = 1.58; ansikte.material.depthTest = false; ansikte.renderOrder = 5;
+    kropp.add(mage, huvud, ansikte);
+    [-1, 1].forEach(s => {
+      const arm = new THREE.Mesh(new THREE.SphereGeometry(.15, 10, 8), mat); arm.position.set(s * .5, .9, 0); kropp.add(arm);
+      const fot = new THREE.Mesh(new THREE.SphereGeometry(.17, 10, 8), mat); fot.position.set(s * .2, .12, .08); fot.scale.z = 1.4; kropp.add(fot);
+    });
+  }
   const skugga = new THREE.Mesh(new THREE.CircleGeometry(.5, 20), new THREE.MeshBasicMaterial({ color: '#000', transparent: true, opacity: .3, depthWrite: false }));
   skugga.rotation.x = -Math.PI / 2; skugga.position.y = 0.03;
   const namn = textSprite(), bubbla = textSprite(); bubbla.visible = false; bubbla.renderOrder = 11;
@@ -289,13 +345,15 @@ function byggGubbe(p) {
   noter.forEach(n => { n.visible = false; n.material = n.material.clone(); });
   grupp.add(kropp, skugga, namn, bubbla, ...noter);
   scen.add(grupp);
-  p.d3 = { grupp, kropp, mat, ansikte, skugga, namn, bubbla, noter, djur: p.djur, farg: p.farg, namnText: null, bubblaText: null, snurr: 0 };
+  p.d3 = { grupp, kropp, mat, ansikte, ben, armar, skugga, namn, bubbla, noter, djur: p.djur, farg: p.farg, hud: p.hud, har: p.har, namnText: null, bubblaText: null, snurr: 0, fas: 0, fx: null, fz: null };
 }
 function taBortGubbe(p) { if (p && p.d3) scen.remove(p.d3.grupp); }
 function ritaGubbe(p, namn, t, dt) {
+  // Byter man mellan människa och djur, eller hud och hår, byggs gubben om
+  if (p.d3 && (arManniska(p.djur) || arManniska(p.d3.djur)) && (p.djur !== p.d3.djur || p.hud !== p.d3.hud || p.har !== p.d3.har)) { taBortGubbe(p); p.d3 = null; }
   if (!p.d3) byggGubbe(p);
   const d = p.d3;
-  if (d.djur !== p.djur) { d.djur = p.djur; d.ansikte.material.map = emojiBild(p.djur); }
+  if (d.djur !== p.djur) { d.djur = p.djur; if (d.ansikte) d.ansikte.material.map = emojiBild(p.djur); }
   if (d.farg !== p.farg) { d.farg = p.farg; d.mat.color.set(p.farg); d.bubblaText = null; }
   if (d.namnText !== namn) { d.namnText = namn; ritaNamn(d.namn, namn); }
 
@@ -314,7 +372,18 @@ function ritaGubbe(p, namn, t, dt) {
   d.kropp.rotation.z = vrid;
   d.kropp.position.y = hopp;
   d.kropp.scale.set(sx, sy, sx);
-  d.ansikte.scale.set(1.05 * (snurra ? Math.cos(d.snurr) : 1), 1.05, 1);
+  if (d.ansikte) d.ansikte.scale.set(1.05 * (snurra ? Math.cos(d.snurr) : 1), 1.05, 1);
+  // Armar och ben svänger när man går
+  const nx = tillX(p.x), nz = tillZ(p.y);
+  const fart = d.fx == null || dt <= 0 ? 0 : Math.hypot(nx - d.fx, nz - d.fz) / dt;
+  d.fx = nx; d.fz = nz;
+  const gar = Math.min(1, fart / 3);
+  d.fas += dt * 9 * gar;
+  const sving = Math.sin(d.fas) * .6 * gar;
+  d.ben.forEach((b, i) => b.rotation.x = p.sitt ? -1.4 : (i ? -sving : sving));
+  d.armar.forEach((a, i) => a.rotation.x = p.dans === 1 ? -2.6 + Math.sin(t * 8 + i * 3) * .4 : (i ? sving : -sving) * .8);
+  d.grupp.visible = !(p === jag && ogon);
+  d.namn.visible = !(ogon && p !== jag && Math.hypot(p.x - jag.x, p.y - jag.y) < 120);   // namnskylten blir för stor på nära håll
   d.skugga.scale.setScalar(Math.max(.4, 1 - hopp * .4));
   d.namn.position.y = 2.35 + hopp;
 
@@ -342,6 +411,7 @@ addEventListener('keydown', e => {
   if (k === 'enter') $('sagIn').focus();
   if (['1', '2', '3'].includes(k) && !e.repeat) dansa(+k);
   if (k === 'e' && !e.repeat) anvand();
+  if (k === 'v' && !e.repeat) bytOgon();
 });
 addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 
@@ -365,7 +435,8 @@ cv.addEventListener('pointermove', e => {
   if (!drog && Math.hypot(e.clientX - p.sx, e.clientY - p.sy) > 8) drog = true;
   if (drog) {
     kamVinkel -= (e.clientX - p.x) * 0.006;
-    kamLut = Math.max(0.15, Math.min(1.35, kamLut + (e.clientY - p.y) * 0.005));
+    if (ogon) blick = Math.max(-1.2, Math.min(1.2, blick + (e.clientY - p.y) * 0.005));
+    else kamLut = Math.max(0.15, Math.min(1.35, kamLut + (e.clientY - p.y) * 0.005));
   }
   p.x = e.clientX; p.y = e.clientY;
 });
@@ -401,6 +472,7 @@ __prat.pa('spel', (id, d, namn) => {
   a.tx = Math.max(0, Math.min(W, +d.x || 0)); a.ty = Math.max(0, Math.min(H, +d.y || 0));
   a.djur = DJUR.includes(d.djur) ? d.djur : '🙂';
   a.farg = FARGER.includes(d.farg) ? d.farg : '#ffffff';
+  a.hud = HUDAR[d.hud] || HUDAR[0]; a.har = HARFARGER[d.har] || HARFARGER[0];
   a.namn = namn || 'Kompis';
   if (d.hopp && !a.hopp) a.hopp = 1;
   a.dans = [1, 2, 3].includes(d.dans) ? d.dans : 0;
@@ -414,7 +486,7 @@ function skickaLage(tvinga) {
   const flyttat = Math.abs(jag.x - sistX) + Math.abs(jag.y - sistY) > 1;
   if (!tvinga && !(flyttat && nu - sistSkickat > 80) && nu - sistSkickat < 1500) return;
   sistSkickat = nu; sistX = jag.x; sistY = jag.y;
-  __prat.skickaSpel({ s: 'rum', x: Math.round(jag.x), y: Math.round(jag.y), djur: jag.djur, farg: jag.farg, hopp: jag.hopp > 0.5 ? 1 : 0, dans: jag.dans, sitt: jag.sitt ? 1 : 0 });
+  __prat.skickaSpel({ s: 'rum', x: Math.round(jag.x), y: Math.round(jag.y), djur: jag.djur, farg: jag.farg, hud: HUDAR.indexOf(jag.hud), har: HARFARGER.indexOf(jag.har), hopp: jag.hopp > 0.5 ? 1 : 0, dans: jag.dans, sitt: jag.sitt ? 1 : 0 });
 }
 
 // ---------- Använda sakerna ----------
@@ -587,7 +659,12 @@ ritaLjud();
 
 // ---------- Byt gubbe ----------
 function ritaMeny() {
-  $('djur').innerHTML = ''; $('farger').innerHTML = '';
+  $('djur').innerHTML = ''; $('farger').innerHTML = ''; $('hudar').innerHTML = ''; $('harfarger').innerHTML = '';
+  [['hudar', HUDAR, 'hud'], ['harfarger', HARFARGER, 'har']].forEach(([id, lista, falt]) => lista.forEach(f => {
+    const b = document.createElement('button'); b.className = 'f' + (f === jag[falt] ? ' vald' : ''); b.style.background = f;
+    b.onclick = () => { jag[falt] = f; sparaGubbe(); ritaMeny(); skickaLage(true); };
+    $(id).appendChild(b);
+  }));
   DJUR.forEach(d => {
     const b = document.createElement('button'); b.textContent = d; if (d === jag.djur) b.className = 'vald';
     b.onclick = () => { jag.djur = d; sparaGubbe(); ritaMeny(); skickaLage(true); };
@@ -599,6 +676,14 @@ function ritaMeny() {
     $('farger').appendChild(b);
   });
 }
+function bytOgon() {
+  ogon = !ogon; blick = 0; sparaGubbe();
+  if (ogon) kamVinkel = Math.atan2(-Math.sin(jag.vinkel), -Math.cos(jag.vinkel));   // titta åt samma håll som gubben
+  $('ogonKnapp').classList.toggle('pa', ogon);
+  $('ogonKnapp').textContent = ogon ? '🎥 Bakifrån' : '👀 Ögon';
+}
+$('ogonKnapp').onclick = e => { e.currentTarget.blur(); bytOgon(); };
+$('ogonKnapp').classList.toggle('pa', ogon); $('ogonKnapp').textContent = ogon ? '🎥 Bakifrån' : '👀 Ögon';
 $('menyKnapp').onclick = () => { const m = $('meny'); m.style.display = m.style.display === 'block' ? 'none' : 'block'; };
 ritaMeny();
 
@@ -674,6 +759,15 @@ function rita(dt) {
 
   // kameran följer med gubben
   const mx = tillX(jag.x), mz = tillZ(jag.y);
+  tak.visible = ogon;
+  if (ogon) {
+    const oga = 1.72 + Math.sin(jag.hopp * Math.PI) * 1.1 + (jag.sitt ? .5 : 0);
+    kamera.position.set(mx, oga, mz);
+    kamera.lookAt(mx - Math.sin(kamVinkel) * Math.cos(blick), oga - Math.sin(blick), mz - Math.cos(kamVinkel) * Math.cos(blick));
+    if (!jag.dans) jag.vinkel = Math.atan2(-Math.sin(kamVinkel), -Math.cos(kamVinkel));
+    renderer.render(scen, kamera);
+    return;
+  }
   kamera.position.set(mx + Math.sin(kamVinkel) * Math.cos(kamLut) * kamAvstand, 1.2 + Math.sin(kamLut) * kamAvstand,
     mz + Math.cos(kamVinkel) * Math.cos(kamLut) * kamAvstand);
   kamera.lookAt(mx, 1.2, mz);
@@ -687,7 +781,7 @@ function varv(nu) {
   requestAnimationFrame(varv);
 }
 requestAnimationFrame(varv);
-window.__game = { jag, andra, uppdatera, rita, dansa, anvand, rum, narmast, kamera: () => ({ kamVinkel, kamLut, kamAvstand }) };
+window.__game = { bytOgon, get ogon() { return ogon; }, jag, andra, uppdatera, rita, dansa, anvand, rum, narmast, kamera: () => ({ kamVinkel, kamLut, kamAvstand }) };
 </script>
 <script>
 // ===== Låset på Pratrummet =====
