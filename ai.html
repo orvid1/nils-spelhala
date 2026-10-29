@@ -221,6 +221,8 @@ function svara(text) {
   const t = tvatta(text);
   if (!t) return 'Du skrev inget! Skriv något så svarar jag.';
 
+  // Ställer man en ny fråga i stället för att lära AI:n, svarar den på frågan
+  if (lage?.typ === 'lara' && arFraga(t)) lage = null;
   if (lage?.typ === 'lara') {
     const fraga = lage.fraga; lage = null;
     if (/^(hoppa över|hoppa|nej|vet inte|ingenting|inget)$/.test(t)) return 'Okej, då hoppar vi över det.';
