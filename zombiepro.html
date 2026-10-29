@@ -58,6 +58,8 @@
   #joy { position:fixed; width:120px; height:120px; margin:-60px 0 0 -60px; border-radius:50%; border:3px solid rgba(255,255,255,.4);
     background:rgba(255,255,255,.08); display:none; pointer-events:none; z-index:3; }
   #joy i { position:absolute; left:50%; top:50%; width:52px; height:52px; margin:-26px 0 0 -26px; border-radius:50%; background:rgba(255,255,255,.5); }
+  #natBtn { position:fixed; right:calc(max(18px, env(safe-area-inset-right)) + 110px); bottom:150px; width:80px; height:80px; border-radius:50%; border:3px solid #fff;
+    background:rgba(255,255,255,.3); font-size:34px; display:none; touch-action:none; z-index:4; -webkit-tap-highlight-color:transparent; }
   #shootBtn { position:fixed; right:max(18px, env(safe-area-inset-right)); bottom:110px; width:96px; height:96px; border-radius:50%; border:3px solid #fff;
     background:rgba(69,255,138,.45); font-size:40px; display:none; touch-action:none; z-index:4; -webkit-tap-highlight-color:transparent; }
 
@@ -106,6 +108,7 @@
 <div id="powers"></div>
 <div id="joy"><i></i></div>
 <button id="shootBtn">💥</button>
+<button id="natBtn">🕸️</button>
 
 <div class="screen show" id="startScreen"><div class="panel">
   <h1>🧟 Noob till Pro</h1>
@@ -114,6 +117,7 @@
   <p class="help">
     🖱️ <b>Dator:</b> WASD eller pilarna = gå · titta och sikta med musen · håll inne musknappen eller mellanslag = skjut<br>
     1 2 3 4 5 = superkrafter · B = BAS · V = byt vy<br>
+    🕸️ <b>Nätpojken:</b> håll E eller högerklick = svinga dig i luften!<br>
     📱 <b>Platta:</b> vänster tumme = gå · dra med höger tumme = titta · 💥 = skjut · tryck på superkrafterna
   </p>
   <div id="bestTxt" style="color:var(--gold);margin-bottom:8px"></div>
@@ -161,6 +165,7 @@ const KRAFTER = [
 const GUBBAR = [
   { id:'noob',      namn:'Noob',       emoji:'🙂', pris:0,   fart:1,    liv:1,   skada:1,   kraft:1,    text:'Där börjar alla!' },
   { id:'ninja',     namn:'Ninja',      emoji:'🥷', pris:40,  fart:1.35, liv:1,   skada:1.1, kraft:1,    text:'Supersnabb!' },
+  { id:'natpojke',  namn:'Nätpojken',  emoji:'🕸️', pris:100, fart:1.2,  liv:1.2, skada:1.1, kraft:0.9,  text:'Svingar sig med nät! Håll E.' },
   { id:'robot',     namn:'Robot',      emoji:'🤖', pris:80,  fart:1,    liv:1.7, skada:1.1, kraft:1,    text:'Tål jättemycket.' },
   { id:'trollkarl', namn:'Trollkarl',  emoji:'🧙', pris:120, fart:1.05, liv:1.1, skada:1,   kraft:0.55, text:'Superkrafterna laddar supersnabbt.' },
   { id:'riddare',   namn:'Riddare',    emoji:'🛡️', pris:180, fart:1,    liv:1.5, skada:1.6, kraft:1,    text:'Slår jättehårt.' },
@@ -194,7 +199,7 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0b0820);
-scene.fog = new THREE.Fog(0x0b0820, 30, 70);
+scene.fog = new THREE.Fog(0x0b0820, 35, 85);
 const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 200);
 function resize() { renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); }
 addEventListener('resize', resize); resize();
@@ -288,6 +293,15 @@ function byggGubbe(id) {
     const krona = new THREE.Group(); krona.position.y = 0.42; h.huvud.add(krona);
     box(0.66, 0.15, 0.66, M(0xffe680, 0.6), 0, 0, 0, krona);
     for (const [x, z] of [[-0.25, 0.25], [0.25, 0.25], [-0.25, -0.25], [0.25, -0.25], [0, 0.3]]) { const sp = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.25, 4), M(0xffe680, 0.6)); sp.position.set(x, 0.18, z); krona.add(sp); }
+  } else if (id === 'natpojke') {
+    h = humanoid({ skin: 0x151515, shirt: 0x151515, pants: 0x151515, ogon: 0x45ff8a });
+    const vit = M(0xeeeeee);
+    // Vita nät-linjer på dräkten
+    for (let i = 0; i < 3; i++) box(0.84, 0.03, 0.48, vit, 0, 1.05 + i * 0.3, 0, h.g);
+    box(0.03, 0.94, 0.48, vit, 0, 1.35, 0, h.g);
+    for (let i = 0; i < 2; i++) box(0.64, 0.03, 0.64, vit, 0, -0.15 + i * 0.3, 0, h.huvud);
+    box(0.25, 0.25, 0.05, M(0x45ff8a, 1), 0, 1.5, 0.25, h.g);
+    for (const a of h.armar) box(0.28, 0.03, 0.28, vit, 0, -0.4, 0, a);
   } else {
     h = humanoid({ skin: 0xf5c542, shirt: 0x2ec4ff, pants: 0x3a4cc9 });
   }
@@ -314,7 +328,7 @@ const G = {
   vy: spar.vy, lage: 'start', rank: 0, kills: 0, liv: 10, tid: 0, skottCd: 0, spawnCd: 1, kungUte: false, kungDod: false,
   cd: { eld: 0, blixt: 0, is: 0, small: 0, tornado: 0 }, tornado: 0,
 };
-const spelare = { pos: new THREE.Vector3(), rikt: 0, mesh: null, ring: null, ont: 0, gang: 0 };
+const spelare = { pos: new THREE.Vector3(), vel: new THREE.Vector3(), rikt: 0, mesh: null, ring: null, ont: 0, gang: 0 };
 let pitch = 0, handRekyl = 0;
 let zombies = [], skott = [], mynt = [], effekter = [], doende = [];
 
@@ -323,13 +337,28 @@ const maxLiv = () => Math.round((10 + G.rank * 2) * gubbe().liv);
 const skadaMult = () => (1 + G.rank * 0.3) * gubbe().skada;
 const fart = () => 7 * (1 + G.rank * 0.05) * gubbe().fart;
 
-const ARMFARG = { noob:0x2ec4ff, ninja:0x1a1a1a, robot:0x6b7580, trollkarl:0x5a2ca0, riddare:0xaab3bb, dino:0x3fbf4f, guld:0xffc000 };
+const ARMFARG = { natpojke:0x151515, noob:0x2ec4ff, ninja:0x1a1a1a, robot:0x6b7580, trollkarl:0x5a2ca0, riddare:0xaab3bb, dino:0x3fbf4f, guld:0xffc000 };
 scene.add(camera);
 const hand = new THREE.Group(); camera.add(hand);
 const handArm = box(0.09, 0.09, 0.5, M(0x2ec4ff), 0, 0, 0, hand);
 const handKula = new THREE.Mesh(new THREE.SphereGeometry(0.08, 12, 10), new THREE.MeshBasicMaterial({ color: 0x9aa7b0 }));
 handKula.position.z = -0.3; hand.add(handKula);
 hand.position.set(0.3, -0.26, -0.85); hand.rotation.set(0.08, 0.12, 0);
+const natLinje = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), new THREE.LineBasicMaterial({ color: 0xffffff }));
+natLinje.visible = false; natLinje.frustumCulled = false; scene.add(natLinje);
+const ankare = new THREE.Vector3();
+let repLangd = 10;
+const arNat = () => spar.vald === 'natpojke';
+function svinga() {
+  if (!arNat() || G.lage !== 'spel' || G.svinger) return;
+  const f = new THREE.Vector3(Math.sin(spelare.rikt), 0, Math.cos(spelare.rikt));
+  ankare.copy(spelare.pos).addScaledVector(f, 20); ankare.y = Math.min(15, Math.max(12, spelare.pos.y + 4));
+  repLangd = ankare.distanceTo(spelare.pos);
+  spelare.vel.addScaledVector(f, 8); spelare.vel.y = Math.max(spelare.vel.y, 10);
+  G.svinger = true; natLinje.visible = true;
+  ljud(900, 0.15, 'triangle', 0.06, 1500);
+}
+function slappNat() { if (!G.svinger) return; G.svinger = false; natLinje.visible = false; spelare.vel.y = Math.min(spelare.vel.y, 5); }
 function sattGubbe() {
   handArm.material.color.setHex(ARMFARG[spar.vald] || 0x2ec4ff);
   if (spelare.mesh) scene.remove(spelare.mesh.g);
@@ -345,9 +374,9 @@ function nyttSpel() {
   [...zombies, ...doende].forEach(z => scene.remove(z.mesh.g));
   [...skott, ...mynt, ...effekter].forEach(o => scene.remove(o.mesh));
   zombies = []; skott = []; mynt = []; effekter = []; doende = [];
-  Object.assign(G, { rank: 0, kills: 0, tid: 0, skottCd: 0, spawnCd: 1, kungUte: false, kungDod: false, tornado: 0 });
+  Object.assign(G, { rank: 0, kills: 0, tid: 0, skottCd: 0, spawnCd: 1, kungUte: false, kungDod: false, tornado: 0, svinger: false });
   for (const k in G.cd) G.cd[k] = 0;
-  spelare.pos.set(0, 0, 0);
+  spelare.pos.set(0, 0, 0); spelare.vel.set(0, 0, 0); natLinje.visible = false;
   sattGubbe();
   G.liv = maxLiv();
   spelare.ring.material.color.setHex(RANKS[0].farg); handKula.material.color.setHex(RANKS[0].farg);
@@ -459,12 +488,12 @@ const skottGeo = new THREE.SphereGeometry(0.22, 8, 8);
 function skjut(mal) {
   const bas = Math.atan2(mal.x - spelare.pos.x, mal.z - spelare.pos.z);
   const vinklar = G.rank >= 5 ? [-0.15, 0, 0.15] : [0];
-  const farg = spar.vald === 'guld' ? 0xffd23f : RANKS[G.rank].farg;
+  const farg = spar.vald === 'guld' ? 0xffd23f : arNat() ? 0xffffff : RANKS[G.rank].farg;
   for (const dv of vinklar) {
     const v = bas + dv;
     const mesh = new THREE.Mesh(skottGeo, new THREE.MeshBasicMaterial({ color: farg }));
-    mesh.position.set(spelare.pos.x + Math.sin(v) * 0.6, G.vy === 'forsta' ? 1.6 : 1.4, spelare.pos.z + Math.cos(v) * 0.6); scene.add(mesh);
-    skott.push({ mesh, v: new THREE.Vector3(Math.sin(v), 0, Math.cos(v)).multiplyScalar(30), tid: 1, skada: skadaMult(), sort: 'vanlig' });
+    mesh.position.set(spelare.pos.x + Math.sin(v) * 0.6, spelare.pos.y + (G.vy === 'forsta' ? 1.6 : 1.4), spelare.pos.z + Math.cos(v) * 0.6); scene.add(mesh);
+    skott.push({ mesh, v: new THREE.Vector3(Math.sin(v), 0, Math.cos(v)).multiplyScalar(30), tid: 1, skada: skadaMult(), sort: arNat() ? 'nat' : 'vanlig' });
   }
   if (G.vy !== 'forsta') spelare.rikt = bas;
   handRekyl = 0.12;
@@ -559,9 +588,11 @@ addEventListener('keydown', e => {
   if (e.code === 'Escape' && performance.now() - slappteLas < 400) return;
   if (e.code === 'KeyB' || e.code === 'Escape') { if (G.lage === 'spel') oppnaBas(); else if (G.lage === 'bas') stangBas(); }
 });
-addEventListener('keyup', e => tangent[e.code] = false);
+addEventListener('keyup', e => { tangent[e.code] = false; if (e.code === 'KeyE') slappNat(); });
+addEventListener('keydown', e => { if (e.code === 'KeyE' && !e.repeat) svinga(); });
+canvas.addEventListener('contextmenu', e => e.preventDefault());
 canvas.addEventListener('mousemove', e => { mus.x = e.clientX / innerWidth * 2 - 1; mus.y = -(e.clientY / innerHeight) * 2 + 1; });
-canvas.addEventListener('mousedown', e => { if (e.button === 0) musNere = true; laas(); });
+canvas.addEventListener('mousedown', e => { if (e.button === 0) musNere = true; if (e.button === 2) svinga(); laas(); });
 let bytarVy = false, slappteLas = 0;
 function laas() { if (G.vy === 'forsta' && G.lage === 'spel' && !arPek && document.pointerLockElement !== canvas) { try { const p = canvas.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch (e) {} } }
 function slappLas() { if (document.pointerLockElement) document.exitPointerLock(); }
@@ -582,13 +613,17 @@ function bytVy() {
   if (G.vy === 'forsta') { pitch = 0; laas(); } else if (document.pointerLockElement) { bytarVy = true; slappLas(); }
   visa(G.vy === 'forsta' ? '👀 Du ser med gubbens ögon!' : '🦅 Du ser uppifrån!', 1.5);
 }
-addEventListener('mouseup', () => musNere = false);
+addEventListener('mouseup', e => { if (e.button === 2) slappNat(); else musNere = false; });
 
 const joy = document.getElementById('joy'), joyKnapp = joy.querySelector('i');
 let joyId = null, joyStart = null; const joyVek = new THREE.Vector2();
 let tittId = null, tittX = 0, tittY = 0;
 let skjutPek = false;
 if (arPek) document.getElementById('shootBtn').style.display = 'block';
+const nb = document.getElementById('natBtn');
+nb.addEventListener('touchstart', e => { e.preventDefault(); svinga(); }, { passive: false });
+nb.addEventListener('touchend', e => { e.preventDefault(); slappNat(); });
+nb.addEventListener('touchcancel', slappNat);
 canvas.addEventListener('touchstart', e => {
   e.preventDefault();
   for (const t of e.changedTouches) {
@@ -686,6 +721,7 @@ function byggButik() {
       spar.vald = g.id; spara();
       G.liv = Math.min(maxLiv(), G.liv * maxLiv() / forreMax);
       sattGubbe(); uppdateraHud(); byggButik();
+      if (g.id === 'natpojke') visa('🕸️ Håll E eller högerklick för att svinga!', 3);
     });
     $('shop').appendChild(d);
   }
@@ -732,10 +768,43 @@ function update(dt) {
     const r = spelare.rikt, fram = -rel.z, sida = rel.x;
     rel.set(Math.sin(r) * fram - Math.cos(r) * sida, 0, Math.cos(r) * fram + Math.sin(r) * sida);
   }
-  spelare.pos.addScaledVector(rel, fart() * dt);
+  const iLuften = spelare.pos.y > 0.01 || G.svinger;
+  spelare.pos.addScaledVector(rel, fart() * dt * (iLuften ? 0.35 : 1));
+  if (iLuften) {
+    spelare.vel.y -= 25 * dt;
+    if (G.svinger) {
+      spelare.vel.addScaledVector(rel, 12 * dt);
+      // Nätet drar gubben mot ankaret
+      const mot = tmp.subVectors(ankare, spelare.pos); const l = mot.length();
+      if (l > 6) spelare.vel.addScaledVector(mot, 34 * dt / l);
+      if (spelare.vel.length() > 28) spelare.vel.setLength(28);
+      repLangd = Math.max(5, Math.min(repLangd, l + 0.5) - 8 * dt);
+    }
+    spelare.pos.addScaledVector(spelare.vel, dt);
+    if (G.svinger) {
+      // Repet håller kvar gubben på rätt avstånd från ankaret
+      const d = tmp.subVectors(spelare.pos, ankare), L = d.length();
+      if (L > repLangd) {
+        d.multiplyScalar(1 / L);
+        spelare.pos.copy(ankare).addScaledVector(d, repLangd);
+        const ut = spelare.vel.dot(d); if (ut > 0) spelare.vel.addScaledVector(d, -ut);
+      }
+    }
+    if (spelare.pos.y <= 0) {
+      spelare.pos.y = 0;
+      if (G.svinger) spelare.vel.y = Math.max(0, spelare.vel.y);
+      else spelare.vel.set(0, 0, 0);
+    }
+    if (spelare.pos.y > 16) { spelare.pos.y = 16; spelare.vel.y = Math.min(0, spelare.vel.y); }
+  }
   spelare.pos.x = THREE.MathUtils.clamp(spelare.pos.x, -ARENA, ARENA);
   spelare.pos.z = THREE.MathUtils.clamp(spelare.pos.z, -ARENA, ARENA);
-  const gar = rel.lengthSq() > 0.01;
+  if (G.svinger) {
+    const pos = natLinje.geometry.attributes.position;
+    pos.setXYZ(0, spelare.pos.x + Math.cos(spelare.rikt) * -0.3, spelare.pos.y + 1.7, spelare.pos.z + Math.sin(spelare.rikt) * 0.3);
+    pos.setXYZ(1, ankare.x, ankare.y, ankare.z); pos.needsUpdate = true;
+  }
+  const gar = rel.lengthSq() > 0.01 && !iLuften;
   if (gar) spelare.gang += dt * 12;
 
   // Sikte
@@ -756,7 +825,9 @@ function update(dt) {
   spelare.ring.position.set(spelare.pos.x, 0.06, spelare.pos.z);
   spelare.ring.rotation.z += dt * 2;
   m.g.visible = spelare.ring.visible = G.vy !== 'forsta';
-  spelarLjus.position.set(spelare.pos.x, 4, spelare.pos.z);
+  spelarLjus.position.set(spelare.pos.x, spelare.pos.y + 4, spelare.pos.z);
+  if (iLuften) { m.armar[0].rotation.x = -2.8; m.ben[0].rotation.x = 0.5; m.ben[1].rotation.x = -0.3; }
+  $('natBtn').style.display = arPek && arNat() ? 'block' : 'none';
 
   // Spawna zombies
   G.spawnCd -= dt;
@@ -772,7 +843,7 @@ function update(dt) {
 
   // Zombies
   for (const z of [...zombies]) {
-    z.slagCd -= dt; z.puff = Math.max(0, z.puff - dt);
+    z.slagCd -= dt; z.klibb = Math.max(0, (z.klibb || 0) - dt); z.puff = Math.max(0, z.puff - dt);
     const sk = z.typ === 'kung' ? 3 : z.typ === 'stor' ? 1.7 : z.typ === 'snabb' ? 0.8 : 1;
     z.mesh.g.scale.setScalar(sk * (1 + z.puff * 1.5));
     if (z.fryst > 0) {
@@ -785,9 +856,9 @@ function update(dt) {
     const d = tmp.length();
     if (d > z.radie + 0.5) {
       tmp.normalize();
-      z.pos.addScaledVector(tmp, z.fart * dt);
+      z.pos.addScaledVector(tmp, z.fart * dt * (z.klibb > 0 ? 0.3 : 1));
       z.gang += dt * z.fart * 2.5;
-    } else if (z.slagCd <= 0) {
+    } else if (z.slagCd <= 0 && spelare.pos.y < 1.5) {
       z.slagCd = 0.9; G.liv -= z.skada; spelare.ont = 0.3;
       ljud(140, 0.12, 'square', 0.07, 90);
       if (G.liv <= 0) { uppdateraHud(); dog(); return; }
@@ -821,7 +892,7 @@ function update(dt) {
         explosion(b.mesh.position, 4.5, 0xff7a1a);
         for (const z of [...zombies]) if (z.pos.distanceTo(b.mesh.position.clone().setY(0)) < 4.5 + z.radie) skadaZombie(z, b.skada);
         ljud(90, 0.4, 'sawtooth', 0.12, 40);
-      } else if (traff) skadaZombie(traff, b.skada);
+      } else if (traff) { skadaZombie(traff, b.skada); if (b.sort === 'nat') traff.klibb = 1.5; }
       scene.remove(b.mesh); skott.splice(skott.indexOf(b), 1);
     }
   }
@@ -902,15 +973,15 @@ function rita(dt = 0.016) {
   const mal = spelare.pos;
   const f = G.vy === 'forsta';
   if (f) {
-    const ogon = 2.05 * spelare.mesh.g.scale.y + Math.sin(spelare.gang) * 0.06;
+    const ogon = spelare.pos.y + 2.05 * spelare.mesh.g.scale.y + Math.sin(spelare.gang) * 0.06;
     camera.position.set(mal.x, ogon, mal.z);
     camera.rotation.order = 'YXZ';
     camera.rotation.set(pitch, spelare.rikt + Math.PI, 0);
     handRekyl = Math.max(0, handRekyl - dt);
     hand.position.set(0.3, -0.26 + Math.sin(spelare.gang * 0.5) * 0.015, -0.85 + handRekyl);
   } else {
-    camera.position.set(mal.x, 15, mal.z + 11);
-    camera.lookAt(mal.x, 0, mal.z + 1);
+    camera.position.set(mal.x, 15 + mal.y, mal.z + 11);
+    camera.lookAt(mal.x, mal.y, mal.z + 1);
   }
   hand.visible = f;
   $('cross').style.display = f && G.lage === 'spel' ? 'block' : 'none';
@@ -930,7 +1001,7 @@ requestAnimationFrame(loop);
 addEventListener('beforeunload', spara);
 addEventListener('visibilitychange', () => { if (document.hidden) { spara(); if (G.lage === 'spel') oppnaBas(); } });
 
-window.__game = { bytVy, get pitch() { return pitch; }, G, spar, spelare, get zombies() { return zombies; }, update, rita, nyttSpel, anvandKraft, oppnaBas, stangBas, spawnaZombie, kollaRank };
+window.__game = { svinga, slappNat, bytVy, get pitch() { return pitch; }, G, spar, spelare, get zombies() { return zombies; }, update, rita, nyttSpel, anvandKraft, oppnaBas, stangBas, spawnaZombie, kollaRank };
 </script>
 <script src="prat.js"></script>
 </body>
