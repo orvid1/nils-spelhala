@@ -94,7 +94,7 @@
   <a href="index.html">⬅ Spelhålan</a>
   <span id="rankBox"><span id="rankName">🙂 Noob</span><span class="bar" id="xpBar"><i></i></span></span>
   <span>❤️ <span class="bar" id="hpBar" style="display:inline-block;vertical-align:middle"><i></i></span> <span id="hpTxt"></span></span>
-  <span>🧟 <span id="killTxt">0</span></span>
+  <span>🦹 <span id="killTxt">0</span></span>
   <span style="color:var(--gold)">🪙 <span id="coinTxt">0</span></span>
 </div>
 <button id="basBtn">🏠 BAS</button>
@@ -102,7 +102,7 @@
 <div id="cross"></div>
 <canvas id="radar" width="130" height="130"></canvas>
 <div id="hint">🖱️ Klicka för att styra med musen</div>
-<div id="bossBox"><div>👑 ZOMBIEKUNGEN</div><div class="bar"><i></i></div></div>
+<div id="bossBox"><div>🥽 DOKTOR KAOS</div><div class="bar"><i></i></div></div>
 <div id="toast"></div>
 <div id="hurt"></div>
 <div id="powers"></div>
@@ -111,8 +111,8 @@
 <button id="natBtn">🕸️</button>
 
 <div class="screen show" id="startScreen"><div class="panel">
-  <h1>🧟 Noob till Pro</h1>
-  <p>Du börjar som en liten <b>noob</b>. Döda zombies och bli bättre och bättre tills du är <b>PRO</b>! 👑</p>
+  <h1>🦸 Noob till Pro</h1>
+  <p>Du börjar som en liten <b>noob</b>. Besegra datorstyrda skurkar och bli bättre och bättre tills du är <b>PRO</b>! 👑</p>
   <div class="ranks" id="rankList"></div>
   <p class="help">
     🖱️ <b>Dator:</b> WASD eller pilarna = gå · titta och sikta med musen · håll inne musknappen eller mellanslag = skjut<br>
@@ -134,7 +134,7 @@
 </div></div>
 
 <div class="screen" id="deadScreen"><div class="panel" style="border-color:var(--red)">
-  <h1 style="color:var(--red)">🧟 Zombierna tog dig!</h1>
+  <h1 style="color:var(--red)">🦹 Skurkarna tog dig!</h1>
   <p id="deadTxt"></p>
   <p>Dina mynt är sparade. Köp en ny gubbe i basen och försök igen! 💪</p>
   <button class="big" id="againBtn">▶ SPELA IGEN</button>
@@ -310,16 +310,58 @@ function byggGubbe(id) {
 
 function byggZombie(typ) {
   let h;
-  if (typ === 'snabb') h = humanoid({ skin: 0x9ad65a, shirt: 0x6a3d2a, pants: 0x2e3a4f, ogon: 0xff2222, skala: 0.8 });
-  else if (typ === 'stor') h = humanoid({ skin: 0x5f9a3a, shirt: 0x4a2a6a, pants: 0x222833, ogon: 0xff2222, skala: 1.7 });
-  else if (typ === 'kung') {
-    h = humanoid({ skin: 0x4c7a2a, shirt: 0x7a0a1a, pants: 0x1a1a1a, ogon: 0xffd23f, skala: 3 });
-    const krona = new THREE.Group(); krona.position.y = 0.42; h.huvud.add(krona);
-    box(0.66, 0.15, 0.66, M(0xffd23f, 0.6), 0, 0, 0, krona);
-    for (const [x, z] of [[-0.25, 0.25], [0.25, 0.25], [-0.25, -0.25], [0.25, -0.25]]) { const sp = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.25, 4), M(0xffd23f, 0.6)); sp.position.set(x, 0.18, z); krona.add(sp); }
+  const svart = M(0x111111);
+  if (typ === 'snabb') {
+    // Raketskurken: hjälm och jetpack
+    h = humanoid({ skin: 0xe0b090, shirt: 0xd9661a, pants: 0x2a2a33, ogon: 0xffd23f, skala: 0.8 });
+    box(0.7, 0.4, 0.7, M(0x8a8f99), 0, 0.2, 0, h.huvud);
+    box(0.5, 0.14, 0.05, M(0xffd23f, 1), 0, 0.05, 0.34, h.huvud);
+    box(0.55, 0.75, 0.3, M(0x8a8f99), 0, 1.4, -0.38, h.g);
+    h.flammor = [];
+    for (const x of [-0.15, 0.15]) {
+      const f = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.6, 8), M(0xff7a1a, 2));
+      f.rotation.x = Math.PI; f.position.set(x, 0.75, -0.38); h.g.add(f); h.flammor.push(f);
+    }
+  } else if (typ === 'stor') {
+    // Pansarbjässen: tung rustning
+    h = humanoid({ skin: 0x5a5f66, shirt: 0x5a5f66, pants: 0x3c4046, ogon: 0xffd23f, skala: 1.7 });
+    for (const x of [-0.55, 0.55]) {
+      box(0.45, 0.25, 0.55, M(0x7a8088), x, 1.85, 0, h.g);
+      const sp = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.3, 4), M(0xbbbbbb)); sp.position.set(x, 2.1, 0); h.g.add(sp);
+    }
+    box(0.5, 0.5, 0.05, M(0xff4d6d, 0.6), 0, 1.4, 0.25, h.g);
+  } else if (typ === 'laser') {
+    // Laserskurken: visir och laserpistol
+    h = humanoid({ skin: 0xd8a880, shirt: 0x8a0f1f, pants: 0x151515, ogon: 0xff2222 });
+    box(0.66, 0.16, 0.08, M(0xff2222, 1.2), 0, 0.05, 0.31, h.huvud);
+    box(0.66, 0.2, 0.66, svart, 0, 0.3, 0, h.huvud);
+    const pistol = box(0.14, 0.14, 0.6, M(0x555a66), 0, -0.85, 0.2, h.armar[1]);
+    pistol.rotation.x = Math.PI / 2;
+    box(0.1, 0.1, 0.1, M(0xff2222, 2), 0, 0.3, 0, pistol);
+  } else if (typ === 'kung') {
+    // Doktor Kaos: labbrock, glasögon, vilt hår och kaoskanon
+    h = humanoid({ skin: 0xd8b08c, shirt: 0xeeeeee, pants: 0x4a1a6a, ogon: 0x111111, skala: 3 });
+    for (const x of [-0.15, 0.15]) box(0.2, 0.18, 0.08, M(0xffd23f, 1.2), x, 0.05, 0.33, h.huvud);
+    box(0.62, 0.05, 0.04, M(0x333333), 0, 0.05, 0.33, h.huvud);
+    for (let i = 0; i < 7; i++) {
+      const har = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.35, 4), M(0xcccccc));
+      har.position.set(-0.27 + i * 0.09, 0.38, (i % 2) * 0.12 - 0.06); har.rotation.z = (i - 3) * 0.25; h.huvud.add(har);
+    }
+    box(0.86, 1.6, 0.06, M(0x4a1a6a), 0, 1.1, -0.28, h.g);
+    const kanon = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.2, 0.8, 10), M(0x6a2a9a));
+    kanon.position.set(0, -0.95, 0); h.armar[1].add(kanon);
+    const topp = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 8), M(0x45ff8a, 2)); topp.position.y = -0.45; kanon.add(topp);
+  } else {
+    // Hantlangaren: ögonmask och mössa
+    h = humanoid({ skin: 0xe0b090, shirt: 0x3a3a48, pants: 0x1e1e26, ogon: 0xff2222 });
+    box(0.66, 0.16, 0.66, svart, 0, 0.05, 0, h.huvud);
+    box(0.1, 0.12, 0.04, M(0xff2222, 1.5), -0.14, 0.05, 0.34, h.huvud); box(0.1, 0.12, 0.04, M(0xff2222, 1.5), 0.14, 0.05, 0.34, h.huvud);
+    box(0.66, 0.2, 0.66, svart, 0, 0.36, 0, h.huvud);
+    box(0.84, 0.15, 0.48, M(0x7b2cbf), 0, 1.2, 0, h.g);
   }
-  else h = humanoid({ skin: 0x6fbf4a, shirt: 0x5b4a3a, pants: 0x33415e, ogon: 0xff2222 });
-  h.armar.forEach(a => a.rotation.x = -1.4);
+  if (typ === 'laser' || typ === 'kung') h.armar[1].rotation.x = -1.5;
+  else if (typ === 'vanlig' || typ === 'stor') h.armar.forEach(a => a.rotation.x = -0.9);
+  else h.armar.forEach(a => a.rotation.x = 0.5);
   return h;
 }
 
@@ -330,6 +372,7 @@ const G = {
 };
 const spelare = { pos: new THREE.Vector3(), vel: new THREE.Vector3(), rikt: 0, mesh: null, ring: null, ont: 0, gang: 0 };
 let pitch = 0, handRekyl = 0;
+let fiendeSkott = [];
 let zombies = [], skott = [], mynt = [], effekter = [], doende = [];
 
 const gubbe = () => GUBBAR.find(g => g.id === spar.vald) || GUBBAR[0];
@@ -372,7 +415,8 @@ function sattGubbe() {
 
 function nyttSpel() {
   [...zombies, ...doende].forEach(z => scene.remove(z.mesh.g));
-  [...skott, ...mynt, ...effekter].forEach(o => scene.remove(o.mesh));
+  [...skott, ...mynt, ...effekter, ...fiendeSkott].forEach(o => scene.remove(o.mesh));
+  fiendeSkott = [];
   zombies = []; skott = []; mynt = []; effekter = []; doende = [];
   Object.assign(G, { rank: 0, kills: 0, tid: 0, skottCd: 0, spawnCd: 1, kungUte: false, kungDod: false, tornado: 0, svinger: false });
   for (const k in G.cd) G.cd[k] = 0;
@@ -392,6 +436,7 @@ function spawnaZombie(typ, pos) {
     vanlig: { liv: 3 + r, fart: 2.2 + r * 0.22, skada: 1, radie: 0.6, mynt: 1 },
     snabb:  { liv: 2 + r * 0.6, fart: 4.4 + r * 0.25, skada: 1, radie: 0.5, mynt: 1 },
     stor:   { liv: 14 + r * 4, fart: 1.6 + r * 0.1, skada: 2, radie: 1.1, mynt: 4 },
+    laser:  { liv: 3 + r * 0.8, fart: 2.6 + r * 0.15, skada: 1, radie: 0.6, mynt: 2 },
     kung:   { liv: 320, fart: 2.6, skada: 3, radie: 2, mynt: 100 },
   }[typ];
   const mesh = byggZombie(typ);
@@ -401,7 +446,7 @@ function spawnaZombie(typ, pos) {
     pos.x = THREE.MathUtils.clamp(pos.x, -ARENA, ARENA); pos.z = THREE.MathUtils.clamp(pos.z, -ARENA, ARENA);
   }
   mesh.g.position.copy(pos); scene.add(mesh.g);
-  const z = { typ, mesh, pos: mesh.g.position, liv: stats.liv, maxLiv: stats.liv, ...stats, fryst: 0, slagCd: 0, gang: Math.random() * 6, puff: 0, minionCd: 4 };
+  const z = { typ, mesh, pos: mesh.g.position, liv: stats.liv, maxLiv: stats.liv, ...stats, fryst: 0, slagCd: 0, gang: Math.random() * 6, puff: 0, minionCd: 4, skjutCd: 1.5 + Math.random() * 2, sida: Math.random() < 0.5 ? -1 : 1 };
   zombies.push(z);
   return z;
 }
@@ -422,7 +467,7 @@ function dodaZombie(z) {
   G.kills++;
   if (z.typ === 'kung') {
     G.kungDod = true; document.getElementById('bossBox').style.display = 'none';
-    visa('👑 DU BESEGRADE ZOMBIEKUNGEN! 👑<br>Du är en riktig PRO!', 4); fanfar(); konfetti(z.pos, 120);
+    visa('🥽 DU BESEGRADE DOKTOR KAOS! 🥽<br>Du är en riktig PRO!', 4); fanfar(); konfetti(z.pos, 120);
   }
   kollaRank();
   uppdateraHud();
@@ -435,6 +480,19 @@ function slappMynt(pos, sort, varde) {
   mesh.position.set(pos.x + (Math.random() - 0.5) * 1.5, 0.6, pos.z + (Math.random() - 0.5) * 1.5);
   if (sort === 'mynt') mesh.rotation.x = Math.PI / 2;
   scene.add(mesh); mynt.push({ mesh, sort, varde, tid: 0 });
+}
+
+const laserGeo = new THREE.SphereGeometry(0.22, 8, 8), laserMat = new THREE.MeshBasicMaterial({ color: 0xff2a2a });
+const kaosMat = new THREE.MeshBasicMaterial({ color: 0x45ff8a });
+function fiendeSkjut(z, hojd, vinkel, kaos) {
+  const fran = new THREE.Vector3(z.pos.x, hojd, z.pos.z);
+  const mot = new THREE.Vector3(spelare.pos.x, spelare.pos.y + 1.2, spelare.pos.z).sub(fran).normalize();
+  mot.applyAxisAngle(new THREE.Vector3(0, 1, 0), vinkel);
+  const mesh = new THREE.Mesh(laserGeo, kaos ? kaosMat : laserMat);
+  mesh.scale.setScalar(kaos ? 1.6 : 1);
+  mesh.position.copy(fran); scene.add(mesh);
+  fiendeSkott.push({ mesh, v: mot.multiplyScalar(kaos ? 13 : 15), tid: 3.5, skada: kaos ? 2 : 1 });
+  ljud(kaos ? 300 : 1100, 0.12, 'sawtooth', 0.03, kaos ? 120 : 500);
 }
 
 // ---------- Rank ----------
@@ -456,7 +514,7 @@ function kollaRank() {
       setTimeout(() => {
         if (G.lage === 'start') return;
         spawnaZombie('kung'); document.getElementById('bossBox').style.display = 'block';
-        visa('⚠️ ZOMBIEKUNGEN KOMMER! ⚠️', 3); ljud(90, 1, 'sawtooth', 0.12, 40);
+        visa('⚠️ DOKTOR KAOS KOMMER! ⚠️', 3); ljud(90, 1, 'sawtooth', 0.12, 40);
       }, 3500);
     }
   }
@@ -693,7 +751,7 @@ function uppdateraKraftCd() {
 
 // ---------- Skärmar ----------
 $('rankList').innerHTML = RANKS.map(r => `<span class="emo">${r.emoji} ${r.namn}</span>`).join(' ➜ ');
-function visaBasta() { $('bestTxt').textContent = spar.bastaKills ? `Ditt rekord: ${RANKS[spar.bastaRank].emoji} ${RANKS[spar.bastaRank].namn} · ${spar.bastaKills} zombies` : ''; }
+function visaBasta() { $('bestTxt').textContent = spar.bastaKills ? `Ditt rekord: ${RANKS[spar.bastaRank].emoji} ${RANKS[spar.bastaRank].namn} · ${spar.bastaKills} skurkar` : ''; }
 visaBasta();
 function visaSkarm(id) { ['startScreen', 'basScreen', 'deadScreen'].forEach(s => $(s).classList.toggle('show', s === id)); }
 let basFran = 'spel';
@@ -738,7 +796,7 @@ function dog() {
   G.lage = 'dod'; slappLas();
   if (G.kills > spar.bastaKills) spar.bastaKills = G.kills;
   spara(); visaBasta();
-  $('deadTxt').innerHTML = `Du blev <b>${RANKS[G.rank].emoji} ${RANKS[G.rank].namn}</b> och dödade <b>${G.kills}</b> zombies!`;
+  $('deadTxt').innerHTML = `Du blev <b>${RANKS[G.rank].emoji} ${RANKS[G.rank].namn}</b> och besegrade <b>${G.kills}</b> skurkar!`;
   setTimeout(() => visaSkarm('deadScreen'), 600);
   ljud(300, 0.8, 'sawtooth', 0.1, 50);
 }
@@ -838,6 +896,7 @@ function update(dt) {
     let typ = 'vanlig';
     if (G.rank >= 2 && r < 0.25) typ = 'snabb';
     else if (G.rank >= 4 && r < 0.35) typ = 'stor';
+    if (typ === 'vanlig' && G.rank >= 1 && Math.random() < 0.25) typ = 'laser';
     spawnaZombie(typ);
   }
 
@@ -854,9 +913,19 @@ function update(dt) {
     }
     tmp.subVectors(spelare.pos, z.pos).setY(0);
     const d = tmp.length();
-    if (d > z.radie + 0.5) {
+    const seg = z.klibb > 0 ? 0.3 : 1;
+    if (z.typ === 'laser' && d > z.radie + 0.5) {
       tmp.normalize();
-      z.pos.addScaledVector(tmp, z.fart * dt * (z.klibb > 0 ? 0.3 : 1));
+      const fram = d < 10 ? -1 : d > 16 ? 1 : 0;
+      if (fram) z.pos.addScaledVector(tmp, fram * z.fart * dt * seg);
+      else { z.pos.x -= tmp.z * z.sida * z.fart * 0.6 * dt * seg; z.pos.z += tmp.x * z.sida * z.fart * 0.6 * dt * seg; }
+      if (Math.random() < dt * 0.3) z.sida *= -1;
+      z.gang += dt * z.fart * 2.5;
+      z.skjutCd -= dt;
+      if (z.skjutCd <= 0 && d < 30) { z.skjutCd = 2 + Math.random() * 1.5; fiendeSkjut(z, 1.5, 0, false); }
+    } else if (d > z.radie + 0.5) {
+      tmp.normalize();
+      z.pos.addScaledVector(tmp, z.fart * dt * seg);
       z.gang += dt * z.fart * 2.5;
     } else if (z.slagCd <= 0 && spelare.pos.y < 1.5) {
       z.slagCd = 0.9; G.liv -= z.skada; spelare.ont = 0.3;
@@ -872,7 +941,14 @@ function update(dt) {
     }
     z.mesh.g.rotation.y = Math.atan2(spelare.pos.x - z.pos.x, spelare.pos.z - z.pos.z);
     animeraGang(z.mesh, z.gang, 0.6);
+    z.pos.x = THREE.MathUtils.clamp(z.pos.x, -ARENA, ARENA); z.pos.z = THREE.MathUtils.clamp(z.pos.z, -ARENA, ARENA);
+    if (z.typ === 'snabb') {
+      z.pos.y = 0.5 + Math.sin(z.gang * 0.5) * 0.15;
+      for (const f of z.mesh.flammor) f.scale.y = 0.7 + Math.random() * 0.6;
+    }
     if (z.typ === 'kung') {
+      z.skjutCd -= dt;
+      if (z.skjutCd <= 0 && d < 35) { z.skjutCd = 2.5; for (const v of [-0.25, 0, 0.25]) fiendeSkjut(z, 4.5, v, true); }
       z.minionCd -= dt;
       if (z.minionCd <= 0) { z.minionCd = 4; for (let i = 0; i < 2; i++) spawnaZombie(Math.random() < 0.5 ? 'snabb' : 'vanlig', z.pos.clone().add(new THREE.Vector3((Math.random() - 0.5) * 6, 0, (Math.random() - 0.5) * 6))); }
       $('bossBox').querySelector('i').style.width = Math.max(0, z.liv / z.maxLiv * 100) + '%';
@@ -909,6 +985,19 @@ function update(dt) {
       for (const z of [...zombies]) { const dx = z.pos.x - tornadoMesh.position.x, dz = z.pos.z - tornadoMesh.position.z; if (dx * dx + dz * dz < (2.2 + z.radie) ** 2) skadaZombie(z, 2 * skadaMult()); }
     }
     if (G.tornado <= 0) scene.remove(tornadoMesh);
+  }
+
+  // Skurkarnas skott
+  for (const b of [...fiendeSkott]) {
+    b.tid -= dt; b.mesh.position.addScaledVector(b.v, dt);
+    const dx = b.mesh.position.x - spelare.pos.x, dy = b.mesh.position.y - (spelare.pos.y + 1.2), dz = b.mesh.position.z - spelare.pos.z;
+    const traff = dx * dx + dy * dy + dz * dz < 0.8;
+    if (traff) {
+      G.liv -= b.skada; spelare.ont = 0.3; ljud(160, 0.15, 'square', 0.07, 80);
+      uppdateraHud();
+    }
+    if (traff || b.tid <= 0 || b.mesh.position.y < 0) { scene.remove(b.mesh); fiendeSkott.splice(fiendeSkott.indexOf(b), 1); }
+    if (G.liv <= 0) { dog(); return; }
   }
 
   // Mynt och hjärtan
