@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Noob till Pro</title>
+<style>
+  :root { --bg:#0b0820; --neon:#00e5ff; --pink:#ff3df0; --gold:#ffd23f; --green:#45ff8a; --red:#ff4d6d; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; background:#000; color:#fff; overflow:hidden;
+    font-family:'Trebuchet MS', system-ui, sans-serif; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; overscroll-behavior:none; }
+  canvas#c { display:block; position:fixed; inset:0; width:100%; height:100%; touch-action:none; }
+  button { touch-action:manipulation; font-family:inherit; cursor:pointer; }
+  .emo { font-family:"Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif; }
+
+  #hud { position:fixed; top:0; left:0; right:0; display:flex; gap:14px; align-items:center; flex-wrap:wrap;
+    padding:8px 12px; padding-top:max(8px, env(safe-area-inset-top)); padding-left:max(12px, env(safe-area-inset-left));
+    background:rgba(11,8,32,.75); font-weight:bold; font-size:16px; pointer-events:none; border-bottom:2px solid rgba(69,255,138,.35); }
+  #hud a { pointer-events:auto; color:var(--neon); text-decoration:none; }
+  #rankBox { display:flex; align-items:center; gap:8px; }
+  #rankName { font-size:18px; }
+  .bar { width:120px; height:12px; border-radius:6px; background:rgba(255,255,255,.15); overflow:hidden; }
+  .bar i { display:block; height:100%; width:0; border-radius:6px; transition:width .2s; }
+  #xpBar i { background:linear-gradient(90deg,var(--green),var(--neon)); }
+  #hpBar i { background:linear-gradient(90deg,#ff4d6d,#ff9a3d); }
+  #basBtn { position:fixed; top:max(8px, env(safe-area-inset-top)); right:max(10px, env(safe-area-inset-right)); z-index:5;
+    background:var(--gold); color:#3a2410; border:3px solid #fff; border-radius:16px; font-size:20px; font-weight:bold; padding:6px 16px;
+    box-shadow:0 0 18px rgba(255,210,63,.6); }
+
+  #bossBox { position:fixed; top:64px; left:50%; transform:translateX(-50%); width:min(420px,80vw); text-align:center; display:none; pointer-events:none; font-weight:bold; text-shadow:0 0 6px #000; }
+  #bossBox .bar { width:100%; height:16px; border:2px solid #fff; }
+  #bossBox .bar i { background:linear-gradient(90deg,#b30000,#ff4d6d); }
+
+  #toast { position:fixed; left:50%; top:30%; transform:translateX(-50%); font-size:clamp(22px,5vw,40px); font-weight:bold; width:92vw;
+    text-shadow:0 0 8px #000, 0 0 16px #000; pointer-events:none; text-align:center; transition:opacity .4s; opacity:0; }
+  #hurt { position:fixed; inset:0; pointer-events:none; box-shadow:inset 0 0 120px 40px rgba(255,0,40,.8); opacity:0; transition:opacity .25s; }
+
+  #powers { position:fixed; left:50%; transform:translateX(-50%); bottom:max(12px, env(safe-area-inset-bottom)); display:flex; gap:10px; z-index:4; }
+  .pw { position:relative; width:64px; height:64px; border-radius:16px; border:3px solid rgba(255,255,255,.8); background:rgba(11,8,32,.8);
+    color:#fff; font-size:30px; overflow:hidden; padding:0; }
+  .pw .key { position:absolute; left:4px; top:2px; font-size:12px; opacity:.8; }
+  .pw .cd { position:absolute; left:0; right:0; bottom:0; height:0; background:rgba(0,0,0,.65); }
+  .pw .lock { position:absolute; inset:0; display:none; align-items:center; justify-content:center; flex-direction:column;
+    background:rgba(0,0,0,.72); font-size:11px; line-height:1.2; }
+  .pw.locked .lock { display:flex; }
+  .pw.ready { box-shadow:0 0 14px var(--neon); border-color:var(--neon); }
+
+  #joy { position:fixed; width:120px; height:120px; margin:-60px 0 0 -60px; border-radius:50%; border:3px solid rgba(255,255,255,.4);
+    background:rgba(255,255,255,.08); display:none; pointer-events:none; z-index:3; }
+  #joy i { position:absolute; left:50%; top:50%; width:52px; height:52px; margin:-26px 0 0 -26px; border-radius:50%; background:rgba(255,255,255,.5); }
+  #shootBtn { position:fixed; right:max(18px, env(safe-area-inset-right)); bottom:110px; width:96px; height:96px; border-radius:50%; border:3px solid #fff;
+    background:rgba(69,255,138,.45); font-size:40px; display:none; touch-action:none; z-index:4; -webkit-tap-highlight-color:transparent; }
+
+  .screen { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(5,4,18,.82); z-index:10; overflow:auto; padding:20px; }
+  .screen.show { display:flex; }
+  .panel { background:rgba(11,8,32,.95); border:3px solid var(--green); border-radius:24px; padding:22px 24px; max-width:760px; width:100%;
+    text-align:center; box-shadow:0 0 40px rgba(69,255,138,.35); margin:auto; }
+  .panel h1 { margin:0 0 6px; font-size:clamp(28px,7vw,46px); color:var(--green); text-shadow:0 0 18px rgba(69,255,138,.7); }
+  .panel h2 { margin:0 0 8px; color:var(--gold); }
+  .panel p { opacity:.9; font-size:17px; }
+  .big { background:var(--green); color:#062; border:3px solid #fff; border-radius:16px; font-size:22px; font-weight:bold; padding:10px 26px; margin:6px; }
+  .big.gold { background:var(--gold); color:#3a2410; }
+  .ranks { display:flex; flex-wrap:wrap; justify-content:center; gap:6px; margin:10px 0; font-size:14px; }
+  .ranks span { background:rgba(255,255,255,.08); border-radius:10px; padding:4px 8px; }
+  .help { font-size:15px; opacity:.85; line-height:1.6; }
+  #coinsBig { font-size:24px; color:var(--gold); font-weight:bold; margin:6px 0 12px; }
+  #shop { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; margin:10px 0 16px; }
+  .gub { background:rgba(255,255,255,.06); border:2px solid rgba(255,255,255,.2); border-radius:18px; padding:10px; }
+  .gub.vald { border-color:var(--green); box-shadow:0 0 16px rgba(69,255,138,.6); }
+  .gub .e { font-size:46px; }
+  .gub b { display:block; font-size:18px; margin:2px 0; }
+  .gub small { display:block; opacity:.8; min-height:34px; }
+  .gub button { margin-top:6px; width:100%; border-radius:12px; border:2px solid #fff; font-weight:bold; font-size:16px; padding:6px; }
+  .gub button.kop { background:var(--gold); color:#3a2410; }
+  .gub button.valj { background:var(--neon); color:#022; }
+  .gub button:disabled { background:#444; color:#aaa; border-color:#777; cursor:default; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">
+  <a href="index.html">⬅ Spelhålan</a>
+  <span id="rankBox"><span id="rankName">🙂 Noob</span><span class="bar" id="xpBar"><i></i></span></span>
+  <span>❤️ <span class="bar" id="hpBar" style="display:inline-block;vertical-align:middle"><i></i></span> <span id="hpTxt"></span></span>
+  <span>🧟 <span id="killTxt">0</span></span>
+  <span style="color:var(--gold)">🪙 <span id="coinTxt">0</span></span>
+</div>
+<button id="basBtn">🏠 BAS</button>
+<div id="bossBox"><div>👑 ZOMBIEKUNGEN</div><div class="bar"><i></i></div></div>
+<div id="toast"></div>
+<div id="hurt"></div>
+<div id="powers"></div>
+<div id="joy"><i></i></div>
+<button id="shootBtn">💥</button>
+
+<div class="screen show" id="startScreen"><div class="panel">
+  <h1>🧟 Noob till Pro</h1>
+  <p>Du börjar som en liten <b>noob</b>. Döda zombies och bli bättre och bättre tills du är <b>PRO</b>! 👑</p>
+  <div class="ranks" id="rankList"></div>
+  <p class="help">
+    🖱️ <b>Dator:</b> WASD eller pilarna = gå · sikta med musen · håll inne musknappen eller mellanslag = skjut<br>
+    1 2 3 4 5 = superkrafter · B = BAS<br>
+    📱 <b>Platta:</b> dra med vänster tumme = gå · 💥 = skjut · tryck på superkrafterna
+  </p>
+  <div id="bestTxt" style="color:var(--gold);margin-bottom:8px"></div>
+  <button class="big" id="playBtn">▶ SPELA</button>
+  <button class="big gold" id="startBasBtn">🏠 BAS</button>
+</div></div>
+
+<div class="screen" id="basScreen"><div class="panel" style="border-color:var(--gold)">
+  <h1 style="color:var(--gold)">🏠 BASEN</h1>
+  <p>Spelet är pausat. Här kan du köpa nya gubbar för dina mynt!</p>
+  <div id="coinsBig"></div>
+  <div id="shop"></div>
+  <button class="big" id="backBtn">▶ FORTSÄTT</button>
+</div></div>
+
+<div class="screen" id="deadScreen"><div class="panel" style="border-color:var(--red)">
+  <h1 style="color:var(--red)">🧟 Zombierna tog dig!</h1>
+  <p id="deadTxt"></p>
+  <p>Dina mynt är sparade. Köp en ny gubbe i basen och försök igen! 💪</p>
+  <button class="big" id="againBtn">▶ SPELA IGEN</button>
+  <button class="big gold" id="deadBasBtn">🏠 BAS</button>
+</div></div>
+
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }</script>
+<script type="module">
+import * as THREE from 'three';
+
+// ---------- Data ----------
+const RANKS = [
+  { namn:'Noob',      emoji:'🙂', kills:0,   farg:0x9aa7b0 },
+  { namn:'Nybörjare', emoji:'😎', kills:8,   farg:0x45ff8a },
+  { namn:'Okej',      emoji:'👍', kills:20,  farg:0x00e5ff },
+  { namn:'Bra',       emoji:'💪', kills:40,  farg:0xb07bff },
+  { namn:'Proffs',    emoji:'🔥', kills:70,  farg:0xff9a3d },
+  { namn:'Mästare',   emoji:'⭐', kills:110, farg:0xff3df0 },
+  { namn:'PRO',       emoji:'👑', kills:160, farg:0xffd23f },
+];
+const KRAFTER = [
+  { id:'eld',     emoji:'🔥', namn:'Eldboll',       rank:1, cd:3 },
+  { id:'blixt',   emoji:'⚡', namn:'Blixt',         rank:2, cd:5 },
+  { id:'is',      emoji:'❄️', namn:'Isfrys',        rank:3, cd:8 },
+  { id:'small',   emoji:'💥', namn:'Jordsmäll',     rank:4, cd:6 },
+  { id:'tornado', emoji:'🌪️', namn:'Supertornado',  rank:6, cd:15 },
+];
+const GUBBAR = [
+  { id:'noob',      namn:'Noob',       emoji:'🙂', pris:0,   fart:1,    liv:1,   skada:1,   kraft:1,    text:'Där börjar alla!' },
+  { id:'ninja',     namn:'Ninja',      emoji:'🥷', pris:40,  fart:1.35, liv:1,   skada:1.1, kraft:1,    text:'Supersnabb!' },
+  { id:'robot',     namn:'Robot',      emoji:'🤖', pris:80,  fart:1,    liv:1.7, skada:1.1, kraft:1,    text:'Tål jättemycket.' },
+  { id:'trollkarl', namn:'Trollkarl',  emoji:'🧙', pris:120, fart:1.05, liv:1.1, skada:1,   kraft:0.55, text:'Superkrafterna laddar supersnabbt.' },
+  { id:'riddare',   namn:'Riddare',    emoji:'🛡️', pris:180, fart:1,    liv:1.5, skada:1.6, kraft:1,    text:'Slår jättehårt.' },
+  { id:'dino',      namn:'Dino',       emoji:'🦖', pris:260, fart:1.2,  liv:1.5, skada:1.5, kraft:0.85, text:'RAAAWR! Bra på allt.' },
+  { id:'guld',      namn:'Guldgubben', emoji:'👑', pris:400, fart:1.35, liv:2,   skada:2,   kraft:0.6,  text:'Bäst av allt!' },
+];
+const SPARNYCKEL = 'nils_zombiepro_v1';
+
+// ---------- Sparning ----------
+let spar = { mynt:0, agda:['noob'], vald:'noob', bastaRank:0, bastaKills:0 };
+try { const s = JSON.parse(localStorage.getItem(SPARNYCKEL)); if (s) spar = Object.assign(spar, s); } catch (e) {}
+function spara() { try { localStorage.setItem(SPARNYCKEL, JSON.stringify(spar)); } catch (e) {} }
+
+// ---------- Ljud ----------
+let ac = null;
+function ljud(f, t = 0.1, typ = 'square', vol = 0.06, slut = null) {
+  try {
+    ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = typ; o.frequency.setValueAtTime(f, ac.currentTime);
+    if (slut) o.frequency.exponentialRampToValueAtTime(slut, ac.currentTime + t);
+    g.gain.setValueAtTime(vol, ac.currentTime); g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + t);
+    o.connect(g); g.connect(ac.destination); o.start(); o.stop(ac.currentTime + t);
+  } catch (e) {}
+}
+const fanfar = () => [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => ljud(f, 0.18, 'triangle', 0.09), i * 110));
+
+// ---------- Scen ----------
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0b0820);
+scene.fog = new THREE.Fog(0x0b0820, 30, 70);
+const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 200);
+function resize() { renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); }
+addEventListener('resize', resize); resize();
+
+scene.add(new THREE.HemisphereLight(0x8899ff, 0x335522, 1.3));
+const mane = new THREE.DirectionalLight(0xc8d4ff, 1.1); mane.position.set(-20, 40, 10); scene.add(mane);
+const spelarLjus = new THREE.PointLight(0xffeecc, 30, 18); scene.add(spelarLjus);
+
+const ARENA = 60;
+const mark = new THREE.Mesh(new THREE.PlaneGeometry(ARENA * 2 + 20, ARENA * 2 + 20), new THREE.MeshStandardMaterial({ color: 0x34603a, roughness: 1 }));
+mark.rotation.x = -Math.PI / 2; scene.add(mark);
+// Staket runt arenan
+{
+  const mat = new THREE.MeshStandardMaterial({ color: 0x4a3524 });
+  for (let i = -ARENA; i <= ARENA; i += 4) {
+    for (const [x, z] of [[i, -ARENA - 1], [i, ARENA + 1], [-ARENA - 1, i], [ARENA + 1, i]]) {
+      const p = new THREE.Mesh(new THREE.BoxGeometry(0.4, 1.6, 0.4), mat); p.position.set(x, 0.8, z); scene.add(p);
+    }
+  }
+  const sten = new THREE.MeshStandardMaterial({ color: 0x777788 });
+  const stam = new THREE.MeshStandardMaterial({ color: 0x3b2a1e });
+  for (let i = 0; i < 45; i++) {
+    const x = (Math.random() * 2 - 1) * ARENA, z = (Math.random() * 2 - 1) * ARENA;
+    if (Math.hypot(x, z) < 8) continue;
+    if (Math.random() < 0.6) {
+      const g = new THREE.Mesh(new THREE.BoxGeometry(1, 1.4, 0.3), sten); g.position.set(x, 0.7, z); g.rotation.y = Math.random() - 0.5; g.rotation.z = (Math.random() - 0.5) * 0.3; scene.add(g);
+    } else {
+      const t = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.4, 4, 6), stam); t.position.set(x, 2, z); t.rotation.z = (Math.random() - 0.5) * 0.4; scene.add(t);
+      const gren = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.15, 2, 5), stam); gren.position.set(x + 0.6, 3.2, z); gren.rotation.z = -0.9; scene.add(gren);
+    }
+  }
+  const maan = new THREE.Mesh(new THREE.SphereGeometry(4, 20, 20), new THREE.MeshBasicMaterial({ color: 0xfff6cc, fog: false }));
+  maan.position.set(-60, 55, -90); scene.add(maan);
+}
+
+// ---------- Gubbar ----------
+const M = (c, e = 0) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.7, emissive: e ? c : 0x000000, emissiveIntensity: e });
+function box(w, h, d, mat, x = 0, y = 0, z = 0, parent) { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); if (parent) parent.add(m); return m; }
+
+function humanoid(o) {
+  const g = new THREE.Group();
+  const skin = M(o.skin, o.glow || 0), shirt = M(o.shirt, o.glow || 0), pants = M(o.pants, o.glow || 0), shoe = M(o.shoe || 0x222222);
+  const ben = [], armar = [];
+  for (const s of [-1, 1]) {
+    const p = new THREE.Group(); p.position.set(s * 0.22, 0.9, 0); g.add(p);
+    box(0.32, 0.9, 0.32, pants, 0, -0.45, 0, p); box(0.34, 0.15, 0.42, shoe, 0, -0.85, 0.04, p); ben.push(p);
+    const a = new THREE.Group(); a.position.set(s * 0.54, 1.75, 0); g.add(a);
+    box(0.26, 0.82, 0.26, shirt, 0, -0.38, 0, a); box(0.26, 0.2, 0.26, skin, 0, -0.86, 0, a); armar.push(a);
+  }
+  box(0.82, 0.92, 0.46, shirt, 0, 1.35, 0, g);
+  const huvud = new THREE.Group(); huvud.position.set(0, 2.12, 0); g.add(huvud);
+  box(0.62, 0.62, 0.62, skin, 0, 0, 0, huvud);
+  const oga = o.ogon ? M(o.ogon, 1.5) : M(0x111111);
+  box(0.1, 0.12, 0.04, oga, -0.14, 0.05, 0.32, huvud); box(0.1, 0.12, 0.04, oga, 0.14, 0.05, 0.32, huvud);
+  g.scale.setScalar(o.skala || 1);
+  return { g, ben, armar, huvud };
+}
+
+function byggGubbe(id) {
+  let h;
+  if (id === 'ninja') {
+    h = humanoid({ skin: 0x222222, shirt: 0x1a1a1a, pants: 0x111111, ogon: 0xffffff });
+    box(0.66, 0.12, 0.66, M(0xff2244), 0, 0.12, 0, h.huvud); box(0.1, 0.1, 0.4, M(0xff2244), 0, 0.12, -0.45, h.huvud);
+    const svard = box(0.08, 1.2, 0.08, M(0xdddddd, 0.3), 0, 1.5, -0.3, h.g); svard.rotation.z = 0.6;
+  } else if (id === 'robot') {
+    h = humanoid({ skin: 0x9aa4ad, shirt: 0x6b7580, pants: 0x4d555e, ogon: 0x00e5ff });
+    box(0.06, 0.4, 0.06, M(0x9aa4ad), 0, 0.5, 0, h.huvud); box(0.16, 0.16, 0.16, M(0xff3333, 1), 0, 0.75, 0, h.huvud);
+    box(0.4, 0.3, 0.05, M(0x00e5ff, 0.8), 0, 1.45, 0.24, h.g);
+  } else if (id === 'trollkarl') {
+    h = humanoid({ skin: 0xf2c7a5, shirt: 0x5a2ca0, pants: 0x5a2ca0 });
+    const hatt = new THREE.Mesh(new THREE.ConeGeometry(0.5, 1.1, 10), M(0x3d1d7a)); hatt.position.y = 0.85; h.huvud.add(hatt);
+    box(1.0, 0.06, 1.0, M(0x3d1d7a), 0, 0.33, 0, h.huvud);
+    box(0.5, 0.4, 0.1, M(0xffffff), 0, -0.35, 0.3, h.huvud);
+    const stav = box(0.08, 1.8, 0.08, M(0x8b5a2b), 0, -0.7, 0.1, h.armar[1]);
+    box(0.22, 0.22, 0.22, M(0x00e5ff, 1.5), 0, 0.95, 0, stav);
+  } else if (id === 'riddare') {
+    h = humanoid({ skin: 0xc0c6cc, shirt: 0xaab3bb, pants: 0x80888f });
+    box(0.68, 0.1, 0.1, M(0x111111), 0, 0.05, 0.33, h.huvud);
+    box(0.1, 0.35, 0.5, M(0xff2244), 0, 0.45, -0.05, h.huvud);
+    const sk = box(0.1, 0.8, 0.6, M(0xc81e3a), 0.1, -0.4, 0.15, h.armar[0]); sk.position.x = -0.18;
+    box(0.08, 1.2, 0.08, M(0xeeeeee, 0.3), 0, -1.2, 0.2, h.armar[1]);
+  } else if (id === 'dino') {
+    h = humanoid({ skin: 0x3fbf4f, shirt: 0x3fbf4f, pants: 0x2f9a3d, ogon: 0xffd23f });
+    box(0.5, 0.35, 0.55, M(0x3fbf4f), 0, -0.1, 0.5, h.huvud);
+    for (let i = 0; i < 4; i++) box(0.08, 0.08, 0.06, M(0xffffff), -0.15 + i * 0.1, -0.3, 0.75, h.huvud);
+    const svans = new THREE.Mesh(new THREE.ConeGeometry(0.3, 1.6, 8), M(0x2f9a3d)); svans.rotation.x = -1.9; svans.position.set(0, 1.0, -0.9); h.g.add(svans);
+    for (let i = 0; i < 4; i++) { const t = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.3, 4), M(0xff9a3d)); t.position.set(0, 2.45 - i * 0.35, -0.3); h.g.add(t); }
+    h.g.scale.setScalar(1.15);
+  } else if (id === 'guld') {
+    h = humanoid({ skin: 0xffd23f, shirt: 0xffc000, pants: 0xd99a00, glow: 0.35, ogon: 0xffffff });
+    const krona = new THREE.Group(); krona.position.y = 0.42; h.huvud.add(krona);
+    box(0.66, 0.15, 0.66, M(0xffe680, 0.6), 0, 0, 0, krona);
+    for (const [x, z] of [[-0.25, 0.25], [0.25, 0.25], [-0.25, -0.25], [0.25, -0.25], [0, 0.3]]) { const sp = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.25, 4), M(0xffe680, 0.6)); sp.position.set(x, 0.18, z); krona.add(sp); }
+  } else {
+    h = humanoid({ skin: 0xf5c542, shirt: 0x2ec4ff, pants: 0x3a4cc9 });
+  }
+  return h;
+}
+
+function byggZombie(typ) {
+  let h;
+  if (typ === 'snabb') h = humanoid({ skin: 0x9ad65a, shirt: 0x6a3d2a, pants: 0x2e3a4f, ogon: 0xff2222, skala: 0.8 });
+  else if (typ === 'stor') h = humanoid({ skin: 0x5f9a3a, shirt: 0x4a2a6a, pants: 0x222833, ogon: 0xff2222, skala: 1.7 });
+  else if (typ === 'kung') {
+    h = humanoid({ skin: 0x4c7a2a, shirt: 0x7a0a1a, pants: 0x1a1a1a, ogon: 0xffd23f, skala: 3 });
+    const krona = new THREE.Group(); krona.position.y = 0.42; h.huvud.add(krona);
+    box(0.66, 0.15, 0.66, M(0xffd23f, 0.6), 0, 0, 0, krona);
+    for (const [x, z] of [[-0.25, 0.25], [0.25, 0.25], [-0.25, -0.25], [0.25, -0.25]]) { const sp = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.25, 4), M(0xffd23f, 0.6)); sp.position.set(x, 0.18, z); krona.add(sp); }
+  }
+  else h = humanoid({ skin: 0x6fbf4a, shirt: 0x5b4a3a, pants: 0x33415e, ogon: 0xff2222 });
+  h.armar.forEach(a => a.rotation.x = -1.4);
+  return h;
+}
+
+// ---------- Speltillstånd ----------
+const G = {
+  lage: 'start', rank: 0, kills: 0, liv: 10, tid: 0, skottCd: 0, spawnCd: 1, kungUte: false, kungDod: false,
+  cd: { eld: 0, blixt: 0, is: 0, small: 0, tornado: 0 }, tornado: 0,
+};
+const spelare = { pos: new THREE.Vector3(), rikt: 0, mesh: null, ring: null, ont: 0, gang: 0 };
+let zombies = [], skott = [], mynt = [], effekter = [], doende = [];
+
+const gubbe = () => GUBBAR.find(g => g.id === spar.vald) || GUBBAR[0];
+const maxLiv = () => Math.round((10 + G.rank * 2) * gubbe().liv);
+const skadaMult = () => (1 + G.rank * 0.3) * gubbe().skada;
+const fart = () => 7 * (1 + G.rank * 0.05) * gubbe().fart;
+
+function sattGubbe() {
+  if (spelare.mesh) scene.remove(spelare.mesh.g);
+  spelare.mesh = byggGubbe(spar.vald);
+  scene.add(spelare.mesh.g);
+  if (!spelare.ring) {
+    spelare.ring = new THREE.Mesh(new THREE.TorusGeometry(0.9, 0.08, 8, 32), new THREE.MeshBasicMaterial({ color: RANKS[0].farg }));
+    spelare.ring.rotation.x = -Math.PI / 2; scene.add(spelare.ring);
+  }
+}
+
+function nyttSpel() {
+  [...zombies, ...doende].forEach(z => scene.remove(z.mesh.g));
+  [...skott, ...mynt, ...effekter].forEach(o => scene.remove(o.mesh));
+  zombies = []; skott = []; mynt = []; effekter = []; doende = [];
+  Object.assign(G, { rank: 0, kills: 0, tid: 0, skottCd: 0, spawnCd: 1, kungUte: false, kungDod: false, tornado: 0 });
+  for (const k in G.cd) G.cd[k] = 0;
+  spelare.pos.set(0, 0, 0);
+  sattGubbe();
+  G.liv = maxLiv();
+  spelare.ring.material.color.setHex(RANKS[0].farg);
+  document.getElementById('bossBox').style.display = 'none';
+  uppdateraHud(); byggKraftKnappar();
+}
+
+// ---------- Zombies ----------
+function spawnaZombie(typ, pos) {
+  const r = G.rank;
+  const stats = {
+    vanlig: { liv: 3 + r, fart: 2.2 + r * 0.22, skada: 1, radie: 0.6, mynt: 1 },
+    snabb:  { liv: 2 + r * 0.6, fart: 4.4 + r * 0.25, skada: 1, radie: 0.5, mynt: 1 },
+    stor:   { liv: 14 + r * 4, fart: 1.6 + r * 0.1, skada: 2, radie: 1.1, mynt: 4 },
+    kung:   { liv: 320, fart: 2.6, skada: 3, radie: 2, mynt: 100 },
+  }[typ];
+  const mesh = byggZombie(typ);
+  if (!pos) {
+    const v = Math.random() * Math.PI * 2, d = 22 + Math.random() * 6;
+    pos = new THREE.Vector3(spelare.pos.x + Math.cos(v) * d, 0, spelare.pos.z + Math.sin(v) * d);
+    pos.x = THREE.MathUtils.clamp(pos.x, -ARENA, ARENA); pos.z = THREE.MathUtils.clamp(pos.z, -ARENA, ARENA);
+  }
+  mesh.g.position.copy(pos); scene.add(mesh.g);
+  const z = { typ, mesh, pos: mesh.g.position, liv: stats.liv, maxLiv: stats.liv, ...stats, fryst: 0, slagCd: 0, gang: Math.random() * 6, puff: 0, minionCd: 4 };
+  zombies.push(z);
+  return z;
+}
+
+function skadaZombie(z, s) {
+  if (z.liv <= 0) return;
+  z.liv -= s; z.puff = 0.12;
+  if (z.liv <= 0) dodaZombie(z);
+}
+
+function dodaZombie(z) {
+  zombies.splice(zombies.indexOf(z), 1);
+  z.dodTid = 0.35; doende.push(z);
+  ljud(180, 0.15, 'sawtooth', 0.05, 60);
+  const antal = z.mynt + (Math.random() < 0.4 ? 1 : 0);
+  for (let i = 0; i < Math.min(antal, 12); i++) slappMynt(z.pos, 'mynt', z.typ === 'kung' ? Math.ceil(antal / 12) : 1);
+  if (Math.random() < 0.08) slappMynt(z.pos, 'hjarta', 1);
+  G.kills++;
+  if (z.typ === 'kung') {
+    G.kungDod = true; document.getElementById('bossBox').style.display = 'none';
+    visa('👑 DU BESEGRADE ZOMBIEKUNGEN! 👑<br>Du är en riktig PRO!', 4); fanfar(); konfetti(z.pos, 120);
+  }
+  kollaRank();
+  uppdateraHud();
+}
+
+const myntGeo = new THREE.CylinderGeometry(0.3, 0.3, 0.08, 14), myntMat = M(0xffd23f, 0.6);
+const hjartaMat = M(0xff3d6a, 0.8);
+function slappMynt(pos, sort, varde) {
+  const mesh = sort === 'mynt' ? new THREE.Mesh(myntGeo, myntMat) : new THREE.Mesh(new THREE.SphereGeometry(0.35, 10, 10), hjartaMat);
+  mesh.position.set(pos.x + (Math.random() - 0.5) * 1.5, 0.6, pos.z + (Math.random() - 0.5) * 1.5);
+  if (sort === 'mynt') mesh.rotation.x = Math.PI / 2;
+  scene.add(mesh); mynt.push({ mesh, sort, varde, tid: 0 });
+}
+
+// ---------- Rank ----------
+function kollaRank() {
+  while (G.rank < RANKS.length - 1 && G.kills >= RANKS[G.rank + 1].kills) {
+    G.rank++;
+    const R = RANKS[G.rank];
+    G.liv = maxLiv();
+    spelare.ring.material.color.setHex(R.farg);
+    const ny = KRAFTER.find(k => k.rank === G.rank);
+    let t = `${R.emoji} DU ÄR NU ${R.namn.toUpperCase()}! ${R.emoji}`;
+    if (ny) t += `<br><span style="font-size:.7em">Ny superkraft: ${ny.emoji} ${ny.namn}! Tryck ${KRAFTER.indexOf(ny) + 1}</span>`;
+    if (G.rank === 5) t += `<br><span style="font-size:.7em">Du skjuter tre skott på en gång!</span>`;
+    visa(t, 3.2); fanfar(); konfetti(spelare.pos, 60);
+    if (G.rank > spar.bastaRank) { spar.bastaRank = G.rank; spara(); }
+    byggKraftKnappar();
+    if (G.rank === RANKS.length - 1 && !G.kungUte) {
+      G.kungUte = true;
+      setTimeout(() => {
+        if (G.lage === 'start') return;
+        spawnaZombie('kung'); document.getElementById('bossBox').style.display = 'block';
+        visa('⚠️ ZOMBIEKUNGEN KOMMER! ⚠️', 3); ljud(90, 1, 'sawtooth', 0.12, 40);
+      }, 3500);
+    }
+  }
+}
+
+// ---------- Effekter ----------
+function konfetti(pos, n) {
+  const farger = [0xff3df0, 0x00e5ff, 0xffd23f, 0x45ff8a, 0xff4d6d];
+  for (let i = 0; i < n; i++) {
+    const mesh = box(0.18, 0.18, 0.05, new THREE.MeshBasicMaterial({ color: farger[i % 5] }));
+    mesh.position.set(pos.x, 2, pos.z); scene.add(mesh);
+    effekter.push({ mesh, typ: 'konfetti', tid: 1.6, v: new THREE.Vector3((Math.random() - 0.5) * 10, 6 + Math.random() * 8, (Math.random() - 0.5) * 10) });
+  }
+}
+function explosion(pos, radie, farg) {
+  const mesh = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), new THREE.MeshBasicMaterial({ color: farg, transparent: true, opacity: 0.7 }));
+  mesh.position.set(pos.x, 1, pos.z); scene.add(mesh);
+  effekter.push({ mesh, typ: 'bubbla', tid: 0.4, max: 0.4, radie });
+}
+function ringVag(pos, radie, farg) {
+  const mesh = new THREE.Mesh(new THREE.RingGeometry(0.8, 1, 40), new THREE.MeshBasicMaterial({ color: farg, transparent: true, side: THREE.DoubleSide }));
+  mesh.rotation.x = -Math.PI / 2; mesh.position.set(pos.x, 0.1, pos.z); scene.add(mesh);
+  effekter.push({ mesh, typ: 'ring', tid: 0.5, max: 0.5, radie });
+}
+
+// ---------- Skjuta ----------
+const sikte = new THREE.Vector3(0, 0, 5);
+const skottGeo = new THREE.SphereGeometry(0.22, 8, 8);
+function skjut(mal) {
+  const bas = Math.atan2(mal.x - spelare.pos.x, mal.z - spelare.pos.z);
+  const vinklar = G.rank >= 5 ? [-0.15, 0, 0.15] : [0];
+  const farg = spar.vald === 'guld' ? 0xffd23f : RANKS[G.rank].farg;
+  for (const dv of vinklar) {
+    const v = bas + dv;
+    const mesh = new THREE.Mesh(skottGeo, new THREE.MeshBasicMaterial({ color: farg }));
+    mesh.position.set(spelare.pos.x, 1.4, spelare.pos.z); scene.add(mesh);
+    skott.push({ mesh, v: new THREE.Vector3(Math.sin(v), 0, Math.cos(v)).multiplyScalar(30), tid: 1, skada: skadaMult(), sort: 'vanlig' });
+  }
+  spelare.rikt = bas;
+  ljud(700, 0.06, 'square', 0.03, 350);
+}
+
+function narmasteZombie(maxD = 40) {
+  let b = null, bd = maxD;
+  for (const z of zombies) { const d = z.pos.distanceTo(spelare.pos); if (d < bd) { bd = d; b = z; } }
+  return b;
+}
+function malPunkt() {
+  if (arPek) { const z = narmasteZombie(); if (z) return z.pos.clone(); return spelare.pos.clone().add(new THREE.Vector3(Math.sin(spelare.rikt), 0, Math.cos(spelare.rikt))); }
+  return sikte.clone();
+}
+
+// ---------- Superkrafter ----------
+function anvandKraft(i) {
+  const k = KRAFTER[i];
+  if (!k || G.lage !== 'spel' || G.rank < k.rank || G.cd[k.id] > 0) return;
+  G.cd[k.id] = k.cd * gubbe().kraft;
+  const s = skadaMult();
+  const mal = malPunkt();
+  if (k.id === 'eld') {
+    const v = Math.atan2(mal.x - spelare.pos.x, mal.z - spelare.pos.z); spelare.rikt = v;
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.6, 14, 12), new THREE.MeshBasicMaterial({ color: 0xff7a1a }));
+    mesh.position.set(spelare.pos.x, 1.4, spelare.pos.z); scene.add(mesh);
+    skott.push({ mesh, v: new THREE.Vector3(Math.sin(v), 0, Math.cos(v)).multiplyScalar(22), tid: 1.4, skada: 6 * s, sort: 'eld' });
+    ljud(200, 0.4, 'sawtooth', 0.08, 80);
+  } else if (k.id === 'blixt') {
+    const mal5 = [...zombies].sort((a, b) => a.pos.distanceTo(spelare.pos) - b.pos.distanceTo(spelare.pos)).slice(0, 6).filter(z => z.pos.distanceTo(spelare.pos) < 30);
+    let fran = spelare.pos.clone().setY(1.5);
+    for (const z of mal5) {
+      const till = z.pos.clone().setY(1.5);
+      const pts = [];
+      for (let j = 0; j <= 6; j++) { const p = fran.clone().lerp(till, j / 6); if (j > 0 && j < 6) p.add(new THREE.Vector3((Math.random() - 0.5), (Math.random() - 0.5), (Math.random() - 0.5))); pts.push(p); }
+      const mesh = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0xbfefff }));
+      scene.add(mesh); effekter.push({ mesh, typ: 'fade', tid: 0.3 });
+      skadaZombie(z, 5 * s); fran = till;
+    }
+    ljud(1400, 0.3, 'sawtooth', 0.07, 200);
+  } else if (k.id === 'is') {
+    for (const z of zombies) if (z.pos.distanceTo(spelare.pos) < 14) { z.fryst = z.typ === 'kung' ? 2 : 4; skadaZombie(z, 1 * s); }
+    ringVag(spelare.pos, 14, 0x9fe8ff); explosion(spelare.pos, 4, 0x9fe8ff);
+    ljud(1800, 0.5, 'sine', 0.07, 600);
+  } else if (k.id === 'small') {
+    for (const z of [...zombies]) {
+      const d = z.pos.distanceTo(spelare.pos);
+      if (d < 9) {
+        if (z.typ !== 'kung') { const bort = z.pos.clone().sub(spelare.pos).setY(0).normalize().multiplyScalar(5); z.pos.add(bort); }
+        skadaZombie(z, 4 * s);
+      }
+    }
+    ringVag(spelare.pos, 9, 0xff9a3d); ringVag(spelare.pos, 6, 0xffd23f);
+    ljud(70, 0.5, 'sawtooth', 0.15, 30);
+  } else if (k.id === 'tornado') {
+    G.tornado = 6;
+    if (!tornadoMesh) {
+      tornadoMesh = new THREE.Mesh(new THREE.ConeGeometry(1.4, 4, 14, 1, true), new THREE.MeshBasicMaterial({ color: 0xc8f0ff, transparent: true, opacity: 0.55, side: THREE.DoubleSide }));
+      tornadoMesh.rotation.x = Math.PI;
+    }
+    scene.add(tornadoMesh);
+    ljud(120, 1.2, 'sawtooth', 0.06, 400);
+  }
+}
+let tornadoMesh = null, tornadoTick = 0;
+
+// ---------- Styrning ----------
+const tangent = {};
+const arPek = matchMedia('(pointer: coarse)').matches || new URLSearchParams(location.search).has('touch');
+let musNere = false;
+const mus = new THREE.Vector2(), ray = new THREE.Raycaster(), golv = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+addEventListener('keydown', e => {
+  tangent[e.code] = true;
+  if (e.code === 'Space') e.preventDefault();
+  if (G.lage === 'spel') {
+    const n = parseInt(e.key); if (n >= 1 && n <= 5) anvandKraft(n - 1);
+  }
+  if (e.code === 'KeyB' || e.code === 'Escape') { if (G.lage === 'spel') oppnaBas(); else if (G.lage === 'bas') stangBas(); }
+});
+addEventListener('keyup', e => tangent[e.code] = false);
+canvas.addEventListener('mousemove', e => { mus.x = e.clientX / innerWidth * 2 - 1; mus.y = -(e.clientY / innerHeight) * 2 + 1; });
+canvas.addEventListener('mousedown', e => { if (e.button === 0) musNere = true; });
+addEventListener('mouseup', () => musNere = false);
+
+const joy = document.getElementById('joy'), joyKnapp = joy.querySelector('i');
+let joyId = null, joyStart = null; const joyVek = new THREE.Vector2();
+let skjutPek = false;
+if (arPek) document.getElementById('shootBtn').style.display = 'block';
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  for (const t of e.changedTouches) {
+    if (joyId === null && t.clientX < innerWidth * 0.6) {
+      joyId = t.identifier; joyStart = { x: t.clientX, y: t.clientY };
+      joy.style.left = t.clientX + 'px'; joy.style.top = t.clientY + 'px'; joy.style.display = 'block';
+    }
+  }
+}, { passive: false });
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  for (const t of e.changedTouches) if (t.identifier === joyId) {
+    joyVek.set(t.clientX - joyStart.x, t.clientY - joyStart.y);
+    if (joyVek.length() > 50) joyVek.setLength(50);
+    joyKnapp.style.transform = `translate(${joyVek.x}px,${joyVek.y}px)`;
+  }
+}, { passive: false });
+const joySlut = e => { for (const t of e.changedTouches) if (t.identifier === joyId) { joyId = null; joyVek.set(0, 0); joy.style.display = 'none'; joyKnapp.style.transform = ''; } };
+canvas.addEventListener('touchend', joySlut); canvas.addEventListener('touchcancel', joySlut);
+const sb = document.getElementById('shootBtn');
+sb.addEventListener('touchstart', e => { e.preventDefault(); skjutPek = true; }, { passive: false });
+sb.addEventListener('touchend', e => { e.preventDefault(); skjutPek = false; });
+sb.addEventListener('touchcancel', () => skjutPek = false);
+
+// ---------- HUD ----------
+const $ = id => document.getElementById(id);
+let toastTimer = null;
+function visa(html, sek = 2) {
+  const t = $('toast'); t.innerHTML = html; t.style.opacity = 1;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.style.opacity = 0, sek * 1000);
+}
+function uppdateraHud() {
+  const R = RANKS[G.rank], N = RANKS[G.rank + 1];
+  $('rankName').textContent = `${R.emoji} ${R.namn}`;
+  $('rankName').style.color = '#' + R.farg.toString(16).padStart(6, '0');
+  $('xpBar').firstElementChild.style.width = N ? ((G.kills - R.kills) / (N.kills - R.kills) * 100) + '%' : '100%';
+  $('hpBar').firstElementChild.style.width = Math.max(0, G.liv / maxLiv() * 100) + '%';
+  $('hpTxt').textContent = `${Math.max(0, Math.ceil(G.liv))}/${maxLiv()}`;
+  $('killTxt').textContent = G.kills;
+  $('coinTxt').textContent = spar.mynt;
+}
+function byggKraftKnappar() {
+  const p = $('powers'); p.innerHTML = '';
+  KRAFTER.forEach((k, i) => {
+    const b = document.createElement('button');
+    b.className = 'pw emo' + (G.rank < k.rank ? ' locked' : '');
+    b.title = k.namn;
+    b.innerHTML = `<span class="key">${i + 1}</span>${k.emoji}<span class="cd"></span><span class="lock">🔒<br>${RANKS[k.rank].namn}</span>`;
+    b.addEventListener('pointerdown', e => { e.preventDefault(); anvandKraft(i); });
+    p.appendChild(b);
+  });
+}
+function uppdateraKraftCd() {
+  const knappar = $('powers').children;
+  KRAFTER.forEach((k, i) => {
+    const b = knappar[i]; if (!b) return;
+    const max = k.cd * gubbe().kraft, kvar = G.cd[k.id];
+    b.querySelector('.cd').style.height = (kvar > 0 ? kvar / max * 100 : 0) + '%';
+    b.classList.toggle('ready', G.rank >= k.rank && kvar <= 0);
+  });
+}
+
+// ---------- Skärmar ----------
+$('rankList').innerHTML = RANKS.map(r => `<span class="emo">${r.emoji} ${r.namn}</span>`).join(' ➜ ');
+function visaBasta() { $('bestTxt').textContent = spar.bastaKills ? `Ditt rekord: ${RANKS[spar.bastaRank].emoji} ${RANKS[spar.bastaRank].namn} · ${spar.bastaKills} zombies` : ''; }
+visaBasta();
+function visaSkarm(id) { ['startScreen', 'basScreen', 'deadScreen'].forEach(s => $(s).classList.toggle('show', s === id)); }
+let basFran = 'spel';
+function oppnaBas() { basFran = G.lage; G.lage = 'bas'; byggButik(); visaSkarm('basScreen'); ljud(440, 0.15, 'triangle', 0.08); }
+function stangBas() {
+  if (basFran === 'start' || basFran === 'dod') { nyttSpel(); }
+  G.lage = 'spel'; visaSkarm(null); $('basBtn').style.display = '';
+}
+function byggButik() {
+  $('coinsBig').textContent = `🪙 ${spar.mynt} mynt`;
+  $('shop').innerHTML = '';
+  for (const g of GUBBAR) {
+    const har = spar.agda.includes(g.id), vald = spar.vald === g.id;
+    const d = document.createElement('div'); d.className = 'gub' + (vald ? ' vald' : '');
+    let knapp;
+    if (vald) knapp = `<button class="valj" disabled>✔ Vald</button>`;
+    else if (har) knapp = `<button class="valj">Välj</button>`;
+    else knapp = `<button class="kop" ${spar.mynt < g.pris ? 'disabled' : ''}>Köp 🪙 ${g.pris}</button>`;
+    d.innerHTML = `<div class="e emo">${g.emoji}</div><b>${g.namn}</b><small>${g.text}</small>${knapp}`;
+    const b = d.querySelector('button');
+    b.addEventListener('click', () => {
+      if (!har) { if (spar.mynt < g.pris) return; spar.mynt -= g.pris; spar.agda.push(g.id); fanfar(); }
+      else ljud(660, 0.1, 'triangle', 0.08);
+      const forreMax = maxLiv();
+      spar.vald = g.id; spara();
+      G.liv = Math.min(maxLiv(), G.liv * maxLiv() / forreMax);
+      sattGubbe(); uppdateraHud(); byggButik();
+    });
+    $('shop').appendChild(d);
+  }
+}
+$('playBtn').onclick = () => { nyttSpel(); G.lage = 'spel'; visaSkarm(null); ljud(523, 0.15, 'triangle', 0.08); };
+$('againBtn').onclick = $('playBtn').onclick;
+$('startBasBtn').onclick = () => { G.lage = 'start'; oppnaBas(); };
+$('deadBasBtn').onclick = () => { G.lage = 'dod'; oppnaBas(); };
+$('backBtn').onclick = stangBas;
+$('basBtn').onclick = () => { if (G.lage === 'spel') oppnaBas(); };
+
+function dog() {
+  G.lage = 'dod';
+  if (G.kills > spar.bastaKills) spar.bastaKills = G.kills;
+  spara(); visaBasta();
+  $('deadTxt').innerHTML = `Du blev <b>${RANKS[G.rank].emoji} ${RANKS[G.rank].namn}</b> och dödade <b>${G.kills}</b> zombies!`;
+  setTimeout(() => visaSkarm('deadScreen'), 600);
+  ljud(300, 0.8, 'sawtooth', 0.1, 50);
+}
+
+// ---------- Uppdatering ----------
+const tmp = new THREE.Vector3();
+function animeraGang(h, gang, rorelse) {
+  const s = Math.sin(gang) * 0.7 * rorelse;
+  h.ben[0].rotation.x = s; h.ben[1].rotation.x = -s;
+  return s;
+}
+
+function update(dt) {
+  if (G.lage !== 'spel') return;
+  G.tid += dt;
+  for (const k in G.cd) G.cd[k] = Math.max(0, G.cd[k] - dt);
+
+  // Spelaren går
+  const rel = new THREE.Vector3();
+  if (tangent.KeyW || tangent.ArrowUp) rel.z -= 1;
+  if (tangent.KeyS || tangent.ArrowDown) rel.z += 1;
+  if (tangent.KeyA || tangent.ArrowLeft) rel.x -= 1;
+  if (tangent.KeyD || tangent.ArrowRight) rel.x += 1;
+  if (joyVek.lengthSq() > 25) { rel.x = joyVek.x / 50; rel.z = joyVek.y / 50; }
+  if (rel.lengthSq() > 1) rel.normalize();
+  spelare.pos.addScaledVector(rel, fart() * dt);
+  spelare.pos.x = THREE.MathUtils.clamp(spelare.pos.x, -ARENA, ARENA);
+  spelare.pos.z = THREE.MathUtils.clamp(spelare.pos.z, -ARENA, ARENA);
+  const gar = rel.lengthSq() > 0.01;
+  if (gar) spelare.gang += dt * 12;
+
+  // Sikte
+  if (!arPek) { ray.setFromCamera(mus, camera); ray.ray.intersectPlane(golv, sikte); spelare.rikt = Math.atan2(sikte.x - spelare.pos.x, sikte.z - spelare.pos.z); }
+  else if (gar) spelare.rikt = Math.atan2(rel.x, rel.z);
+
+  // Skjuta
+  G.skottCd -= dt;
+  const vill = musNere || tangent.Space || skjutPek;
+  if (vill && G.skottCd <= 0) { G.skottCd = 0.28; skjut(malPunkt()); }
+
+  const m = spelare.mesh;
+  m.g.position.copy(spelare.pos);
+  m.g.rotation.y = spelare.rikt;
+  const s = animeraGang(m, spelare.gang, gar ? 1 : 0);
+  m.armar[0].rotation.x = -s; m.armar[1].rotation.x = vill ? -1.5 : s;
+  spelare.ring.position.set(spelare.pos.x, 0.06, spelare.pos.z);
+  spelare.ring.rotation.z += dt * 2;
+  spelarLjus.position.set(spelare.pos.x, 4, spelare.pos.z);
+
+  // Spawna zombies
+  G.spawnCd -= dt;
+  const maxZ = 10 + G.rank * 5;
+  if (G.spawnCd <= 0 && zombies.length < maxZ) {
+    G.spawnCd = Math.max(0.35, 2 - G.rank * 0.25 - G.tid * 0.004);
+    const r = Math.random();
+    let typ = 'vanlig';
+    if (G.rank >= 2 && r < 0.25) typ = 'snabb';
+    else if (G.rank >= 4 && r < 0.35) typ = 'stor';
+    spawnaZombie(typ);
+  }
+
+  // Zombies
+  for (const z of [...zombies]) {
+    z.slagCd -= dt; z.puff = Math.max(0, z.puff - dt);
+    const sk = z.typ === 'kung' ? 3 : z.typ === 'stor' ? 1.7 : z.typ === 'snabb' ? 0.8 : 1;
+    z.mesh.g.scale.setScalar(sk * (1 + z.puff * 1.5));
+    if (z.fryst > 0) {
+      z.fryst -= dt;
+      z.mesh.g.traverse(o => { if (o.isMesh && !o.userData.org) { o.userData.org = o.material; o.material = isMat; } });
+      if (z.fryst <= 0) z.mesh.g.traverse(o => { if (o.isMesh && o.userData.org) { o.material = o.userData.org; o.userData.org = null; } });
+      continue;
+    }
+    tmp.subVectors(spelare.pos, z.pos).setY(0);
+    const d = tmp.length();
+    if (d > z.radie + 0.5) {
+      tmp.normalize();
+      z.pos.addScaledVector(tmp, z.fart * dt);
+      z.gang += dt * z.fart * 2.5;
+    } else if (z.slagCd <= 0) {
+      z.slagCd = 0.9; G.liv -= z.skada; spelare.ont = 0.3;
+      ljud(140, 0.12, 'square', 0.07, 90);
+      if (G.liv <= 0) { uppdateraHud(); dog(); return; }
+      uppdateraHud();
+    }
+    // Knuffa isär
+    for (const o of zombies) {
+      if (o === z) continue;
+      const dx = z.pos.x - o.pos.x, dz = z.pos.z - o.pos.z, dd = dx * dx + dz * dz, min = z.radie + o.radie;
+      if (dd < min * min && dd > 0.0001) { const f = (min - Math.sqrt(dd)) * 0.5; const l = Math.sqrt(dd); z.pos.x += dx / l * f; z.pos.z += dz / l * f; }
+    }
+    z.mesh.g.rotation.y = Math.atan2(spelare.pos.x - z.pos.x, spelare.pos.z - z.pos.z);
+    animeraGang(z.mesh, z.gang, 0.6);
+    if (z.typ === 'kung') {
+      z.minionCd -= dt;
+      if (z.minionCd <= 0) { z.minionCd = 4; for (let i = 0; i < 2; i++) spawnaZombie(Math.random() < 0.5 ? 'snabb' : 'vanlig', z.pos.clone().add(new THREE.Vector3((Math.random() - 0.5) * 6, 0, (Math.random() - 0.5) * 6))); }
+      $('bossBox').querySelector('i').style.width = Math.max(0, z.liv / z.maxLiv * 100) + '%';
+    }
+  }
+
+  // Skott
+  for (const b of [...skott]) {
+    b.tid -= dt; b.mesh.position.addScaledVector(b.v, dt);
+    let traff = null;
+    for (const z of zombies) {
+      const dx = z.pos.x - b.mesh.position.x, dz = z.pos.z - b.mesh.position.z;
+      if (dx * dx + dz * dz < (z.radie + 0.35) ** 2) { traff = z; break; }
+    }
+    if (traff || b.tid <= 0) {
+      if (b.sort === 'eld') {
+        explosion(b.mesh.position, 4.5, 0xff7a1a);
+        for (const z of [...zombies]) if (z.pos.distanceTo(b.mesh.position.clone().setY(0)) < 4.5 + z.radie) skadaZombie(z, b.skada);
+        ljud(90, 0.4, 'sawtooth', 0.12, 40);
+      } else if (traff) skadaZombie(traff, b.skada);
+      scene.remove(b.mesh); skott.splice(skott.indexOf(b), 1);
+    }
+  }
+
+  // Tornado
+  if (G.tornado > 0) {
+    G.tornado -= dt;
+    const v = G.tid * 4;
+    tornadoMesh.position.set(spelare.pos.x + Math.cos(v) * 4, 2, spelare.pos.z + Math.sin(v) * 4);
+    tornadoMesh.rotation.y += dt * 15;
+    tornadoTick -= dt;
+    if (tornadoTick <= 0) {
+      tornadoTick = 0.15;
+      for (const z of [...zombies]) { const dx = z.pos.x - tornadoMesh.position.x, dz = z.pos.z - tornadoMesh.position.z; if (dx * dx + dz * dz < (2.2 + z.radie) ** 2) skadaZombie(z, 2 * skadaMult()); }
+    }
+    if (G.tornado <= 0) scene.remove(tornadoMesh);
+  }
+
+  // Mynt och hjärtan
+  for (const c of [...mynt]) {
+    c.tid += dt;
+    c.mesh.rotation.z += dt * 4;
+    c.mesh.position.y = 0.6 + Math.sin(c.tid * 4) * 0.15;
+    tmp.subVectors(spelare.pos, c.mesh.position).setY(0);
+    const d = tmp.length();
+    if (d < 6) c.mesh.position.addScaledVector(tmp.normalize(), dt * 14);
+    if (d < 0.9) {
+      if (c.sort === 'mynt') { spar.mynt += c.varde; ljud(1200, 0.08, 'square', 0.03, 1600); myntSparDirty = true; }
+      else { G.liv = Math.min(maxLiv(), G.liv + 3); ljud(880, 0.2, 'triangle', 0.07, 1320); }
+      scene.remove(c.mesh); mynt.splice(mynt.indexOf(c), 1); uppdateraHud();
+    } else if (c.tid > 25) { scene.remove(c.mesh); mynt.splice(mynt.indexOf(c), 1); }
+  }
+
+  // Effekter
+  for (const e of [...effekter]) {
+    e.tid -= dt;
+    if (e.typ === 'konfetti') { e.v.y -= 18 * dt; e.mesh.position.addScaledVector(e.v, dt); e.mesh.rotation.x += dt * 8; e.mesh.rotation.y += dt * 6; }
+    else if (e.typ === 'bubbla') { const k = 1 - e.tid / e.max; e.mesh.scale.setScalar(0.5 + k * e.radie); e.mesh.material.opacity = 0.7 * (1 - k); }
+    else if (e.typ === 'ring') { const k = 1 - e.tid / e.max; e.mesh.scale.setScalar(0.5 + k * e.radie); e.mesh.material.opacity = 1 - k; }
+    if (e.tid <= 0) { scene.remove(e.mesh); effekter.splice(effekter.indexOf(e), 1); }
+  }
+  for (const z of [...doende]) {
+    z.dodTid -= dt;
+    z.mesh.g.rotation.x = -(1 - z.dodTid / 0.35) * 1.5;
+    z.mesh.g.position.y = -(1 - z.dodTid / 0.35) * 0.6;
+    if (z.dodTid <= 0) { scene.remove(z.mesh.g); doende.splice(doende.indexOf(z), 1); }
+  }
+
+  spelare.ont = Math.max(0, spelare.ont - dt);
+  $('hurt').style.opacity = spelare.ont > 0 ? 1 : 0;
+  uppdateraKraftCd();
+
+  sparTimer -= dt;
+  if (sparTimer <= 0 && myntSparDirty) { sparTimer = 2; myntSparDirty = false; spara(); }
+}
+const isMat = new THREE.MeshStandardMaterial({ color: 0x9fe8ff, emissive: 0x4fb8ff, emissiveIntensity: 0.6 });
+let myntSparDirty = false, sparTimer = 2;
+
+function rita() {
+  const mal = spelare.pos;
+  camera.position.set(mal.x, 15, mal.z + 11);
+  camera.lookAt(mal.x, 0, mal.z + 1);
+  renderer.render(scene, camera);
+}
+
+let senast = performance.now();
+function loop(nu) {
+  const dt = Math.min(0.05, (nu - senast) / 1000); senast = nu;
+  update(dt); rita();
+  requestAnimationFrame(loop);
+}
+nyttSpel(); G.lage = 'start';
+requestAnimationFrame(loop);
+addEventListener('beforeunload', spara);
+addEventListener('visibilitychange', () => { if (document.hidden) { spara(); if (G.lage === 'spel') oppnaBas(); } });
+
+window.__game = { G, spar, spelare, get zombies() { return zombies; }, update, rita, nyttSpel, anvandKraft, oppnaBas, stangBas, spawnaZombie, kollaRank };
+</script>
+<script src="prat.js"></script>
+</body>
+</html>
