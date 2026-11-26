@@ -1,0 +1,416 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Knivsmedjan · Nils Spelhåla</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; background: radial-gradient(circle at 50% 0%, #2a1a10, #0b0705 70%); color: #fff;
+    font-family: "Segoe UI", system-ui, sans-serif; overflow-x: hidden; }
+  a.back { position: fixed; top: 12px; left: 14px; color: #fc9; text-decoration: none; font-weight: 700; z-index: 5; }
+  h1 { text-align: center; margin: 16px 0 4px; font-size: 34px; color: #ff9a3c; text-shadow: 0 0 18px rgba(255,154,60,.6); }
+  #smedja { display: flex; gap: 24px; justify-content: center; flex-wrap: wrap; padding: 10px; }
+  #preview { background: #1a110b; border: 3px solid #5c3a1e; border-radius: 18px; }
+  .panel { max-width: 440px; }
+  .grupp { margin: 10px 0; }
+  .grupp > div:first-child { font-weight: 700; color: #ffcf99; margin-bottom: 5px; }
+  .val { display: flex; gap: 6px; flex-wrap: wrap; }
+  .val button { font: inherit; font-size: 15px; padding: 7px 11px; border-radius: 10px; border: 2px solid #7a4a22; background: #2a1a10; color: #fff; cursor: pointer; }
+  .val button.on { background: #ff9a3c; color: #111; border-color: #ffcf99; }
+  .farg { width: 34px; height: 34px; border-radius: 50%; padding: 0 !important; }
+  .farg.on { outline: 3px solid #fff; }
+  input[type=text] { font: inherit; font-size: 17px; padding: 7px 10px; border-radius: 10px; border: 2px solid #7a4a22; background: #2a1a10; color: #fff; width: 100%; }
+  .stats { display: grid; grid-template-columns: 70px 1fr; gap: 4px 10px; align-items: center; margin: 12px 0; }
+  .bar { height: 14px; background: #333; border-radius: 7px; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: linear-gradient(90deg, #ff9a3c, #ffd84a); }
+  .stor { font: inherit; font-size: 22px; font-weight: 800; padding: 12px 26px; border-radius: 16px; border: none; background: #45d16b; color: #062; cursor: pointer; box-shadow: 0 0 22px rgba(69,209,107,.5); }
+  #spel { display: none; position: fixed; inset: 0; background: #000; }
+  #spel canvas { display: block; width: 100%; height: 100%; }
+  #hud { position: absolute; top: 10px; left: 0; right: 0; text-align: center; font-size: 22px; font-weight: 800; pointer-events: none; text-shadow: 0 2px 4px #000; }
+  #slut { position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; background: rgba(0,0,0,.7); gap: 14px; }
+  #slut h2 { font-size: 44px; margin: 0; color: #ff9a3c; }
+  .liten { font: inherit; font-size: 17px; padding: 9px 16px; border-radius: 12px; border: 2px solid #7a4a22; background: #2a1a10; color: #fff; cursor: pointer; }
+  #tips { color: #ffcf99; text-align: center; }
+</style>
+</head>
+<body>
+<a class="back" href="index.html">← Spelhålan</a>
+<div id="smedjaVy">
+  <h1>🔪 Knivsmedjan</h1>
+  <p id="tips">Designa din egen kniv och testa den på zombies!</p>
+  <div id="smedja">
+    <canvas id="preview" width="420" height="420"></canvas>
+    <div class="panel">
+      <div class="grupp"><div>Namn på kniven</div><input type="text" id="namn" maxlength="22"></div>
+      <div class="grupp"><div>Blad</div><div class="val" id="vBlad"></div></div>
+      <div class="grupp"><div>Bladfärg</div><div class="val" id="vBladfarg"></div></div>
+      <div class="grupp"><div>Handtag</div><div class="val" id="vHandtag"></div></div>
+      <div class="grupp"><div>Handtagsfärg</div><div class="val" id="vHandfarg"></div></div>
+      <div class="grupp"><div>Storlek</div><div class="val" id="vStorlek"></div></div>
+      <div class="grupp"><div>Superkraft</div><div class="val" id="vKraft"></div></div>
+      <div class="stats" id="stats"></div>
+      <button class="stor" id="testa">🧟 Testa på zombies!</button>
+    </div>
+  </div>
+</div>
+
+<div id="spel">
+  <canvas id="c"></canvas>
+  <div id="hud"></div>
+  <div id="slut">
+    <h2 id="slutRubrik">Zombierna vann!</h2>
+    <div id="slutText" style="font-size:22px"></div>
+    <div style="display:flex;gap:10px">
+      <button class="stor" id="igen">Igen!</button>
+      <button class="liten" id="tillSmedja">🔨 Ändra kniven</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== Val i smedjan =====
+const BLAD = {
+  kock:   { namn: "Kockkniv", skada: 3, fart: 3, rackvidd: 3 },
+  dolk:   { namn: "Dolk", skada: 2, fart: 5, rackvidd: 2 },
+  machete:{ namn: "Machete", skada: 4, fart: 2, rackvidd: 4 },
+  tagg:   { namn: "Taggig", skada: 5, fart: 2, rackvidd: 3 },
+  krok:   { namn: "Krokkniv", skada: 3, fart: 4, rackvidd: 3 },
+  dubbel: { namn: "Dubbelblad", skada: 4, fart: 3, rackvidd: 3 },
+};
+const BLADFARG = ["#d8dde3", "#ffd84a", "#3a3a44", "#4fc3ff", "#ff4f6d", "#45ff8a", "#c58cff", "#ff9a3c"];
+const HANDTAG = {
+  tra: { namn: "Trä" }, lada: { namn: "Läder" }, ben: { namn: "Skelett" }, guld: { namn: "Lyx" },
+};
+const HANDFARG = ["#7a4a22", "#222", "#b32424", "#2456b3", "#e8e2cf", "#2e8b3a"];
+const STORLEK = { liten: { namn: "Liten", s: 0.8 }, mellan: { namn: "Mellan", s: 1 }, stor: { namn: "Jättestor", s: 1.3 } };
+const KRAFT = {
+  ingen: { namn: "Ingen" }, eld: { namn: "🔥 Eld" }, is: { namn: "❄️ Is" }, blixt: { namn: "⚡ Blixt" }, gift: { namn: "🧪 Gift" },
+};
+
+const SPAR = "nils_knivsmedja_v1";
+let kniv = Object.assign({ namn: "Zombiekrossaren", blad: "kock", bladfarg: BLADFARG[0], handtag: "tra", handfarg: HANDFARG[0], storlek: "mellan", kraft: "ingen", rekord: 0 },
+  JSON.parse(localStorage.getItem(SPAR) || "{}"));
+function spara() { localStorage.setItem(SPAR, JSON.stringify(kniv)); }
+
+function egenskaper() {
+  const b = BLAD[kniv.blad], s = STORLEK[kniv.storlek].s;
+  return {
+    skada: Math.min(6, b.skada * s + (kniv.handtag === "guld" ? 0.5 : 0)),
+    fart: Math.max(1, Math.min(6, b.fart / s + (kniv.handtag === "lada" ? 0.5 : 0))),
+    rackvidd: Math.min(6, b.rackvidd * s + (kniv.handtag === "ben" ? 0.5 : 0)),
+  };
+}
+
+// ===== Rita kniven =====
+function ritaKniv(g, k, skala) {
+  const s = skala * STORLEK[k.storlek].s;
+  g.save(); g.scale(s, s);
+  // handtag (nedåt från 0 till 70)
+  g.fillStyle = k.handfarg; g.strokeStyle = "rgba(0,0,0,.5)"; g.lineWidth = 2;
+  if (k.handtag === "ben") {
+    g.fillStyle = "#eee8d5";
+    g.beginPath(); g.roundRect(-7, 6, 14, 60, 5); g.fill(); g.stroke();
+    for (let y = 14; y < 64; y += 12) { g.beginPath(); g.ellipse(0, y, 10, 4, 0, 0, 7); g.fill(); g.stroke(); }
+    g.beginPath(); g.arc(0, 72, 9, 0, 7); g.fill(); g.stroke();
+    g.fillStyle = "#111"; g.beginPath(); g.arc(-3, 71, 2, 0, 7); g.arc(3, 71, 2, 0, 7); g.fill();
+  } else {
+    g.beginPath(); g.roundRect(-9, 6, 18, 64, 7); g.fill(); g.stroke();
+    if (k.handtag === "lada") { g.strokeStyle = "rgba(0,0,0,.45)"; for (let y = 12; y < 68; y += 7) { g.beginPath(); g.moveTo(-9, y); g.lineTo(9, y + 4); g.stroke(); } }
+    if (k.handtag === "tra") { g.fillStyle = "#c9c9c9"; [20, 50].forEach(y => { g.beginPath(); g.arc(0, y, 3, 0, 7); g.fill(); }); }
+    if (k.handtag === "guld") { g.fillStyle = "#ffd84a"; g.fillRect(-9, 6, 18, 6); g.fillRect(-9, 62, 18, 8); g.fillStyle = "#ff4f6d"; g.beginPath(); g.arc(0, 36, 5, 0, 7); g.fill(); }
+  }
+  // parerstång
+  g.fillStyle = k.handtag === "guld" ? "#ffd84a" : "#666"; g.beginPath(); g.roundRect(-18, 0, 36, 8, 3); g.fill();
+  // blad (uppåt, negativ y)
+  g.fillStyle = k.bladfarg; g.strokeStyle = "rgba(0,0,0,.6)"; g.lineWidth = 2;
+  g.beginPath();
+  switch (k.blad) {
+    case "kock": g.moveTo(-10, 0); g.lineTo(-10, -100); g.quadraticCurveTo(-6, -130, 2, -140); g.quadraticCurveTo(14, -60, 12, 0); break;
+    case "dolk": g.moveTo(-9, 0); g.lineTo(-6, -80); g.lineTo(0, -105); g.lineTo(6, -80); g.lineTo(9, 0); break;
+    case "machete": g.moveTo(-10, 0); g.lineTo(-12, -140); g.quadraticCurveTo(0, -170, 20, -150); g.quadraticCurveTo(16, -60, 12, 0); break;
+    case "tagg": g.moveTo(-10, 0); for (let y = -10; y > -110; y -= 20) { g.lineTo(-10, y); g.lineTo(-20, y - 10); } g.lineTo(0, -140); g.lineTo(12, -110); g.lineTo(12, 0); break;
+    case "krok": g.moveTo(-10, 0); g.lineTo(-10, -90); g.quadraticCurveTo(-10, -130, 25, -125); g.quadraticCurveTo(5, -110, 12, -80); g.lineTo(12, 0); break;
+    case "dubbel": g.moveTo(-8, 0); g.lineTo(-30, -60); g.lineTo(-12, -120); g.lineTo(0, -95); g.lineTo(12, -120); g.lineTo(30, -60); g.lineTo(8, 0); break;
+  }
+  g.closePath(); g.fill(); g.stroke();
+  // glans
+  g.strokeStyle = "rgba(255,255,255,.5)"; g.lineWidth = 3; g.beginPath(); g.moveTo(-4, -8); g.lineTo(-4, -70); g.stroke();
+  g.restore();
+}
+function ritaKraftGlod(g, k, x, y, t) {
+  const f = { eld: "255,120,30", is: "120,220,255", blixt: "255,255,120", gift: "120,255,90" }[k.kraft];
+  if (!f) return;
+  for (let i = 0; i < 6; i++) {
+    const a = t * 3 + i, r = 30 + 25 * Math.sin(t * 2 + i);
+    g.fillStyle = "rgba(" + f + "," + (0.25 + 0.2 * Math.sin(t * 5 + i)) + ")";
+    g.beginPath(); g.arc(x + Math.cos(a) * 20, y - 60 - i * 15 + Math.sin(a) * 6, 6 + r / 10, 0, 7); g.fill();
+  }
+}
+
+// ===== Smedjans gränssnitt =====
+function knappar(id, lista, falt, farg) {
+  const el = document.getElementById(id); el.innerHTML = "";
+  const nycklar = Array.isArray(lista) ? lista : Object.keys(lista);
+  nycklar.forEach(n => {
+    const b = document.createElement("button");
+    if (farg) { b.className = "farg"; b.style.background = n; } else b.textContent = lista[n].namn;
+    if (kniv[falt] === n) b.classList.add("on");
+    b.onclick = () => { kniv[falt] = n; spara(); uppdatera(); pling(500 + Math.random() * 400); };
+    el.appendChild(b);
+  });
+}
+function uppdatera() {
+  knappar("vBlad", BLAD, "blad"); knappar("vBladfarg", BLADFARG, "bladfarg", true);
+  knappar("vHandtag", HANDTAG, "handtag"); knappar("vHandfarg", HANDFARG, "handfarg", true);
+  knappar("vStorlek", STORLEK, "storlek"); knappar("vKraft", KRAFT, "kraft");
+  const e = egenskaper();
+  document.getElementById("stats").innerHTML = [["Skada", e.skada], ["Fart", e.fart], ["Räckvidd", e.rackvidd]]
+    .map(([n, v]) => "<div>" + n + "</div><div class='bar'><i style='width:" + (v / 6 * 100) + "%'></i></div>").join("");
+}
+const nInput = document.getElementById("namn");
+nInput.value = kniv.namn; nInput.oninput = () => { kniv.namn = nInput.value || "Min kniv"; spara(); };
+
+const pv = document.getElementById("preview"), pg = pv.getContext("2d");
+function ritaPreview(t) {
+  pg.clearRect(0, 0, 420, 420);
+  const grad = pg.createRadialGradient(210, 210, 20, 210, 210, 220); grad.addColorStop(0, "#3a2414"); grad.addColorStop(1, "#1a110b");
+  pg.fillStyle = grad; pg.fillRect(0, 0, 420, 420);
+  pg.save(); pg.translate(210, 290); pg.rotate(Math.sin(t) * 0.15);
+  ritaKraftGlod(pg, kniv, 0, 0, t);
+  ritaKniv(pg, kniv, 1.6);
+  pg.restore();
+  pg.fillStyle = "#ffcf99"; pg.font = "bold 22px Segoe UI"; pg.textAlign = "center"; pg.fillText(kniv.namn, 210, 32);
+  if (kniv.rekord) { pg.font = "16px Segoe UI"; pg.fillText("🏆 Rekord: " + kniv.rekord + " zombies", 210, 405); }
+}
+
+// ===== Ljud =====
+let ac;
+function pling(f, typ = "triangle", tid = 0.12, vol = 0.12) {
+  try {
+    ac = ac || new AudioContext();
+    const o = ac.createOscillator(), v = ac.createGain();
+    o.type = typ; o.frequency.value = f; o.frequency.exponentialRampToValueAtTime(f * 0.5, ac.currentTime + tid);
+    v.gain.value = vol; v.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + tid);
+    o.connect(v).connect(ac.destination); o.start(); o.stop(ac.currentTime + tid);
+  } catch (e) {}
+}
+function stona() { pling(90 + Math.random() * 40, "sawtooth", 0.4, 0.05); }
+
+// ===== Spelet =====
+const cv = document.getElementById("c"), g = cv.getContext("2d");
+let W, H, spelare, zombies, partiklar, texter, mus, sving, vag, dodade, liv, igang, sistaT, spawnKlocka, kvarIVag, skak;
+function storlek() { W = cv.width = innerWidth; H = cv.height = innerHeight; }
+addEventListener("resize", storlek);
+
+function startaSpel() {
+  document.getElementById("smedjaVy").style.display = "none";
+  document.getElementById("spel").style.display = "block";
+  document.getElementById("slut").style.display = "none";
+  storlek();
+  spelare = { x: W / 2, y: H * 0.62, vx: 0, vy: 0, skadad: 0 };
+  zombies = []; partiklar = []; texter = []; mus = { x: W / 2 + 100, y: H / 2 };
+  sving = { t: 0, kyl: 0, vinkel: 0 }; vag = 0; dodade = 0; liv = 5; igang = true; skak = 0;
+  nyVag(); sistaT = performance.now(); requestAnimationFrame(loop);
+}
+function nyVag() {
+  vag++; kvarIVag = 4 + vag * 3; spawnKlocka = 0;
+  texter.push({ x: W / 2, y: H * 0.3, t: "VÅG " + vag + "!", liv: 2, stor: 60, farg: "#ff9a3c" });
+}
+function skapaZombie() {
+  const sida = Math.floor(Math.random() * 4);
+  const x = sida === 0 ? -40 : sida === 1 ? W + 40 : Math.random() * W;
+  const y = sida === 2 ? -40 : sida === 3 ? H + 40 : Math.random() * H;
+  const typ = Math.random() < Math.min(0.35, vag * 0.05) ? (Math.random() < 0.5 ? "stor" : "snabb") : "vanlig";
+  const z = { x, y, typ, hp: 0, fart: 40 + vag * 4, r: 24, bränn: 0, frys: 0, gift: 0, studs: 0, hud: ["#7fbf5a", "#8fae5c", "#6aa36f"][Math.floor(Math.random() * 3)], fas: Math.random() * 6 };
+  if (typ === "vanlig") z.hp = 6;
+  if (typ === "stor") { z.hp = 16; z.r = 36; z.fart *= 0.6; z.hud = "#5f8f4a"; }
+  if (typ === "snabb") { z.hp = 4; z.r = 20; z.fart *= 1.8; z.hud = "#a8c96a"; }
+  z.maxhp = z.hp; zombies.push(z);
+}
+
+const tangent = {};
+addEventListener("keydown", e => { tangent[e.key.toLowerCase()] = true; if (e.key === " " && igang) { e.preventDefault(); svinga(); } });
+addEventListener("keyup", e => { tangent[e.key.toLowerCase()] = false; });
+cv.addEventListener("pointermove", e => { mus.x = e.clientX; mus.y = e.clientY; });
+cv.addEventListener("pointerdown", e => { mus.x = e.clientX; mus.y = e.clientY; if (e.pointerType === "touch") spelare.mal = { x: e.clientX, y: e.clientY }; svinga(); });
+
+function svinga() {
+  if (!igang || sving.kyl > 0) return;
+  const e = egenskaper();
+  sving.t = 0.22; sving.kyl = 0.75 - e.fart * 0.09; sving.vinkel = Math.atan2(mus.y - spelare.y, mus.x - spelare.x);
+  pling(300, "sawtooth", 0.08, 0.04);
+  const rack = 60 + e.rackvidd * 18;
+  let traffar = [];
+  zombies.forEach(z => {
+    const dx = z.x - spelare.x, dy = z.y - spelare.y, d = Math.hypot(dx, dy);
+    let dv = Math.atan2(dy, dx) - sving.vinkel; dv = Math.atan2(Math.sin(dv), Math.cos(dv));
+    if (d < rack + z.r && Math.abs(dv) < 1.1) traffar.push(z);
+  });
+  traffar.forEach(z => traffa(z, e.skada * 2, true));
+  if (kniv.kraft === "blixt" && traffar.length) {
+    // blixten hoppar till två närliggande zombies
+    let fran = traffar[0];
+    zombies.filter(z => !traffar.includes(z)).sort((a, b) => Math.hypot(a.x - fran.x, a.y - fran.y) - Math.hypot(b.x - fran.x, b.y - fran.y)).slice(0, 2).forEach(z => {
+      if (Math.hypot(z.x - fran.x, z.y - fran.y) > 260) return;
+      partiklar.push({ blixt: true, x1: fran.x, y1: fran.y, x2: z.x, y2: z.y, liv: 0.25 });
+      traffa(z, e.skada, false); fran = z;
+    });
+    pling(1200, "square", 0.15, 0.05);
+  }
+}
+function traffa(z, skada, knuff) {
+  z.hp -= skada; z.studs = 0.15;
+  const a = Math.atan2(z.y - spelare.y, z.x - spelare.x);
+  if (knuff) { z.x += Math.cos(a) * (z.typ === "stor" ? 15 : 40); z.y += Math.sin(a) * (z.typ === "stor" ? 15 : 40); }
+  if (kniv.kraft === "eld") z.bränn = 2.5;
+  if (kniv.kraft === "is") z.frys = 2;
+  if (kniv.kraft === "gift") z.gift = 4;
+  texter.push({ x: z.x, y: z.y - z.r, t: "-" + Math.round(skada), liv: 0.7, stor: 22, farg: "#fff" });
+  for (let i = 0; i < 6; i++) partiklar.push({ x: z.x, y: z.y, vx: (Math.random() - .5) * 300, vy: (Math.random() - .5) * 300, liv: 0.4, farg: z.hud, r: 4 });
+  pling(160 + Math.random() * 60, "square", 0.1, 0.08); skak = 4;
+}
+function doZombie(z) {
+  dodade++;
+  for (let i = 0; i < 18; i++) partiklar.push({ x: z.x, y: z.y, vx: (Math.random() - .5) * 400, vy: (Math.random() - .5) * 400, liv: 0.7, farg: i % 2 ? "#aaa" : z.hud, r: 7 });
+  texter.push({ x: z.x, y: z.y, t: ["POFF!", "BAM!", "KAPOW!", "Hejdå!"][Math.floor(Math.random() * 4)], liv: 0.9, stor: 30, farg: "#ffd84a" });
+  pling(600, "triangle", 0.2, 0.1);
+}
+
+function loop(nu) {
+  if (!igang) return;
+  const dt = Math.min(0.05, (nu - sistaT) / 1000); sistaT = nu;
+  uppdateraSpel(dt); ritaSpel(nu / 1000);
+  requestAnimationFrame(loop);
+}
+function uppdateraSpel(dt) {
+  // gå med WASD/pilar, eller mot tryck på pekskärm
+  let mx = (tangent.d || tangent.arrowright ? 1 : 0) - (tangent.a || tangent.arrowleft ? 1 : 0);
+  let my = (tangent.s || tangent.arrowdown ? 1 : 0) - (tangent.w || tangent.arrowup ? 1 : 0);
+  if (spelare.mal) { const dx = spelare.mal.x - spelare.x, dy = spelare.mal.y - spelare.y, d = Math.hypot(dx, dy); if (d > 10) { mx = dx / d; my = dy / d; } else spelare.mal = null; }
+  const l = Math.hypot(mx, my) || 1;
+  spelare.x = Math.max(30, Math.min(W - 30, spelare.x + mx / l * 230 * dt));
+  spelare.y = Math.max(30, Math.min(H - 30, spelare.y + my / l * 230 * dt));
+  sving.t = Math.max(0, sving.t - dt); sving.kyl = Math.max(0, sving.kyl - dt); spelare.skadad = Math.max(0, spelare.skadad - dt); skak = Math.max(0, skak - dt * 20);
+
+  spawnKlocka -= dt;
+  if (kvarIVag > 0 && spawnKlocka <= 0) { skapaZombie(); kvarIVag--; spawnKlocka = Math.max(0.35, 1.4 - vag * 0.1); if (Math.random() < 0.15) stona(); }
+  if (kvarIVag <= 0 && zombies.length === 0) { liv = Math.min(5, liv + 1); nyVag(); }
+
+  zombies.forEach(z => {
+    z.studs = Math.max(0, z.studs - dt);
+    let fart = z.fart * (z.frys > 0 ? 0.35 : 1);
+    if (z.bränn > 0) { z.bränn -= dt; z.hp -= 3 * dt; if (Math.random() < 0.4) partiklar.push({ x: z.x + (Math.random() - .5) * z.r, y: z.y - z.r, vx: 0, vy: -80, liv: 0.4, farg: "#ff7a1e", r: 5 }); }
+    if (z.gift > 0) { z.gift -= dt; z.hp -= 1.5 * dt; if (Math.random() < 0.2) partiklar.push({ x: z.x, y: z.y - z.r, vx: 0, vy: -40, liv: 0.6, farg: "#7fff5a", r: 4 }); }
+    z.frys -= dt;
+    const dx = spelare.x - z.x, dy = spelare.y - z.y, d = Math.hypot(dx, dy);
+    if (d > z.r + 18) { z.x += dx / d * fart * dt; z.y += dy / d * fart * dt; }
+    else if (spelare.skadad <= 0) {
+      liv--; spelare.skadad = 1.2; skak = 10; pling(120, "sawtooth", 0.3, 0.12);
+      z.x -= dx / d * 60; z.y -= dy / d * 60;
+      if (liv <= 0) slut();
+    }
+  });
+  zombies.forEach(z => { if (z.hp <= 0 && !z.dod) { z.dod = true; doZombie(z); } });
+  zombies = zombies.filter(z => !z.dod);
+  partiklar.forEach(p => { p.liv -= dt; if (!p.blixt) { p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= 0.92; p.vy *= 0.92; } });
+  partiklar = partiklar.filter(p => p.liv > 0);
+  texter.forEach(t => { t.liv -= dt; t.y -= 40 * dt; }); texter = texter.filter(t => t.liv > 0);
+}
+
+function ritaZombie(z, t) {
+  g.save(); g.translate(z.x, z.y);
+  const vagg = Math.sin(t * 6 + z.fas) * 0.12; g.rotate(vagg);
+  const s = z.r / 24;
+  g.scale(s, s);
+  if (z.studs > 0) g.translate((Math.random() - .5) * 6, 0);
+  // armar framåt mot spelaren
+  const a = Math.atan2(spelare.y - z.y, spelare.x - z.x) - vagg;
+  g.strokeStyle = z.hud; g.lineWidth = 7; g.lineCap = "round";
+  g.beginPath(); g.moveTo(-8, 0); g.lineTo(-8 + Math.cos(a) * 30, Math.sin(a) * 30 + 4); g.moveTo(8, 0); g.lineTo(8 + Math.cos(a) * 30, Math.sin(a) * 30 - 4); g.stroke();
+  // kropp
+  g.fillStyle = z.typ === "stor" ? "#5a3d6b" : "#6b4a3a"; g.beginPath(); g.roundRect(-14, -2, 28, 30, 8); g.fill();
+  // huvud
+  g.fillStyle = z.studs > 0 ? "#fff" : z.frys > 0 ? "#a8e6ff" : z.hud;
+  g.beginPath(); g.arc(0, -16, 18, 0, 7); g.fill();
+  g.fillStyle = "#fff"; g.beginPath(); g.arc(-7, -19, 6, 0, 7); g.arc(7, -17, 4, 0, 7); g.fill();
+  g.fillStyle = "#c00"; g.beginPath(); g.arc(-7, -19, 2.5, 0, 7); g.arc(7, -17, 2, 0, 7); g.fill();
+  g.strokeStyle = "#233"; g.lineWidth = 2; g.beginPath(); g.moveTo(-8, -6); g.lineTo(-3, -9); g.lineTo(2, -6); g.lineTo(7, -9); g.stroke();
+  g.restore();
+  if (z.hp < z.maxhp) { g.fillStyle = "#300"; g.fillRect(z.x - 20, z.y - z.r - 26, 40, 5); g.fillStyle = "#4f4"; g.fillRect(z.x - 20, z.y - z.r - 26, 40 * Math.max(0, z.hp / z.maxhp), 5); }
+}
+
+function ritaSpel(t) {
+  g.save();
+  if (skak) g.translate((Math.random() - .5) * skak, (Math.random() - .5) * skak);
+  // marken: kyrkogård i månsken
+  g.fillStyle = "#1e2a1a"; g.fillRect(-20, -20, W + 40, H + 40);
+  g.fillStyle = "#24331f";
+  for (let i = 0; i < 40; i++) { const x = (i * 197) % W, y = (i * 331) % H; g.beginPath(); g.ellipse(x, y, 40, 14, 0, 0, 7); g.fill(); }
+  g.fillStyle = "#555c66";
+  for (let i = 0; i < 8; i++) { const x = (i * 263 + 80) % W, y = (i * 149 + 60) % H; g.beginPath(); g.roundRect(x, y, 30, 40, [14, 14, 2, 2]); g.fill(); g.fillStyle = "#3a4048"; g.fillRect(x + 8, y + 12, 14, 3); g.fillRect(x + 13, y + 7, 4, 14); g.fillStyle = "#555c66"; }
+
+  zombies.forEach(z => ritaZombie(z, t));
+
+  // spelaren
+  const sp = spelare;
+  if (!(sp.skadad > 0 && Math.floor(t * 12) % 2)) {
+    g.fillStyle = "#2456b3"; g.beginPath(); g.roundRect(sp.x - 14, sp.y - 4, 28, 30, 8); g.fill();
+    g.fillStyle = "#f2c79a"; g.beginPath(); g.arc(sp.x, sp.y - 18, 16, 0, 7); g.fill();
+    g.fillStyle = "#6b3e1e"; g.beginPath(); g.arc(sp.x, sp.y - 24, 16, Math.PI, 0); g.fill();
+    g.fillStyle = "#111"; g.beginPath(); g.arc(sp.x - 6, sp.y - 18, 2.5, 0, 7); g.arc(sp.x + 6, sp.y - 18, 2.5, 0, 7); g.fill();
+  }
+  // kniven i handen: siktar mot musen, svingar i en båge
+  const sikt = Math.atan2(mus.y - sp.y, mus.x - sp.x);
+  let vinkel = sikt;
+  if (sving.t > 0) { const p = 1 - sving.t / 0.22; vinkel = sving.vinkel - 1.2 + p * 2.4; }
+  g.save(); g.translate(sp.x + Math.cos(vinkel) * 22, sp.y + Math.sin(vinkel) * 22); g.rotate(vinkel + Math.PI / 2);
+  ritaKraftGlod(g, kniv, 0, 30, t);
+  ritaKniv(g, kniv, 0.45); g.restore();
+  // svingbåge
+  if (sving.t > 0) {
+    const rack = 60 + egenskaper().rackvidd * 18;
+    const f = { eld: "255,140,40", is: "140,220,255", blixt: "255,255,140", gift: "140,255,100" }[kniv.kraft] || "255,255,255";
+    g.strokeStyle = "rgba(" + f + "," + (sving.t / 0.22) + ")"; g.lineWidth = 10;
+    g.beginPath(); g.arc(sp.x, sp.y, rack, sving.vinkel - 1.1, vinkel); g.stroke();
+  }
+
+  partiklar.forEach(p => {
+    if (p.blixt) {
+      g.strokeStyle = "rgba(255,255,140," + p.liv * 4 + ")"; g.lineWidth = 4; g.beginPath(); g.moveTo(p.x1, p.y1);
+      for (let i = 1; i < 6; i++) g.lineTo(p.x1 + (p.x2 - p.x1) * i / 6 + (Math.random() - .5) * 30, p.y1 + (p.y2 - p.y1) * i / 6 + (Math.random() - .5) * 30);
+      g.lineTo(p.x2, p.y2); g.stroke();
+    } else { g.globalAlpha = Math.min(1, p.liv * 2); g.fillStyle = p.farg; g.beginPath(); g.arc(p.x, p.y, p.r, 0, 7); g.fill(); g.globalAlpha = 1; }
+  });
+  texter.forEach(tx => { g.globalAlpha = Math.min(1, tx.liv * 2); g.fillStyle = tx.farg; g.font = "900 " + tx.stor + "px Segoe UI"; g.textAlign = "center"; g.strokeStyle = "#000"; g.lineWidth = 4; g.strokeText(tx.t, tx.x, tx.y); g.fillText(tx.t, tx.x, tx.y); g.globalAlpha = 1; });
+  g.restore();
+  // sikte
+  g.strokeStyle = "rgba(255,255,255,.6)"; g.lineWidth = 2; g.beginPath(); g.arc(mus.x, mus.y, 10, 0, 7); g.stroke();
+  document.getElementById("hud").innerHTML = "❤️".repeat(Math.max(0, liv)) + "🖤".repeat(Math.max(0, 5 - liv)) +
+    " &nbsp; 🧟 " + dodade + " &nbsp; Våg " + vag + "<div style='font-size:15px;font-weight:600;opacity:.8'>" + kniv.namn + " · WASD = gå · klick/mellanslag = hugg</div>";
+}
+
+function slut() {
+  igang = false;
+  const nytt = dodade > (kniv.rekord || 0);
+  if (nytt) { kniv.rekord = dodade; spara(); }
+  document.getElementById("slutRubrik").textContent = nytt ? "🏆 NYTT REKORD!" : "Zombierna fick dig!";
+  document.getElementById("slutText").textContent = kniv.namn + " besegrade " + dodade + " zombies och klarade " + (vag - 1) + " vågor.";
+  document.getElementById("slut").style.display = "flex";
+}
+
+document.getElementById("testa").onclick = startaSpel;
+document.getElementById("igen").onclick = startaSpel;
+document.getElementById("tillSmedja").onclick = () => {
+  igang = false;
+  document.getElementById("spel").style.display = "none";
+  document.getElementById("smedjaVy").style.display = "block"; uppdatera();
+};
+
+uppdatera();
+(function anim(t) { if (document.getElementById("smedjaVy").style.display !== "none") ritaPreview(t / 1000); requestAnimationFrame(anim); })(0);
+window.__game = { get zombies() { return zombies; }, kniv, startaSpel, uppdateraSpel, ritaSpel };
+</script>
+<script src="prat.js"></script>
+</body>
+</html>
