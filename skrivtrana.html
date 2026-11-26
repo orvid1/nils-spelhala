@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Skrivroboten · Nils Spelhåla</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; background: radial-gradient(circle at 50% 0%, #1b1440, #07051a 70%); color: #fff;
+    font-family: "Segoe UI", system-ui, sans-serif; display: flex; flex-direction: column; align-items: center; }
+  a.back { position: fixed; top: 12px; left: 14px; color: #9fd; text-decoration: none; font-weight: 700; }
+  h1 { margin: 18px 0 4px; font-size: 34px; color: #ffd84a; text-shadow: 0 0 18px rgba(255,216,74,.5); }
+  .top { display: flex; gap: 18px; align-items: center; margin: 10px 0; flex-wrap: wrap; justify-content: center; }
+  .robot { width: 110px; height: 110px; cursor: pointer; }
+  .bubble { background: #fff; color: #222; padding: 12px 16px; border-radius: 18px; max-width: 420px; font-size: 19px; position: relative; min-height: 50px; }
+  .bubble::before { content: ""; position: absolute; left: -12px; top: 22px; border: 8px solid transparent; border-right: 12px solid #fff; border-left: 0; }
+  .levels { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin: 6px 0 12px; }
+  .levels button, .btn { font: inherit; font-size: 16px; padding: 8px 14px; border-radius: 12px; border: 2px solid #5a4bd8; background: #1d1650; color: #fff; cursor: pointer; }
+  .levels button.on { background: #5a4bd8; }
+  .levels button:disabled { opacity: .35; cursor: default; }
+  .text { font-family: Consolas, monospace; font-size: 34px; letter-spacing: 2px; background: #110c33; padding: 18px 24px; border-radius: 16px;
+    border: 2px solid #3a2f8f; max-width: 92vw; min-height: 84px; text-align: center; line-height: 1.5; }
+  .text span.done { color: #45ff8a; }
+  .text span.bad { color: #ff4f6d; background: rgba(255,79,109,.2); border-radius: 4px; }
+  .text span.cur { background: #ffd84a; color: #111; border-radius: 4px; animation: blink 1s infinite; }
+  @keyframes blink { 50% { background: #ffe98a; } }
+  .stats { display: flex; gap: 22px; margin: 14px 0; font-size: 18px; flex-wrap: wrap; justify-content: center; }
+  .stats b { font-size: 26px; color: #ffd84a; display: block; text-align: center; }
+  .kb { margin: 10px 0 30px; user-select: none; }
+  .row { display: flex; justify-content: center; gap: 5px; margin: 5px 0; }
+  .key { width: 46px; height: 46px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 700;
+    border-bottom: 4px solid rgba(0,0,0,.4); color: #111; text-transform: uppercase; transition: transform .08s; }
+  .key.space { width: 300px; }
+  .key.next { outline: 4px solid #fff; transform: scale(1.12); box-shadow: 0 0 20px #fff; }
+  .key.home::after { content: "_"; position: absolute; margin-top: 30px; font-size: 12px; }
+  .f0 { background: #ff8fb1; } .f1 { background: #ffb36b; } .f2 { background: #ffe66b; } .f3 { background: #8dff8a; }
+  .f4 { background: #6bd8ff; } .f5 { background: #b9a3ff; } .f6 { background: #ff9ef0; } .f7 { background: #ff8f8f; } .fs { background: #ddd; }
+  .finger { font-size: 17px; color: #cfc8ff; min-height: 24px; }
+  .stars { font-size: 30px; }
+</style>
+</head>
+<body>
+<a class="back" href="index.html">← Spelhålan</a>
+<h1>⌨️ Skrivroboten</h1>
+
+<div class="top">
+  <svg class="robot" id="robot" viewBox="0 0 100 100">
+    <line x1="50" y1="8" x2="50" y2="20" stroke="#aaa" stroke-width="3"/><circle cx="50" cy="7" r="5" fill="#ff4f6d" id="lamp"/>
+    <rect x="15" y="20" width="70" height="60" rx="14" fill="#5a4bd8" id="head"/>
+    <circle cx="35" cy="45" r="9" fill="#fff"/><circle cx="65" cy="45" r="9" fill="#fff"/>
+    <circle cx="35" cy="46" r="4" fill="#111" id="e1"/><circle cx="65" cy="46" r="4" fill="#111" id="e2"/>
+    <path d="M35 64 Q50 74 65 64" stroke="#fff" stroke-width="4" fill="none" id="mun"/>
+  </svg>
+  <div class="bubble" id="bubble">Hej! Jag är Skrivroboten. Välj en nivå och börja skriva!</div>
+</div>
+
+<div class="levels" id="levels"></div>
+<div class="text" id="text"></div>
+<div class="finger" id="finger"></div>
+<div class="stats">
+  <div><b id="sWpm">0</b>ord/minut</div>
+  <div><b id="sAcc">100%</b>rätt</div>
+  <div><b id="sStreak">0</b>i rad</div>
+  <div><b id="sBest">0</b>rekord</div>
+</div>
+<div><button class="btn" id="ljud">🔊 Rösten på</button></div>
+<div class="kb" id="kb"></div>
+
+<script>
+// ===== Tangentbord och fingrar =====
+const RADER = ["qwertyuiopå", "asdfghjklöä", "zxcvbnm,."];
+const FINGER = {q:0,a:0,z:0, w:1,s:1,x:1, e:2,d:2,c:2, r:3,f:3,v:3,t:3,g:3,b:3,
+  y:4,h:4,n:4,u:4,j:4,m:4, i:5,k:5,",":5, o:6,l:6,".":6, p:7,"ö":7,"å":7,"ä":7," ":8};
+const FNAMN = ["vänster lillfinger","vänster ringfinger","vänster långfinger","vänster pekfinger",
+  "höger pekfinger","höger långfinger","höger ringfinger","höger lillfinger","tummen"];
+
+// ===== Nivåer =====
+const NIVAER = [
+  { namn: "1. Hemraden", bokst: "asdfjklö", typ: "bokst" },
+  { namn: "2. Fler bokstäver", bokst: "asdfghjklöäerui", typ: "bokst" },
+  { namn: "3. Korta ord", typ: "ord", ord: ["sol","katt","hund","bil","glass","boll","mus","hej","ja","nej","mat","hus","is","fisk","lek","bok","ost","sko","kul","mamma","pappa"] },
+  { namn: "4. Långa ord", typ: "ord", ord: ["dinosaurie","fotboll","godis","monster","raket","robot","spelet","skolan","pizza","drake","rymden","zombie","datorn","vinter","kompis","choklad"] },
+  { namn: "5. Meningar", typ: "mening", ord: ["jag gillar pizza","nils bygger spel","katten sover i soffan","roboten kan prata","drakar flyger snabbt","vi spelar fotboll","monstret har tre ögon","raketen åker till månen"] },
+];
+
+const SPAR = "nils_skrivrobot_v1";
+let data = JSON.parse(localStorage.getItem(SPAR) || "null") || { upplast: 1, rekord: 0, miss: {} };
+function spara() { localStorage.setItem(SPAR, JSON.stringify(data)); }
+
+let nivaIdx = 0, mal = "", pos = 0, fel = new Set(), start = 0, tryck = 0, ratt = 0, iRad = 0, rundor = 0, rost = true;
+
+// ===== AI-delen: robotens hjärna =====
+// Den kommer ihåg vilka bokstäver du missar och ger dig fler av dem.
+function svaraBokstaver(n) {
+  const miss = Object.entries(data.miss).filter(([b]) => n.bokst.includes(b)).sort((a,b) => b[1]-a[1]).slice(0,3).map(x=>x[0]);
+  return miss;
+}
+function nyText() {
+  const n = NIVAER[nivaIdx];
+  if (n.typ === "bokst") {
+    const svara = svaraBokstaver(n);
+    const grupper = [];
+    for (let i = 0; i < 6; i++) {
+      let g = "";
+      const len = 2 + Math.floor(Math.random()*3);
+      for (let j = 0; j < len; j++) {
+        const fran = (svara.length && Math.random() < 0.45) ? svara.join("") : n.bokst;
+        g += fran[Math.floor(Math.random()*fran.length)];
+      }
+      grupper.push(g);
+    }
+    return grupper.join(" ");
+  }
+  if (n.typ === "ord") {
+    // välj gärna ord med bokstäver du brukar missa
+    const svara = Object.entries(data.miss).sort((a,b)=>b[1]-a[1]).slice(0,3).map(x=>x[0]);
+    const val = [];
+    for (let i = 0; i < 5; i++) {
+      let lista = n.ord;
+      const svaraOrd = n.ord.filter(o => svara.some(b => o.includes(b)));
+      if (svaraOrd.length && Math.random() < 0.5) lista = svaraOrd;
+      val.push(lista[Math.floor(Math.random()*lista.length)]);
+    }
+    return val.join(" ");
+  }
+  return n.ord[Math.floor(Math.random()*n.ord.length)];
+}
+
+// ===== Robotens prat =====
+const BRA = ["Snyggt!","Wow, vad snabb du är!","Du är en skrivmaskin!","Perfekt!","Grymt jobbat, Nils!","Mina kretsar blir glada!","Pip pip, superbra!"];
+const OK = ["Bra kämpat!","Fortsätt så, du blir bättre hela tiden!","Nästan perfekt!"];
+function prata(t) {
+  document.getElementById("bubble").textContent = t;
+  if (rost && window.speechSynthesis) {
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(t); u.lang = "sv-SE"; u.rate = 1.05; u.pitch = 1.4;
+    speechSynthesis.speak(u);
+  }
+  const mun = document.getElementById("mun");
+  mun.setAttribute("d","M35 62 Q50 80 65 62"); setTimeout(()=>mun.setAttribute("d","M35 64 Q50 74 65 64"), 700);
+}
+function slump(a) { return a[Math.floor(Math.random()*a.length)]; }
+
+// ===== Rita =====
+function ritaNivaer() {
+  const el = document.getElementById("levels"); el.innerHTML = "";
+  NIVAER.forEach((n,i) => {
+    const b = document.createElement("button");
+    b.textContent = (i < data.upplast ? "" : "🔒 ") + n.namn;
+    b.disabled = i >= data.upplast; if (i === nivaIdx) b.className = "on";
+    b.onclick = () => { nivaIdx = i; rundor = 0; ritaNivaer(); starta(); prata(i === 0 ? "Lägg fingrarna på A S D F och J K L Ö. Känn knopparna på F och J!" : "Nivå " + n.namn.slice(3) + ". Kör!"); };
+    el.appendChild(b);
+  });
+}
+function ritaKb() {
+  const kb = document.getElementById("kb"); kb.innerHTML = "";
+  [...RADER, " "].forEach(r => {
+    const row = document.createElement("div"); row.className = "row";
+    [...r].forEach(t => {
+      const k = document.createElement("div");
+      k.className = "key f" + (FINGER[t] ?? "s") + (t === " " ? " space" : "");
+      k.textContent = t === " " ? "mellanslag" : t; k.dataset.k = t;
+      row.appendChild(k);
+    });
+    kb.appendChild(row);
+  });
+}
+function ritaText() {
+  const el = document.getElementById("text"); el.innerHTML = "";
+  [...mal].forEach((t,i) => {
+    const s = document.createElement("span");
+    s.textContent = t === " " ? " " : t;
+    if (i < pos) s.className = fel.has(i) ? "bad" : "done";
+    else if (i === pos) s.className = "cur";
+    el.appendChild(s);
+  });
+  const nasta = mal[pos];
+  document.querySelectorAll(".key").forEach(k => k.classList.toggle("next", k.dataset.k === nasta));
+  document.getElementById("finger").textContent = nasta !== undefined ? "Använd " + FNAMN[FINGER[nasta] ?? 8] : "";
+}
+function ritaStats() {
+  const min = (Date.now() - start) / 60000;
+  const wpm = start && min > 0 ? Math.round((ratt / 5) / min) : 0;
+  document.getElementById("sWpm").textContent = wpm;
+  document.getElementById("sAcc").textContent = (tryck ? Math.round(100 * ratt / tryck) : 100) + "%";
+  document.getElementById("sStreak").textContent = iRad;
+  document.getElementById("sBest").textContent = data.rekord;
+  return wpm;
+}
+
+function starta() { mal = nyText(); pos = 0; fel = new Set(); start = 0; tryck = 0; ratt = 0; ritaText(); ritaStats(); }
+
+function klar() {
+  const wpm = ritaStats();
+  const acc = tryck ? ratt / tryck : 1;
+  rundor++;
+  let t;
+  if (wpm > data.rekord) { data.rekord = wpm; t = "NYTT REKORD! " + wpm + " ord per minut!"; }
+  else if (acc > 0.95) t = slump(BRA);
+  else t = slump(OK);
+  // tips från robotens hjärna
+  const varst = Object.entries(data.miss).sort((a,b)=>b[1]-a[1])[0];
+  if (acc < 0.9 && varst) t += " Jag märker att " + (varst[0] === " " ? "mellanslag" : varst[0].toUpperCase()) + " är klurig. Jag ger dig fler sådana!";
+  // lås upp nästa nivå efter 3 bra rundor
+  if (rundor >= 3 && acc >= 0.85 && nivaIdx + 1 === data.upplast && data.upplast < NIVAER.length) {
+    data.upplast++; t += " Du har låst upp " + NIVAER[nivaIdx+1].namn.slice(3) + "! 🎉";
+    ritaNivaer();
+  }
+  // glöm lite gamla missar så hjärnan håller sig färsk
+  for (const b in data.miss) { data.miss[b] = Math.floor(data.miss[b] * 0.8); if (!data.miss[b]) delete data.miss[b]; }
+  spara();
+  prata(t);
+  setTimeout(starta, 900);
+}
+
+document.addEventListener("keydown", e => {
+  if (e.ctrlKey || e.altKey || e.metaKey) return;
+  const k = e.key.toLowerCase();
+  if (k.length !== 1 || pos >= mal.length) return;
+  e.preventDefault();
+  if (!start) start = Date.now();
+  tryck++;
+  const knapp = document.querySelector('.key[data-k="' + CSS.escape(k) + '"]');
+  if (knapp) { knapp.style.transform = "scale(.9)"; setTimeout(()=>knapp.style.transform="",90); }
+  if (k === mal[pos]) {
+    ratt++; iRad++; pos++;
+    if (iRad > 0 && iRad % 25 === 0) prata(iRad + " rätt i rad! " + slump(BRA));
+  } else {
+    data.miss[mal[pos]] = (data.miss[mal[pos]] || 0) + 1;
+    fel.add(pos); iRad = 0;
+    document.getElementById("lamp").setAttribute("fill", "#ff4f6d");
+    return ritaText(), ritaStats();
+  }
+  document.getElementById("lamp").setAttribute("fill", "#45ff8a");
+  ritaText(); ritaStats();
+  if (pos >= mal.length) klar();
+});
+
+document.getElementById("robot").onclick = () => {
+  document.getElementById("head").setAttribute("fill", "hsl(" + Math.floor(Math.random()*360) + ",70%,55%)");
+  prata(slump(["Pip!","Kittlas inte!","Jag är världens bästa skrivlärare!","Skriv något så tittar jag!"]));
+};
+document.getElementById("ljud").onclick = e => { rost = !rost; e.target.textContent = rost ? "🔊 Rösten på" : "🔇 Rösten av"; if (!rost) speechSynthesis.cancel(); };
+document.addEventListener("mousemove", e => {
+  const dx = Math.max(-3, Math.min(3, (e.clientX - innerWidth/2) / 150));
+  e1.setAttribute("cx", 35 + dx); e2.setAttribute("cx", 65 + dx);
+});
+
+ritaKb(); ritaNivaer(); starta();
+window.__skriv = { get mal() { return mal; }, data };
+</script>
+<script src="prat.js"></script>
+</body>
+</html>
