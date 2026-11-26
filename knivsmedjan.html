@@ -53,6 +53,17 @@
       <div class="stats" id="stats"></div>
       <button class="stor" id="testa">🧟 Testa på zombies!</button>
     </div>
+    <div class="panel" id="ritblock" style="display:none">
+      <div class="grupp"><div>✏️ Rita din kniv! Bladet ovanför den streckade linjen, handtaget under.</div></div>
+      <canvas id="rit" width="240" height="480" style="background:#fff;border-radius:14px;border:3px solid #ff9a3c;touch-action:none;cursor:crosshair;width:240px;height:480px"></canvas>
+      <div class="grupp"><div>Penna</div><div class="val" id="ritFarger"></div></div>
+      <div class="grupp"><div>Tjocklek</div><div class="val" id="ritTjock"></div></div>
+      <div class="val">
+        <button id="ritSudd">🧽 Sudd</button>
+        <button id="ritAngra">↩️ Ångra</button>
+        <button id="ritRensa">🗑️ Börja om</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -78,6 +89,7 @@ const BLAD = {
   tagg:   { namn: "Taggig", skada: 5, fart: 2, rackvidd: 3 },
   krok:   { namn: "Krokkniv", skada: 3, fart: 4, rackvidd: 3 },
   dubbel: { namn: "Dubbelblad", skada: 4, fart: 3, rackvidd: 3 },
+  egen:   { namn: "✏️ Rita själv!", skada: 3, fart: 3, rackvidd: 3 },
 };
 const BLADFARG = ["#d8dde3", "#ffd84a", "#3a3a44", "#4fc3ff", "#ff4f6d", "#45ff8a", "#c58cff", "#ff9a3c"];
 const HANDTAG = {
@@ -90,12 +102,15 @@ const KRAFT = {
 };
 
 const SPAR = "nils_knivsmedja_v1";
+const RIT_LINJE = 0.68;              // var handtaget börjar i ritblocket (andel av höjden)
+const ritBild = new Image();         // den egna teckningen som bild
+const ritStats = { skada: 3, fart: 3, rackvidd: 3 };
 let kniv = Object.assign({ namn: "Zombiekrossaren", blad: "kock", bladfarg: BLADFARG[0], handtag: "tra", handfarg: HANDFARG[0], storlek: "mellan", kraft: "ingen", rekord: 0 },
   JSON.parse(localStorage.getItem(SPAR) || "{}"));
 function spara() { localStorage.setItem(SPAR, JSON.stringify(kniv)); }
 
 function egenskaper() {
-  const b = BLAD[kniv.blad], s = STORLEK[kniv.storlek].s;
+  const b = kniv.blad === "egen" ? ritStats : BLAD[kniv.blad], s = STORLEK[kniv.storlek].s;
   return {
     skada: Math.min(6, b.skada * s + (kniv.handtag === "guld" ? 0.5 : 0)),
     fart: Math.max(1, Math.min(6, b.fart / s + (kniv.handtag === "lada" ? 0.5 : 0))),
@@ -107,6 +122,11 @@ function egenskaper() {
 function ritaKniv(g, k, skala) {
   const s = skala * STORLEK[k.storlek].s;
   g.save(); g.scale(s, s);
+  if (k.blad === "egen") {
+    // den egna teckningen: handtagslinjen (y=0) ligger på RIT_LINJE av höjden
+    if (ritBild.complete && ritBild.naturalWidth) g.drawImage(ritBild, -62.5, -250 * RIT_LINJE, 125, 250);
+    g.restore(); return;
+  }
   // handtag (nedåt från 0 till 70)
   g.fillStyle = k.handfarg; g.strokeStyle = "rgba(0,0,0,.5)"; g.lineWidth = 2;
   if (k.handtag === "ben") {
@@ -162,6 +182,7 @@ function knappar(id, lista, falt, farg) {
   });
 }
 function uppdatera() {
+  document.getElementById("ritblock").style.display = kniv.blad === "egen" ? "block" : "none";
   knappar("vBlad", BLAD, "blad"); knappar("vBladfarg", BLADFARG, "bladfarg", true);
   knappar("vHandtag", HANDTAG, "handtag"); knappar("vHandfarg", HANDFARG, "handfarg", true);
   knappar("vStorlek", STORLEK, "storlek"); knappar("vKraft", KRAFT, "kraft");
@@ -407,6 +428,65 @@ document.getElementById("tillSmedja").onclick = () => {
   document.getElementById("spel").style.display = "none";
   document.getElementById("smedjaVy").style.display = "block"; uppdatera();
 };
+
+// ===== Ritblocket =====
+const rc = document.getElementById("rit"), rg = rc.getContext("2d");
+const RIT_FARGER = ["#111", "#d8dde3", "#9aa3ad", "#ffd84a", "#ff4f6d", "#4fc3ff", "#45ff8a", "#c58cff", "#ff9a3c", "#7a4a22", "#2456b3", "#fff"];
+let ritFarg = "#9aa3ad", ritBredd = 10, sudd = false, ritar = false, sista = null, historik = [];
+// lager utan hjälplinjen, det är det som blir kniven
+const lager = document.createElement("canvas"); lager.width = 240; lager.height = 480;
+const lg = lager.getContext("2d");
+if (kniv.ritad) { const im = new Image(); im.onload = () => { lg.drawImage(im, 0, 0); visaRit(); }; im.src = kniv.ritad; ritBild.src = kniv.ritad; }
+
+function visaRit() {
+  rg.clearRect(0, 0, 240, 480);
+  rg.fillStyle = "#f3f0ea"; rg.fillRect(0, 480 * RIT_LINJE, 240, 480 * (1 - RIT_LINJE));
+  rg.setLineDash([8, 6]); rg.strokeStyle = "#ff9a3c"; rg.lineWidth = 2;
+  rg.beginPath(); rg.moveTo(0, 480 * RIT_LINJE); rg.lineTo(240, 480 * RIT_LINJE); rg.stroke(); rg.setLineDash([]);
+  rg.fillStyle = "#c9b8a0"; rg.font = "bold 14px Segoe UI"; rg.textAlign = "center";
+  rg.fillText("BLAD", 120, 20); rg.fillText("HANDTAG", 120, 470);
+  rg.drawImage(lager, 0, 0);
+}
+function sparaRit() {
+  kniv.ritad = lager.toDataURL(); ritBild.src = kniv.ritad; spara();
+  raknaRitStats(); uppdatera();
+}
+function raknaRitStats() {
+  const d = lg.getImageData(0, 0, 240, 480).data;
+  let blck = 0, topp = 480;
+  for (let y = 0; y < 480; y++) for (let x = 0; x < 240; x++) if (d[(y * 240 + x) * 4 + 3] > 40) { blck++; if (y < topp) topp = y; }
+  const langd = Math.max(0, 480 * RIT_LINJE - topp) / (480 * RIT_LINJE);   // 0..1 hur högt bladet når
+  const mangd = Math.min(1, blck / 22000);                                 // 0..1 hur mycket färg
+  ritStats.rackvidd = 1 + langd * 5;
+  ritStats.skada = 1 + mangd * 5;
+  ritStats.fart = Math.max(1, 6 - mangd * 4 - langd * 1.2);
+}
+function punkt(e) { const r = rc.getBoundingClientRect(); return { x: (e.clientX - r.left) * 240 / r.width, y: (e.clientY - r.top) * 480 / r.height }; }
+rc.addEventListener("pointerdown", e => {
+  ritar = true; rc.setPointerCapture(e.pointerId);
+  historik.push(lg.getImageData(0, 0, 240, 480)); if (historik.length > 30) historik.shift();
+  sista = punkt(e); drag(sista);
+});
+rc.addEventListener("pointermove", e => { if (ritar) drag(punkt(e)); });
+rc.addEventListener("pointerup", () => { if (ritar) { ritar = false; sparaRit(); } });
+function drag(p) {
+  lg.globalCompositeOperation = sudd ? "destination-out" : "source-over";
+  lg.strokeStyle = ritFarg; lg.lineWidth = sudd ? ritBredd * 2 : ritBredd; lg.lineCap = "round"; lg.lineJoin = "round";
+  lg.beginPath(); lg.moveTo(sista.x, sista.y); lg.lineTo(p.x + 0.01, p.y); lg.stroke();
+  lg.globalCompositeOperation = "source-over";
+  sista = p; visaRit();
+}
+function ritKnappar() {
+  const f = document.getElementById("ritFarger"); f.innerHTML = "";
+  RIT_FARGER.forEach(c => { const b = document.createElement("button"); b.className = "farg" + (c === ritFarg && !sudd ? " on" : ""); b.style.background = c; b.onclick = () => { ritFarg = c; sudd = false; ritKnappar(); }; f.appendChild(b); });
+  const t = document.getElementById("ritTjock"); t.innerHTML = "";
+  [[4, "Tunn"], [10, "Mellan"], [22, "Tjock"], [40, "Jättetjock"]].forEach(([w, n]) => { const b = document.createElement("button"); b.textContent = n; if (w === ritBredd) b.className = "on"; b.onclick = () => { ritBredd = w; ritKnappar(); }; t.appendChild(b); });
+  document.getElementById("ritSudd").className = sudd ? "on" : "";
+}
+document.getElementById("ritSudd").onclick = () => { sudd = !sudd; ritKnappar(); };
+document.getElementById("ritAngra").onclick = () => { if (historik.length) { lg.putImageData(historik.pop(), 0, 0); visaRit(); sparaRit(); } };
+document.getElementById("ritRensa").onclick = () => { historik.push(lg.getImageData(0, 0, 240, 480)); lg.clearRect(0, 0, 240, 480); visaRit(); sparaRit(); };
+ritKnappar(); visaRit(); raknaRitStats();
 
 uppdatera();
 (function anim(t) { if (document.getElementById("smedjaVy").style.display !== "none") ritaPreview(t / 1000); requestAnimationFrame(anim); })(0);
